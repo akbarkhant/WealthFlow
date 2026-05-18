@@ -1,0 +1,25 @@
+.btn {
+  height: 52px;
+  padding-inline: 24px;
+  border-radius: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 700;
+  transition: var(--transition-fast);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #10b981, #005ac2);
+  color: white;
+}
+
+.btn-secondary {
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}

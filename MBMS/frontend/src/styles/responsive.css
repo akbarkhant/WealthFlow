@@ -1,0 +1,70 @@
+
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .stats-card,
+  .chart-card,
+  .activity-card {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 992px) {
+  .sidebar {
+    width: 100px;
+  }
+
+  .logo-text,
+  .sidebar-link span {
+    display: none;
+  }
+
+  .page-content {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .navbar {
+    flex-direction: column;
+    gap: 20px;
+    height: auto;
+    padding: 20px;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+
+  .auth-card {
+    padding: 28px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 1.6rem;
+  }
+
+  .stats-card h2 {
+    font-size: 1.6rem;
+  }
+
+  .auth-title {
+    font-size: 1.6rem;
+  }
+}

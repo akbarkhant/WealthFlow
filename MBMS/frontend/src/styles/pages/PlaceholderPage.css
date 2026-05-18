@@ -1,0 +1,88 @@
+/* PlaceholderPage.css */
+
+.placeholder-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: #f5f7fb;
+}
+
+.placeholder-container {
+  width: 100%;
+  max-width: 850px;
+  text-align: center;
+}
+
+.placeholder-icon-wrapper {
+  width: 90px;
+  height: 90px;
+  margin: 0 auto 25px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.1);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-icon {
+  font-size: 45px;
+  color: #2563eb;
+}
+
+.placeholder-title {
+  font-size: 48px;
+  font-weight: 700;
+  color: #2563eb;
+  margin-bottom: 20px;
+}
+
+.placeholder-description {
+  font-size: 18px;
+  color: #555;
+  line-height: 1.7;
+  margin-bottom: 40px;
+}
+
+.coming-soon-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+
+  border: 1px solid #dcdfe5;
+  border-radius: 24px;
+
+  padding: 40px;
+  text-align: left;
+
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.05);
+}
+
+.coming-soon-card h3 {
+  font-size: 26px;
+  margin-bottom: 18px;
+  color: #111827;
+}
+
+.coming-soon-card p {
+  font-size: 16px;
+  color: #4b5563;
+  line-height: 1.8;
+}
+
+/* Responsive */
+
+@media (max-width: 768px) {
+  .placeholder-title {
+    font-size: 36px;
+  }
+
+  .placeholder-description {
+    font-size: 16px;
+  }
+
+  .coming-soon-card {
+    padding: 28px;
+  }
+}
