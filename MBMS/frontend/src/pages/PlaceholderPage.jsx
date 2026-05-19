@@ -1,5 +1,4 @@
 // PlaceholderPage.jsx
-
 import React from 'react';
 import '../styles/pages/PlaceholderPage.css';
 import PublicLayout from '../layouts/PublicLayout';

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../utils/api";
-import "../styles/register.css";
+import "../styles/pages/Register.css";
 
 const Signup = () => {
   const [formData, setFormData] = useState({

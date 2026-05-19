@@ -1,6 +1,6 @@
 /* VerifyEmail.css */
 
-@import "./variables.css";
+@import "../../styles/variables.css";
 
 .verify-email-page {
   min-height: 100vh;

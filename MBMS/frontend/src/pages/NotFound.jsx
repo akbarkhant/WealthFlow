@@ -1,8 +1,7 @@
 // NotFound.jsx
-
 import React from 'react';
 import { Link } from 'react-router-dom';
-import './NotFound.css';
+import '../styles/pages/NotFound.css';
 
 const NotFound = () => {
   return (
