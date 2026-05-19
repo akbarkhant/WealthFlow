@@ -1,6 +1,6 @@
 /* Transactions.css */
 
-@import "../../styles/variables.css";
+@import "../variable.css";
 
 .transactions-page {
   width: 100%;
