@@ -1,61 +1,120 @@
-import { Pool, PoolClient } from 'pg';
-import { config } from './index';
-import { logger } from './logger';
+// db.config.js
 
-export const pool = new Pool({
+const { Pool } = require('pg');
+const config = require('./index');
+const logger = require('./logger');
+
+const pool = new Pool({
   connectionString: config.DATABASE_URL,
-  max: 20,                  // max connections in pool
+
+  // Production-level settings
+  max: 20, // maximum clients in pool
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
-  ssl: config.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+
+  ssl:
+    config.NODE_ENV === 'production'
+      ? { rejectUnauthorized: false }
+      : false,
 });
 
+// Handle unexpected errors on idle clients
 pool.on('error', (err) => {
-  logger.error({ err }, 'Unexpected PostgreSQL pool error');
+  logger.error(
+    { err },
+    'Unexpected PostgreSQL pool error'
+  );
+
   process.exit(1);
 });
 
-export async function connectDB(): Promise<void> {
-  const client = await pool.connect();
-  logger.info('✅ PostgreSQL connected');
-  client.release();
-}
-
 /**
- * Execute a query with automatic error logging.
+ * Test database connection
  */
-export async function query<T extends Record<string, unknown>>(
-  text: string,
-  values?: unknown[]
-): Promise<T[]> {
-  const start = Date.now();
-  const result = await pool.query<T>(text, values);
-  const duration = Date.now() - start;
+async function connectDB() {
+  try {
+    const client = await pool.connect();
 
-  if (config.NODE_ENV === 'development') {
-    logger.debug({ query: text, duration, rows: result.rowCount }, 'DB query');
+    logger.info('✅ PostgreSQL connected');
+
+    client.release();
+  } catch (err) {
+    logger.error(
+      { err },
+      '❌ PostgreSQL connection failed'
+    );
+
+    process.exit(1);
   }
-
-  return result.rows;
 }
 
 /**
- * Run multiple queries inside a single transaction.
- * Automatically rolls back on error.
+ * Execute SQL query
  */
-export async function withTransaction<T>(
-  fn: (client: PoolClient) => Promise<T>
-): Promise<T> {
+async function query(text, values = []) {
+  const start = Date.now();
+
+  try {
+    const result = await pool.query(text, values);
+
+    const duration = Date.now() - start;
+
+    if (config.NODE_ENV === 'development') {
+      logger.debug(
+        {
+          query: text,
+          duration,
+          rows: result.rowCount,
+        },
+        'DB query'
+      );
+    }
+
+    return result.rows;
+  } catch (err) {
+    logger.error(
+      {
+        err,
+        query: text,
+      },
+      'Database query error'
+    );
+
+    throw err;
+  }
+}
+
+/**
+ * Transaction helper
+ */
+async function withTransaction(callback) {
   const client = await pool.connect();
+
   try {
     await client.query('BEGIN');
-    const result = await fn(client);
+
+    const result = await callback(client);
+
     await client.query('COMMIT');
+
     return result;
   } catch (err) {
     await client.query('ROLLBACK');
+
+    logger.error(
+      { err },
+      'Transaction rolled back'
+    );
+
     throw err;
   } finally {
     client.release();
   }
 }
+
+module.exports = {
+  pool,
+  connectDB,
+  query,
+  withTransaction,
+};

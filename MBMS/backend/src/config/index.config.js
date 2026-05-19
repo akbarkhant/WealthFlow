@@ -1,46 +1,62 @@
-import 'dotenv/config';
-import { z } from 'zod';
+// config/index.js
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.coerce.number().default(4000),
+require('dotenv').config();
 
-  // Database
-  DATABASE_URL: z.string().url(),
+function required(name) {
+  const value = process.env[name];
 
-  // Redis
-  REDIS_URL: z.string().url(),
+  if (!value) {
+    console.error(`❌ Missing environment variable: ${name}`);
+    process.exit(1);
+  }
 
-  // JWT
-  JWT_ACCESS_SECRET: z.string().min(32),
-  JWT_REFRESH_SECRET: z.string().min(32),
-  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
-  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
-
-  // OAuth
-  GOOGLE_CLIENT_ID: z.string(),
-  GOOGLE_CLIENT_SECRET: z.string(),
-  GITHUB_CLIENT_ID: z.string(),
-  GITHUB_CLIENT_SECRET: z.string(),
-
-  // SMTP
-  SMTP_HOST: z.string(),
-  SMTP_PORT: z.coerce.number().default(587),
-  SMTP_USER: z.string(),
-  SMTP_PASS: z.string(),
-  EMAIL_FROM: z.string().default('BudgetManager <no-reply@example.com>'),
-
-  // App
-  FRONTEND_URL: z.string().url(),
-});
-
-const parsed = envSchema.safeParse(process.env);
-
-if (!parsed.success) {
-  console.error('❌ Invalid environment variables:');
-  console.error(parsed.error.flatten().fieldErrors);
-  process.exit(1);
+  return value;
 }
 
-export const config = parsed.data;
-export type Config = typeof config;
+const config = {
+  NODE_ENV: process.env.NODE_ENV || 'development',
+
+  PORT: Number(process.env.PORT) || 4000,
+
+  // Database
+  DATABASE_URL: required('DATABASE_URL'),
+
+  // Redis
+  REDIS_URL: required('REDIS_URL'),
+
+  // JWT
+  JWT_ACCESS_SECRET: required('JWT_ACCESS_SECRET'),
+  JWT_REFRESH_SECRET: required('JWT_REFRESH_SECRET'),
+
+  JWT_ACCESS_EXPIRES_IN:
+    process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+
+  JWT_REFRESH_EXPIRES_IN:
+    process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+
+  // OAuth
+  GOOGLE_CLIENT_ID: required('GOOGLE_CLIENT_ID'),
+  GOOGLE_CLIENT_SECRET: required('GOOGLE_CLIENT_SECRET'),
+
+  GITHUB_CLIENT_ID: required('GITHUB_CLIENT_ID'),
+  GITHUB_CLIENT_SECRET: required('GITHUB_CLIENT_SECRET'),
+
+  // SMTP
+  SMTP_HOST: required('SMTP_HOST'),
+
+  SMTP_PORT: Number(process.env.SMTP_PORT) || 587,
+
+  SMTP_USER: required('SMTP_USER'),
+  SMTP_PASS: required('SMTP_PASS'),
+
+  EMAIL_FROM:
+    process.env.EMAIL_FROM ||
+    'BudgetManager <no-reply@example.com>',
+
+  // Frontend
+  FRONTEND_URL: required('FRONTEND_URL'),
+};
+
+module.exports = {
+  config,
+};

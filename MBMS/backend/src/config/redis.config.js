@@ -1,58 +1,139 @@
-import Redis from 'ioredis';
-import { config } from './index';
-import { logger } from './logger';
+// redis.config.js
 
-export const redis = new Redis(config.REDIS_URL, {
+const Redis = require('ioredis');
+const { config } = require('./index');
+const logger = require('./logger');
+
+const redis = new Redis(config.REDIS_URL, {
   maxRetriesPerRequest: 3,
   lazyConnect: true,
+
+  // Production-level reconnect strategy
+  retryStrategy(times) {
+    return Math.min(times * 100, 3000);
+  },
 });
 
-redis.on('connect', () => logger.info('✅ Redis connected'));
-redis.on('error', (err) => logger.error({ err }, 'Redis error'));
+// Redis Events
+redis.on('connect', () => {
+  logger.info('✅ Redis connected');
+});
 
-export async function connectRedis(): Promise<void> {
-  await redis.connect();
+redis.on('error', (err) => {
+  logger.error(
+    { err },
+    '❌ Redis error'
+  );
+});
+
+redis.on('reconnecting', () => {
+  logger.warn('🔄 Redis reconnecting...');
+});
+
+/**
+ * Connect Redis manually
+ */
+async function connectRedis() {
+  try {
+    await redis.connect();
+
+    logger.info('✅ Redis connection established');
+  } catch (err) {
+    logger.error(
+      { err },
+      '❌ Failed to connect Redis'
+    );
+
+    process.exit(1);
+  }
 }
 
-// ── Token blacklist helpers ───────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Token Blacklist Helpers
+// ─────────────────────────────────────────────
 
 const BLACKLIST_PREFIX = 'token:blacklist:';
 
 /**
- * Blacklist a JWT (on logout or token rotation).
- * TTL matches the token's remaining lifetime.
+ * Blacklist JWT token
+ * Used during logout or refresh token rotation
  */
-export async function blacklistToken(jti: string, ttlSeconds: number): Promise<void> {
-  await redis.set(`${BLACKLIST_PREFIX}${jti}`, '1', 'EX', ttlSeconds);
+async function blacklistToken(jti, ttlSeconds) {
+  await redis.set(
+    `${BLACKLIST_PREFIX}${jti}`,
+    '1',
+    'EX',
+    ttlSeconds
+  );
 }
 
-export async function isTokenBlacklisted(jti: string): Promise<boolean> {
-  const val = await redis.get(`${BLACKLIST_PREFIX}${jti}`);
-  return val !== null;
+/**
+ * Check if token is blacklisted
+ */
+async function isTokenBlacklisted(jti) {
+  const value = await redis.get(
+    `${BLACKLIST_PREFIX}${jti}`
+  );
+
+  return value !== null;
 }
 
-// ── Alert rate-limit helpers ──────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Alert Rate Limiting Helpers
+// ─────────────────────────────────────────────
 
 const ALERT_PREFIX = 'alert:sent:';
 
 /**
- * Returns true if an alert of this type was already sent for this user today.
+ * Check if alert was already sent today
  */
-export async function wasAlertSentToday(userId: string, alertType: string): Promise<boolean> {
+async function wasAlertSentToday(userId, alertType) {
   const key = `${ALERT_PREFIX}${userId}:${alertType}`;
-  const val = await redis.get(key);
-  return val !== null;
+
+  const value = await redis.get(key);
+
+  return value !== null;
 }
 
-export async function markAlertSentToday(userId: string, alertType: string): Promise<void> {
+/**
+ * Mark alert as sent for today
+ */
+async function markAlertSentToday(userId, alertType) {
   const key = `${ALERT_PREFIX}${userId}:${alertType}`;
-  const secondsUntilMidnight = getSecondsUntilMidnight();
-  await redis.set(key, '1', 'EX', secondsUntilMidnight);
+
+  const secondsUntilMidnight =
+    getSecondsUntilMidnight();
+
+  await redis.set(
+    key,
+    '1',
+    'EX',
+    secondsUntilMidnight
+  );
 }
 
-function getSecondsUntilMidnight(): number {
+/**
+ * Get seconds remaining until midnight
+ */
+function getSecondsUntilMidnight() {
   const now = new Date();
+
   const midnight = new Date(now);
+
   midnight.setHours(24, 0, 0, 0);
-  return Math.floor((midnight.getTime() - now.getTime()) / 1000);
+
+  return Math.floor(
+    (midnight.getTime() - now.getTime()) / 1000
+  );
 }
+
+module.exports = {
+  redis,
+  connectRedis,
+
+  blacklistToken,
+  isTokenBlacklisted,
+
+  wasAlertSentToday,
+  markAlertSentToday,
+};
