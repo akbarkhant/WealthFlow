@@ -1,61 +1,33 @@
-// redis.config.js
-
 const Redis = require('ioredis');
-const { config } = require('./index');
-const logger = require('./logger');
 
+const { config } = require('./index.config');
+const { logger } = require('./logger.config');
+
+// ── Redis Client ─────────────────────────────────────────────────
 const redis = new Redis(config.REDIS_URL, {
   maxRetriesPerRequest: 3,
   lazyConnect: true,
-
-  // Production-level reconnect strategy
-  retryStrategy(times) {
-    return Math.min(times * 100, 3000);
-  },
 });
 
-// Redis Events
+// ── Redis Events ─────────────────────────────────────────────────
 redis.on('connect', () => {
   logger.info('✅ Redis connected');
 });
 
 redis.on('error', (err) => {
-  logger.error(
-    { err },
-    '❌ Redis error'
-  );
+  logger.error({ err }, 'Redis error');
 });
 
-redis.on('reconnecting', () => {
-  logger.warn('🔄 Redis reconnecting...');
-});
-
-/**
- * Connect Redis manually
- */
+// ── Connect Redis ────────────────────────────────────────────────
 async function connectRedis() {
-  try {
-    await redis.connect();
-
-    logger.info('✅ Redis connection established');
-  } catch (err) {
-    logger.error(
-      { err },
-      '❌ Failed to connect Redis'
-    );
-
-    process.exit(1);
-  }
+  await redis.connect();
 }
 
-// ─────────────────────────────────────────────
-// Token Blacklist Helpers
-// ─────────────────────────────────────────────
-
+// ── Token Blacklist Helpers ──────────────────────────────────────
 const BLACKLIST_PREFIX = 'token:blacklist:';
 
 /**
- * Blacklist JWT token
+ * Blacklist a JWT
  * Used during logout or refresh token rotation
  */
 async function blacklistToken(jti, ttlSeconds) {
@@ -78,10 +50,7 @@ async function isTokenBlacklisted(jti) {
   return value !== null;
 }
 
-// ─────────────────────────────────────────────
-// Alert Rate Limiting Helpers
-// ─────────────────────────────────────────────
-
+// ── Alert Rate Limit Helpers ─────────────────────────────────────
 const ALERT_PREFIX = 'alert:sent:';
 
 /**
@@ -112,9 +81,7 @@ async function markAlertSentToday(userId, alertType) {
   );
 }
 
-/**
- * Get seconds remaining until midnight
- */
+// ── Helpers ──────────────────────────────────────────────────────
 function getSecondsUntilMidnight() {
   const now = new Date();
 
@@ -127,6 +94,7 @@ function getSecondsUntilMidnight() {
   );
 }
 
+// ── Exports ──────────────────────────────────────────────────────
 module.exports = {
   redis,
   connectRedis,

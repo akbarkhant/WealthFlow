@@ -1,7 +1,7 @@
 const { Router } = require('express');
 
-const { authenticate } = require('../../middleware/authenticate');
-const { validate } = require('../../middleware/validate');
+const { authenticate } = require('../../middleware/auth.middleware');
+const { validate } = require('../../middleware/validate.middleware');
 
 const {
   createTransactionSchema,

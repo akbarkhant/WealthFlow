@@ -2,9 +2,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 
-const { config } = require('../../config');
-const { query, withTransaction } = require('../../config/database');
-const { blacklistToken, isTokenBlacklisted } = require('../../config/redis');
+const { config } = require('../../config/index.config');
+const { query, withTransaction } = require('../../config/db.config');
+const { blacklistToken, isTokenBlacklisted } = require('../../config/redis.config');
 const { BCRYPT_ROUNDS, DEFAULT_CATEGORIES } = require('../../shared/constants');
 
 const {

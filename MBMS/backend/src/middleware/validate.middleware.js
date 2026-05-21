@@ -1,23 +1,15 @@
 // middlewares/validate.middleware.js
 
-/**
- * Zod Validation Middleware
- * Validates request body / params / query using Zod schemas
- */
-
-function validate(schema) {
+function validate(schema, source = 'body') {
   return (req, res, next) => {
     try {
-      const result = schema.safeParse({
-        body: req.body,
-        query: req.query,
-        params: req.params,
-      });
+      const result = schema.safeParse(req[source]);
 
       if (!result.success) {
         return res.status(400).json({
           success: false,
           message: 'Validation failed',
+
           errors: result.error.errors.map((e) => ({
             field: e.path.join('.'),
             message: e.message,
@@ -25,7 +17,7 @@ function validate(schema) {
         });
       }
 
-      // Optional: attach parsed data (cleaned version)
+      // Attach validated data
       req.validated = result.data;
 
       next();

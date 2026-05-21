@@ -1,8 +1,8 @@
 // db.config.js
 
 const { Pool } = require('pg');
-const config = require('./index');
-const logger = require('./logger');
+const config = require('./index.config');
+const logger = require('./logger.config');
 
 const pool = new Pool({
   connectionString: config.DATABASE_URL,

@@ -1,6 +1,6 @@
 const { Router } = require('express');
 
-const { authenticate } = require('../../middleware/authenticate');
+const { authenticate } = require('../../middleware/auth.middleware');
 const { sendSuccess } = require('../../shared/ApiResponse');
 const service = require('./reports.service');
 

@@ -3,9 +3,9 @@ const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
 const { Strategy: GitHubStrategy } = require('passport-github2');
 
-const { config } = require('../../config');
+const { config } = require('../../config/index.config');
 const { authRateLimiter } = require('../../middleware/rateLimiter.middleware');
-const { validate } = require('../../middleware/validate.middleware');
+const validate = require('../../middleware/validate.middleware');
 const { authenticate } = require('../../middleware/auth.middleware');
 
 const {

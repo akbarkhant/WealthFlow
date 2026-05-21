@@ -1,6 +1,6 @@
 const authService = require('./auth.service');
 const { sendSuccess } = require('../../shared/ApiResponse');
-const { config } = require('../../config');
+const { config } = require('../../config/index.config');
 
 async function register(req, res, next) {
   try {

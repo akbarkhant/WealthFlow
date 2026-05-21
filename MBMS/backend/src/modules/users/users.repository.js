@@ -1,4 +1,4 @@
-const { query } = require('../../config/database');
+const { query } = require('../../config/db.config');
 
 // ── Get User By ID ───────────────────────────────────────────────
 async function getUserById(id) {

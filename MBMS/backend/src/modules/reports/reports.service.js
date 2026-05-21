@@ -1,4 +1,4 @@
-const { query } = require('../../config/database');
+const { query } = require('../../config/db.config');
 
 async function getMonthlySummary(userId, month, year) {
   const totalsRows = await query(
