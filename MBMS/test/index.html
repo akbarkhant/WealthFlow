@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background-color: #f7f9fc;
+}
+
+.island-nav {
+  /* Positioning */
+  position: fixed;
+  top: 20px; /* Distance from the top of the screen */
+  left: 50%;
+  transform: translateX(-50%); /* Centers the navbar perfectly */
+  z-index: 1000; /* Ensures it stays on top of all content */
+
+  /* Dimensions & Shape */
+  width: 90%;
+  max-width: 600px;
+  padding: 12px 24px;
+  border-radius: 50px; /* Makes the edges pill-shaped */
+
+  /* Aesthetics */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px); /* Gives a smooth frosted glass effect */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.nav-links {
+  display: flex;
+  gap: 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: #333;
+  font-weight: 500;
+  transition: color 0.3s;
+}
+
+.nav-links a:hover {
+  color: #007bff;
+}
+
+.cta-btn {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+</style>
+</head>
+<body>
+    <nav class="island-nav">
+  <div class="logo">MyApp</div>
+  <ul class="nav-links">
+    <li><a href="#">Home</a></li>
+    <li><a href="#">About</a></li>
+    <li><a href="#">Contact</a></li>
+  </ul>
+  <button class="cta-btn">Sign Up</button>
+</nav>
+
+</body>
+</html>

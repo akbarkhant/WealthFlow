@@ -1,6 +1,6 @@
 // middlewares/requestLogger.middleware.js
 
-const logger = require('../config/logger');
+const logger = require('../config/logger.config');
 
 /**
  * Request Logger Middleware

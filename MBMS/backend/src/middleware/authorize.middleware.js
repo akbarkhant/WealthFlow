@@ -2,8 +2,8 @@
 
 const jwt = require('jsonwebtoken');
 
-const { config } = require('../config');
-const logger = require('../config/logger');
+const { config } = require('../config/index.config');
+const logger = require('../config/logger.config');
 
 /**
  * Authentication Middleware

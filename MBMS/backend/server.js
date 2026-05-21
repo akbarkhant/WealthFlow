@@ -1,30 +1,50 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const dotenv = require('dotenv');
+// server.js
 
-// Load environment variables
-dotenv.config();
+const http = require('http');
+const app = require('./src/app');
+const { config } = require('./src/config/index.config');
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+// Create HTTP server
+const server = http.createServer(app);
 
-// Middleware
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Routes
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/dashboard', require('./routes/dashboardRoutes'));
-
-// Basic route
-app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to WealthFlow API' });
-});
+const PORT = config.PORT || 5000;
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log('────────────────────────────────────');
+  console.log(`🚀 Server Started Successfully`);
+  console.log(`🌍 Environment : ${config.NODE_ENV}`);
+  console.log(`🔗 Port        : ${PORT}`);
+  console.log(`📡 URL         : http://localhost:${PORT}`);
+  console.log('────────────────────────────────────');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled Promise Rejection:', err);
+
+  server.close(() => {
+    process.exit(1);
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  process.exit(1);
+});
+
+// Graceful shutdown (CTRL + C)
+process.on('SIGTERM', () => {
+  console.log('⚠️ SIGTERM received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Process terminated');
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('⚠️ SIGINT received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Process terminated');
+  });
 });

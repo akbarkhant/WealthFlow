@@ -7,18 +7,18 @@ const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 
-const { config } = require('./config');
+const { config } = require('../src/config/index.config');
 
 // Middlewares
-const requestLogger = require('./middlewares/requestLogger.middleware');
-const notFound = require('./middlewares/notFound.middleware');
-const errorHandler = require('./middlewares/errorHandler.middleware');
-const { apiLimiter } = require('./middlewares/rateLimiter.middleware');
+const requestLogger = require('./middleware/requestLogger.middleware');
+const notFound = require('./middleware/notFound.middleware');
+const errorHandler = require('./middleware/errorHandler.middleware');
+const { apiLimiter } = require('./middleware/rateLimiter.middleware');
 
 // Routes
-const authRoutes = require('./routes/auth.routes');
-const budgetsRoutes = require('./routes/budgets.routes');
-const transactionsRoutes = require('./routes/transactions.routes');
+const authRoutes = require('./modules/auth/auth.routes');
+const budgetsRoutes = require('./modules/budgets/budget.routes');
+const transactionsRoutes = require('./modules/transactions/transactions.routes');
 
 const app = express();
 
