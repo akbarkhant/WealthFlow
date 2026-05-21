@@ -1,0 +1,354 @@
+/* ============================================================
+   charts.css — shared styles for MonthlyBarChart,
+   SpendingPieChart, and TrendLineChart
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap");
+
+/* ── CSS Variables ───────────────────────────────────────── */
+:root {
+  --chart-bg: #0f172a;
+  --chart-surface: #1e293b;
+  --chart-border: rgba(255, 255, 255, 0.07);
+  --chart-accent: #6ee7b7;
+  --chart-accent-soft: rgba(110, 231, 183, 0.15);
+  --chart-text-primary: #f1f5f9;
+  --chart-text-secondary: #94a3b8;
+  --chart-text-muted: #475569;
+  --chart-radius: 16px;
+  --chart-radius-sm: 8px;
+  --chart-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --chart-font: "DM Sans", sans-serif;
+  --chart-mono: "DM Mono", monospace;
+  --chart-transition: 0.2s ease;
+}
+
+/* ── Card Shell ──────────────────────────────────────────── */
+.chart-card {
+  background: var(--chart-surface);
+  border: 1px solid var(--chart-border);
+  border-radius: var(--chart-radius);
+  padding: 24px;
+  box-shadow: var(--chart-shadow);
+  font-family: var(--chart-font);
+  color: var(--chart-text-primary);
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow var(--chart-transition);
+}
+
+.chart-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 70% 0%,
+    rgba(110, 231, 183, 0.04) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+}
+
+.chart-card:hover {
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+.chart-card.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--chart-text-muted);
+  font-size: 14px;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.chart-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--chart-text-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.chart-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--chart-accent);
+  background: var(--chart-accent-soft);
+  border: 1px solid rgba(110, 231, 183, 0.2);
+  border-radius: 20px;
+  padding: 3px 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* ── Meta Row ────────────────────────────────────────────── */
+.chart-meta {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--chart-border);
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.meta-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--chart-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.meta-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--chart-text-primary);
+  font-family: var(--chart-mono);
+}
+
+.meta-value.trend-delta.up {
+  color: #34d399;
+}
+
+.meta-value.trend-delta.down {
+  color: #f87171;
+}
+
+/* ── Tooltip ─────────────────────────────────────────────── */
+.chart-tooltip {
+  background: #0f172a;
+  border: 1px solid var(--chart-border);
+  border-radius: var(--chart-radius-sm);
+  padding: 10px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 110px;
+}
+
+.tooltip-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--chart-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.tooltip-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--chart-accent);
+  font-family: var(--chart-mono);
+}
+
+/* trend tooltip with multiple series */
+.trend-tooltip {
+  gap: 6px;
+}
+
+.tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tooltip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tooltip-series {
+  font-size: 12px;
+  color: var(--chart-text-secondary);
+  flex: 1;
+}
+
+.tooltip-row .tooltip-value {
+  font-size: 13px;
+}
+
+/* ── Pie Chart ───────────────────────────────────────────── */
+.pie-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.pie-donut-wrap {
+  position: relative;
+  flex: 0 0 220px;
+}
+
+.pie-center-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.pie-center-total {
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--chart-text-primary);
+  font-family: var(--chart-mono);
+}
+
+.pie-center-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--chart-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+/* Pie Legend */
+.pie-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+}
+
+.pie-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--chart-radius-sm);
+  cursor: pointer;
+  transition: background var(--chart-transition);
+  border: 1px solid transparent;
+}
+
+.pie-legend-item:hover,
+.pie-legend-item.active {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--chart-border);
+}
+
+.pie-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.pie-legend-name {
+  font-size: 13px;
+  color: var(--chart-text-secondary);
+  flex: 1;
+}
+
+.pie-legend-pct {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--chart-text-muted);
+  font-family: var(--chart-mono);
+  min-width: 40px;
+  text-align: right;
+}
+
+.pie-legend-amt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--chart-text-primary);
+  font-family: var(--chart-mono);
+  min-width: 60px;
+  text-align: right;
+}
+
+/* ── Trend Line Chart ────────────────────────────────────── */
+.trend-toggle-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.trend-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--chart-font);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--chart-text-muted);
+  background: transparent;
+  border: 1px solid var(--chart-border);
+  border-radius: 20px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all var(--chart-transition);
+}
+
+.trend-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--chart-text-secondary);
+}
+
+.trend-toggle.active {
+  border-color: var(--toggle-color, var(--chart-accent));
+  color: var(--chart-text-primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .chart-card {
+    padding: 16px;
+  }
+
+  .chart-meta {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .pie-layout {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .pie-donut-wrap {
+    flex: unset;
+    width: 100%;
+    max-width: 240px;
+  }
+
+  .pie-legend {
+    width: 100%;
+  }
+}

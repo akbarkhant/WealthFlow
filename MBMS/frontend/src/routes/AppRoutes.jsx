@@ -4,12 +4,12 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // Pages
-import Home from '../pages/Home';
+import Home from '../pages/test/Home';
 import Login from '../pages/Login';
 import Signup from '../pages/Signup';
 import Dashboard from '../pages/Dashboard';
 import AdminDashboard from '../pages/AdminDashboard';
-import Bill from '../pages/Bill';
+import Bill from '../pages/Bills';
 import Savings from '../pages/Savings';
 import Transactions from '../pages/Transactions';
 import ForgotPassword from '../pages/ForgotPassword';
@@ -17,7 +17,7 @@ import ResetPassword from '../pages/ResetPassword';
 import VerifyEmail from '../pages/VerifyEmail';
 import SecurityVerification from '../pages/SecurityVerification';
 import SessionExpired from '../pages/SessionExpired';
-import PlaceHolder from '../pages/PlaceHolder';
+import PlaceHolder from '../pages/PlaceholderPage';
 import NotFound from '../pages/NotFound';
 
 const AppRoutes = () => {
@@ -37,7 +37,7 @@ const AppRoutes = () => {
 
       {/* User Routes */}
       <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/bill" element={<Bill />} />
+      <Route path="/bills" element={<Bill />} />
       <Route path="/savings" element={<Savings />} />
       <Route path="/transactions" element={<Transactions />} />
 

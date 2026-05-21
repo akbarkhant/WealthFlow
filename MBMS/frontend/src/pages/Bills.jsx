@@ -1,4 +1,6 @@
-import React from 'react';
+// src/pages/Bills.jsx
+
+import React, { useEffect, useState } from 'react';
 import DashboardLayout from '../layouts/DashboardLayout';
 import {
   Plus,
@@ -8,188 +10,363 @@ import {
   Zap,
   PlayCircle,
   Wifi,
-  CheckCircle,
-  Clock,
-  CreditCard
+  CreditCard,
+  RefreshCw,
+  User,
+  ShieldCheck,
 } from 'lucide-react';
 import '../styles/pages/Bills.css';
 
+// ── Helpers ──────────────────────────────────────────────────
+
+/**
+ * Returns the lucide icon component for a bill type.
+ * @param {string} type  - 'rent' | 'electricity' | 'subscription' | 'internet' | *
+ */
+const getBillIcon = (type) => {
+  const map = {
+    rent:         <Home size={22} />,
+    electricity:  <Zap size={22} />,
+    subscription: <PlayCircle size={22} />,
+    internet:     <Wifi size={22} />,
+  };
+  return map[type] ?? <CreditCard size={22} />;
+};
+
+/**
+ * Maps a payment_method value to a badge config.
+ * Falls back to 'Manual' when unrecognised.
+ * @param {string} method - 'auto' | 'manual' | *
+ */
+const getPaymentBadge = (method) => {
+  if (method === 'auto') {
+    return {
+      className: 'bill-item__badge bill-item__badge--autopay',
+      icon: <RefreshCw size={12} />,
+      label: 'Auto-pay',
+    };
+  }
+  return {
+    className: 'bill-item__badge bill-item__badge--manual',
+    icon: <User size={12} />,
+    label: 'Manual',
+  };
+};
+
+/**
+ * Derives the event-bar / event-label colour variant from a bill type.
+ * Drives calendar cell event tag colours.
+ */
+const getEventVariant = (type) => {
+  if (type === 'rent')         return 'tertiary';
+  if (type === 'electricity')  return 'error';
+  return 'primary';             // subscription, internet, default
+};
+
+// ── Calendar helpers ─────────────────────────────────────────
+
+const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/**
+ * Returns an array of cell objects for the calendar grid.
+ * Includes leading "overflow" cells from the previous month so the
+ * first day always falls on the correct weekday column (Mon = 0).
+ *
+ * @param {number} year
+ * @param {number} month - 0-indexed (0 = January)
+ * @param {Array}  bills  - API bills array (used to attach events)
+ */
+const buildCalendarCells = (year, month, bills) => {
+  const firstDay  = new Date(year, month, 1);
+  const lastDate  = new Date(year, month + 1, 0).getDate();
+  const today     = new Date();
+
+  // getDay(): 0=Sun … 6=Sat  →  remap to Mon=0 … Sun=6
+  const startDow = (firstDay.getDay() + 6) % 7;
+
+  const cells = [];
+
+  // Leading overflow cells (previous month tail)
+  const prevLastDate = new Date(year, month, 0).getDate();
+  for (let i = startDow - 1; i >= 0; i--) {
+    cells.push({ day: prevLastDate - i, overflow: true, events: [] });
+  }
+
+  // Current-month cells
+  for (let d = 1; d <= lastDate; d++) {
+    const isToday =
+      today.getFullYear() === year &&
+      today.getMonth()    === month &&
+      today.getDate()     === d;
+
+    // Bills whose due date lands on this calendar day.
+    // API bill.due_day should be a number (1-31); fall back to parsing bill.due string.
+    const events = bills.filter((b) => {
+      const dueDay =
+        b.due_day ??
+        parseInt((b.due ?? '').replace(/\D+(\d+).*/, '$1'), 10);
+      return dueDay === d;
+    });
+
+    cells.push({ day: d, overflow: false, isToday, events });
+  }
+
+  return cells;
+};
+
+// ── Component ────────────────────────────────────────────────
+
 const Bills = () => {
+  const [bills,    setBills]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [viewMode, setViewMode] = useState('month'); // 'week' | 'month'
+
+  // Calendar navigation state
+  const today         = new Date();
+  const [calYear,  setCalYear]  = useState(today.getFullYear());
+  const [calMonth, setCalMonth] = useState(today.getMonth()); // 0-indexed
+
+  // ── Data fetching ──────────────────────────────────────────
+  useEffect(() => {
+    const fetchBills = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/bills');
+        const data     = await response.json();
+        setBills(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Error fetching bills:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBills();
+  }, []);
+
+  // ── Calendar navigation ────────────────────────────────────
+  const goToPrevMonth = () => {
+    setCalMonth((m) => {
+      if (m === 0) { setCalYear((y) => y - 1); return 11; }
+      return m - 1;
+    });
+  };
+  const goToNextMonth = () => {
+    setCalMonth((m) => {
+      if (m === 11) { setCalYear((y) => y + 1); return 0; }
+      return m + 1;
+    });
+  };
+
+  // ── Derived values ─────────────────────────────────────────
+  const monthLabel = new Date(calYear, calMonth, 1)
+    .toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const calendarCells = buildCalendarCells(calYear, calMonth, bills);
+
+  // Summary totals (computed from real data)
+  const totalAmount   = bills.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
+  const paidAmount    = bills
+    .filter((b) => b.status === 'paid')
+    .reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
+  const pendingAmount = totalAmount - paidAmount;
+
+  const fmt = (n) =>
+    n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
+  // ── Loading state ──────────────────────────────────────────
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="bills-loading">Loading Bills…</div>
+      </DashboardLayout>
+    );
+  }
+
+  // ── Render ─────────────────────────────────────────────────
   return (
     <DashboardLayout>
-      <div className="mb-gutter flex justify-between items-end">
+
+      {/* ── Page Header ─────────────────────────────────── */}
+      <div className="bills-header">
         <div>
-          <h2 className="font-headline-lg text-headline-lg text-on-surface">
-            Bill Calendar
-          </h2>
-          <p className="font-body-md text-body-md text-secondary">
+          <h2 className="bills-header__title">Bill Calendar</h2>
+          <p className="bills-header__subtitle">
             Manage your upcoming obligations and subscription renewals.
           </p>
         </div>
-
-        <button className="bg-primary text-on-primary px-6 py-3 rounded-full font-label-md flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm">
+        <button className="bills-header__btn">
           <Plus size={18} />
           Add Transaction
         </button>
       </div>
 
-      <div className="grid grid-cols-12 gap-card-gap">
-        {/* Calendar */}
-        <div className="col-span-12 xl:col-span-8">
-          <div className="glass-card rounded-xl p-gutter shadow-sm overflow-hidden relative">
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
+      {/* ── Main Grid ───────────────────────────────────── */}
+      <div className="bills-grid">
 
-            <div className="flex justify-between items-center mb-8">
-              <div className="flex items-center gap-4">
-                <h3 className="font-headline-sm text-headline-sm text-on-surface">
-                  October 2023
-                </h3>
+        {/* ── Calendar Column ─────────────────────────── */}
+        <div className="glass-card calendar-card">
+          <div className="calendar-card__glow" aria-hidden="true" />
 
-                <div className="flex gap-1">
-                  <button className="p-1 hover:bg-surface-container rounded-lg">
-                    <ChevronLeft size={18} />
-                  </button>
-                  <button className="p-1 hover:bg-surface-container rounded-lg">
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex bg-surface-container-low p-1 rounded-lg border border-outline-variant/30">
-                <button className="px-4 py-1.5 font-label-md">Week</button>
-                <button className="px-4 py-1.5 font-label-md bg-white text-primary shadow-sm rounded-md">
-                  Month
+          {/* Calendar top bar */}
+          <div className="calendar-top">
+            <div className="calendar-top__left">
+              <h3 className="calendar-top__month">{monthLabel}</h3>
+              <div className="calendar-nav">
+                <button
+                  className="calendar-nav__btn"
+                  onClick={goToPrevMonth}
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <button
+                  className="calendar-nav__btn"
+                  onClick={goToNextMonth}
+                  aria-label="Next month"
+                >
+                  <ChevronRight size={18} />
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-px bg-outline-variant/20 rounded-lg overflow-hidden">
-              {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
-                <div key={d} className="bg-surface-container-low py-3 text-center font-label-sm uppercase">
-                  {d}
-                </div>
-              ))}
-
-              {/* Calendar cells (unchanged structure) */}
-              <div className="bg-white h-32 p-3 text-secondary/40">25</div>
-              <div className="bg-white h-32 p-3 text-secondary/40">26</div>
-              <div className="bg-white h-32 p-3 text-secondary/40">27</div>
-              <div className="bg-white h-32 p-3 text-secondary/40">28</div>
-              <div className="bg-white h-32 p-3 text-secondary/40">29</div>
-              <div className="bg-white h-32 p-3 text-secondary/40">30</div>
-              <div className="bg-white h-32 p-3">1</div>
-
-              <div className="bg-white h-32 p-3">2</div>
-
-              <div className="bg-white h-32 p-3">
-                3
-                <div className="mt-2 text-sm text-tertiary">Rent</div>
-              </div>
-
-              <div className="bg-white h-32 p-3">4</div>
-
-              <div className="bg-white h-32 p-3">
-                5
-                <div className="mt-2 text-sm text-primary">Spotify</div>
-              </div>
-
-              <div className="bg-white h-32 p-3">6</div>
-              <div className="bg-white h-32 p-3">7</div>
-              <div className="bg-white h-32 p-3">8</div>
+            <div className="calendar-view-toggle">
+              <button
+                className={`calendar-view-toggle__btn${viewMode === 'week' ? ' calendar-view-toggle__btn--active' : ''}`}
+                onClick={() => setViewMode('week')}
+              >
+                Week
+              </button>
+              <button
+                className={`calendar-view-toggle__btn${viewMode === 'month' ? ' calendar-view-toggle__btn--active' : ''}`}
+                onClick={() => setViewMode('month')}
+              >
+                Month
+              </button>
             </div>
+          </div>
+
+          {/* Calendar grid */}
+          <div className="calendar-grid">
+            {/* Week-day headers */}
+            {WEEK_DAYS.map((d) => (
+              <div key={d} className="calendar-day-header">{d}</div>
+            ))}
+
+            {/* Day cells */}
+            {calendarCells.map((cell, idx) => {
+              const cellClass = [
+                'calendar-cell',
+                cell.overflow ? 'calendar-cell--muted'  : '',
+                cell.isToday  ? 'calendar-cell--today'  : '',
+              ].filter(Boolean).join(' ');
+
+              return (
+                <div key={idx} className={cellClass}>
+                  {cell.day}
+                  {cell.isToday && (
+                    <span className="calendar-cell__today-label">Today</span>
+                  )}
+                  {!cell.overflow && cell.events.map((ev, ei) => {
+                    const variant = getEventVariant(ev.type);
+                    return (
+                      <div key={ei} className="calendar-cell__event">
+                        <span className={`calendar-cell__event-bar calendar-cell__event-bar--${variant}`} />
+                        <span className={`calendar-cell__event-label calendar-cell__event-label--${variant}`}>
+                          {ev.title ?? ev.name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Right Panel */}
-        <div className="col-span-12 xl:col-span-4 flex flex-col gap-card-gap">
-          
-          {/* Summary */}
-          <div className="bg-primary text-white rounded-xl p-gutter">
-            <h4 className="font-headline-lg mb-4">$3,420.50</h4>
+        {/* ── Right Panel ─────────────────────────────── */}
+        <div className="right-panel">
 
-            <div className="flex gap-4">
-              <div>
-                <p className="text-sm opacity-70">Paid</p>
-                <p className="font-bold">$1,200</p>
+          {/* Summary Card */}
+          <div className="summary-card">
+            <div className="summary-card__content">
+              <p className="summary-card__label">Upcoming This Month</p>
+              <h4 className="summary-card__total">{fmt(totalAmount)}</h4>
+              <div className="summary-card__stats">
+                <div className="summary-card__stat">
+                  <p className="summary-card__stat-label">Paid</p>
+                  <p className="summary-card__stat-value">{fmt(paidAmount)}</p>
+                </div>
+                <div className="summary-card__stat summary-card__stat--bordered">
+                  <p className="summary-card__stat-label">Pending</p>
+                  <p className="summary-card__stat-value">{fmt(pendingAmount)}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm opacity-70">Pending</p>
-                <p className="font-bold">$2,220</p>
+            </div>
+            <div className="summary-card__glow" aria-hidden="true" />
+          </div>
+
+          {/* Upcoming Bills Card */}
+          <div className="glass-card upcoming-card">
+            <div className="upcoming-card__header">
+              <h3 className="upcoming-card__title">Upcoming Bills</h3>
+              <button className="upcoming-card__view-all">View All</button>
+            </div>
+
+            <div className="bills-list">
+              {bills.map((bill) => {
+                const isOverdue = bill.status === 'overdue';
+                const badge     = getPaymentBadge(bill.payment_method);
+
+                return (
+                  <div
+                    key={bill.id}
+                    className={`bill-item${isOverdue ? ' bill-item--overdue' : ''}`}
+                  >
+                    <div className="bill-item__left">
+                      <div className="bill-item__icon">
+                        {getBillIcon(bill.type)}
+                      </div>
+                      <div>
+                        <p className="bill-item__name">{bill.title ?? bill.name}</p>
+                        <p className={`bill-item__due${isOverdue ? ' bill-item__due--overdue' : ''}`}>
+                          {isOverdue ? `Overdue ${bill.overdue_days ?? ''} days` : `Due: ${bill.due}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bill-item__right">
+                      <p className="bill-item__amount">
+                        {typeof bill.amount === 'number'
+                          ? fmt(bill.amount)
+                          : bill.amount}
+                      </p>
+                      <span className={badge.className}>
+                        {badge.icon}
+                        {badge.label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Smart Insight */}
+            <div className="insight-box">
+              <div className="insight-box__inner">
+                <div className="insight-box__icon-wrap">
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
+                  <p className="insight-box__heading">Smart Insights</p>
+                  <p className="insight-box__text">
+                    You could save $45/mo by switching your internet provider.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Bills List */}
-          <div className="glass-card rounded-xl flex-1 flex flex-col">
-            <div className="p-gutter border-b flex justify-between">
-              <h3 className="font-headline-sm">Upcoming Bills</h3>
-              <button className="text-primary">View All</button>
-            </div>
-
-            <div className="p-4 space-y-4">
-
-              {/* Rent */}
-              <div className="flex justify-between">
-                <div className="flex gap-3">
-                  <Home size={18} />
-                  <div>
-                    <p className="font-semibold">Apartment Rent</p>
-                    <p className="text-sm text-secondary">Due Oct 3</p>
-                  </div>
-                </div>
-                <p>$2100</p>
-              </div>
-
-              {/* Electricity */}
-              <div className="flex justify-between">
-                <div className="flex gap-3">
-                  <Zap size={18} />
-                  <div>
-                    <p className="font-semibold">Electricity</p>
-                    <p className="text-sm text-secondary">Due Oct 15</p>
-                  </div>
-                </div>
-                <p>$120</p>
-              </div>
-
-              {/* Netflix */}
-              <div className="flex justify-between">
-                <div className="flex gap-3">
-                  <PlayCircle size={18} />
-                  <div>
-                    <p className="font-semibold">Netflix</p>
-                    <p className="text-sm text-error">Overdue</p>
-                  </div>
-                </div>
-                <p>$19</p>
-              </div>
-
-              {/* Internet */}
-              <div className="flex justify-between">
-                <div className="flex gap-3">
-                  <Wifi size={18} />
-                  <div>
-                    <p className="font-semibold">Internet</p>
-                    <p className="text-sm text-secondary">Due Oct 22</p>
-                  </div>
-                </div>
-                <p>$80</p>
-              </div>
-
-            </div>
-
-            <div className="p-4 border-t">
-              <div className="flex gap-3 items-center">
-                <CheckCircle size={18} />
-                <p className="text-sm">
-                  Smart insight: You can save monthly by optimizing subscriptions
-                </p>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </div>
+        </div>{/* /right-panel */}
+      </div>{/* /bills-grid */}
     </DashboardLayout>
   );
 };
