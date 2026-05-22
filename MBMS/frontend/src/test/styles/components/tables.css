@@ -1,0 +1,40 @@
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface-container-lowest);
+  box-shadow: var(--shadow-level-1);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead {
+  background: var(--color-surface-container-low);
+}
+
+.table th {
+  text-align: left;
+  padding: var(--space-16) var(--space-24);
+  font-size: var(--text-label-md-size);
+  font-weight: var(--text-label-md-weight);
+  color: var(--color-neutral);
+  letter-spacing: var(--text-label-md-tracking);
+}
+
+.table td {
+  padding: var(--space-16) var(--space-24);
+  border-top: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface);
+  font-size: var(--text-body-sm-size);
+}
+
+.table tr:hover {
+  background: var(--color-surface-container);
+}
+
+/* Mapped semantic coloration rows safely using tokens */
+.table tr.income-row { color: var(--color-income); }
+.table tr.expense-row { color: var(--color-expense); }

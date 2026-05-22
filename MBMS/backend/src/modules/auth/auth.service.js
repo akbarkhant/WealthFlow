@@ -55,6 +55,7 @@ async function storeRefreshToken(client, userId, jti, tokenHash) {
 
 // ── Public service methods ────────────────────────────────────────────────────
 
+
 async function register(input) {
   return withTransaction(async (client) => {
     // Check email uniqueness

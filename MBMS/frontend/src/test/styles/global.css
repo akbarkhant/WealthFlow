@@ -1,0 +1,76 @@
+@import './tokens.css';
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-background);
+  color: var(--color-on-surface);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Enforcing sharp, secure, monospace look for all digits/monetary items */
+.numeric,
+.amount,
+.balance,
+.timestamp,
+.table td:nth-child(even) {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+button, input, textarea, select {
+  font-family: inherit;
+  border: none;
+  outline: none;
+  background: transparent;
+}
+
+button { cursor: pointer; }
+a { text-decoration: none; color: inherit; }
+ul { list-style: none; }
+
+.container {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding-inline: var(--space-container-desktop);
+}
+
+.card {
+  background: var(--color-surface-container-lowest);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-level-1);
+  padding: var(--space-24);
+  transition: background var(--transition-base), box-shadow var(--transition-base);
+}
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  border: 1px solid var(--glass-border);
+}
+
+/* Custom Scrollbars tied to dark/light variables */
+::-webkit-scrollbar {
+  width: var(--space-8);
+  height: var(--space-8);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-dim);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-track {
+  background: var(--color-surface-container-low);
+}

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../utils/api';
 import '../styles/pages/resetPassword.css';
 
 const ResetPassword = () => {
   const navigate = useNavigate();
+  const { token } = useParams();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -36,7 +37,7 @@ const ResetPassword = () => {
     try {
       setLoading(true);
 
-      await api.post('/auth/reset-password', {
+      await api.post(`/auth/reset-password/${token}`, {
         password: newPassword
       });
 

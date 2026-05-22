@@ -16,7 +16,7 @@ function required(name) {
 const config = {
   NODE_ENV: process.env.NODE_ENV || 'development',
 
-  PORT: Number(process.env.PORT) || 4000,
+  PORT: Number(process.env.PORT) || 5000,
 
   // Database
   DATABASE_URL: required('DATABASE_URL'),

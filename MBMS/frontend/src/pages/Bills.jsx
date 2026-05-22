@@ -15,6 +15,7 @@ import {
   User,
   ShieldCheck,
 } from 'lucide-react';
+import api from '../utils/api';
 import '../styles/pages/Bills.css';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -120,6 +121,19 @@ const Bills = () => {
   const [bills,    setBills]    = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [viewMode, setViewMode] = useState('month'); // 'week' | 'month'
+  
+  // Search & Form states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    amount: '',
+    due: new Date().toISOString().split('T')[0],
+    type: 'rent',
+    payment_method: 'manual',
+    status: 'unpaid'
+  });
+  const [formError, setFormError] = useState('');
 
   // Calendar navigation state
   const today         = new Date();
@@ -127,20 +141,83 @@ const Bills = () => {
   const [calMonth, setCalMonth] = useState(today.getMonth()); // 0-indexed
 
   // ── Data fetching ──────────────────────────────────────────
+  const fetchBills = async () => {
+    try {
+      const data = await api.get('/bills');
+      setBills(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching bills:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchBills = async () => {
-      try {
-        const response = await fetch('http://localhost:5000/api/bills');
-        const data     = await response.json();
-        setBills(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error('Error fetching bills:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchBills();
   }, []);
+
+  // ── Operations ─────────────────────────────────────────────
+  const handleInputChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    setFormError('');
+
+    if (!formData.title.trim()) {
+      setFormError('Bill title/description is required');
+      return;
+    }
+    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+      setFormError('Amount must be greater than zero');
+      return;
+    }
+    if (!formData.due) {
+      setFormError('Due date is required');
+      return;
+    }
+
+    try {
+      await api.post('/bills', formData);
+      setFormData({
+        title: '',
+        amount: '',
+        due: new Date().toISOString().split('T')[0],
+        type: 'rent',
+        payment_method: 'manual',
+        status: 'unpaid'
+      });
+      setShowAddForm(false);
+      fetchBills();
+    } catch (err) {
+      setFormError('Failed to add bill');
+    }
+  };
+
+  const handleToggleStatus = async (bill) => {
+    try {
+      const nextStatus = bill.status === 'paid' ? 'unpaid' : 'paid';
+      await api.put(`/bills/${bill.id}`, { status: nextStatus });
+      fetchBills();
+    } catch (err) {
+      console.error('Failed to toggle bill status:', err);
+    }
+  };
+
+  const handleDeleteBill = async (id) => {
+    if (window.confirm('Are you sure you want to delete this bill?')) {
+      try {
+        await api.delete(`/bills/${id}`);
+        fetchBills();
+      } catch (err) {
+        console.error('Failed to delete bill:', err);
+      }
+    }
+  };
 
   // ── Calendar navigation ────────────────────────────────────
   const goToPrevMonth = () => {
@@ -161,6 +238,11 @@ const Bills = () => {
     .toLocaleString('default', { month: 'long', year: 'numeric' });
 
   const calendarCells = buildCalendarCells(calYear, calMonth, bills);
+
+  // Filter bills by search query
+  const filteredBills = bills.filter(b => 
+    (b.title ?? b.name ?? '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Summary totals (computed from real data)
   const totalAmount   = bills.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
@@ -193,9 +275,9 @@ const Bills = () => {
             Manage your upcoming obligations and subscription renewals.
           </p>
         </div>
-        <button className="bills-header__btn">
+        <button className="bills-header__btn" onClick={() => setShowAddForm(true)}>
           <Plus size={18} />
-          Add Transaction
+          Add Bill
         </button>
       </div>
 
@@ -308,45 +390,108 @@ const Bills = () => {
           <div className="glass-card upcoming-card">
             <div className="upcoming-card__header">
               <h3 className="upcoming-card__title">Upcoming Bills</h3>
-              <button className="upcoming-card__view-all">View All</button>
+              <span style={{ fontSize: '12px', color: 'var(--color-secondary)' }}>
+                {filteredBills.length} found
+              </span>
             </div>
 
-            <div className="bills-list">
-              {bills.map((bill) => {
-                const isOverdue = bill.status === 'overdue';
-                const badge     = getPaymentBadge(bill.payment_method);
+            {/* Search filter input */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(187, 202, 191, 0.20)' }}>
+              <input
+                type="text"
+                placeholder="Search bills..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--color-outline-variant)',
+                  background: 'var(--color-surface-container-low)',
+                  color: 'var(--color-on-surface)',
+                  fontSize: '13px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
 
-                return (
-                  <div
-                    key={bill.id}
-                    className={`bill-item${isOverdue ? ' bill-item--overdue' : ''}`}
-                  >
-                    <div className="bill-item__left">
-                      <div className="bill-item__icon">
-                        {getBillIcon(bill.type)}
+            <div className="bills-list" style={{ maxHeight: '420px' }}>
+              {filteredBills.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--color-secondary)', fontSize: '13px' }}>
+                  No bills found
+                </div>
+              ) : (
+                filteredBills.map((bill) => {
+                  const isOverdue = bill.status === 'overdue';
+                  const badge     = getPaymentBadge(bill.payment_method);
+
+                  return (
+                    <div
+                      key={bill.id}
+                      className={`bill-item${isOverdue ? ' bill-item--overdue' : ''}`}
+                    >
+                      <div className="bill-item__left">
+                        <div className="bill-item__icon">
+                          {getBillIcon(bill.type)}
+                        </div>
+                        <div>
+                          <p className="bill-item__name">{bill.title ?? bill.name}</p>
+                          <p className={`bill-item__due${isOverdue ? ' bill-item__due--overdue' : ''}`}>
+                            {isOverdue ? `Overdue ${bill.overdue_days ?? ''} days` : `Due: ${bill.due}`}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="bill-item__name">{bill.title ?? bill.name}</p>
-                        <p className={`bill-item__due${isOverdue ? ' bill-item__due--overdue' : ''}`}>
-                          {isOverdue ? `Overdue ${bill.overdue_days ?? ''} days` : `Due: ${bill.due}`}
-                        </p>
+
+                      <div className="bill-item__right" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <p className="bill-item__amount">
+                            {typeof bill.amount === 'number'
+                              ? fmt(bill.amount)
+                              : bill.amount}
+                          </p>
+                          <span className={badge.className}>
+                            {badge.icon}
+                            {badge.label}
+                          </span>
+                        </div>
+                        <div className="bill-item__actions" style={{ display: 'flex', gap: '4px' }}>
+                          <button
+                            onClick={() => handleToggleStatus(bill)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: bill.status === 'paid' ? 'var(--color-primary)' : 'var(--color-secondary)',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                            title={bill.status === 'paid' ? "Mark as unpaid" : "Mark as paid"}
+                          >
+                            <ShieldCheck size={18} style={{ color: bill.status === 'paid' ? 'var(--color-primary)' : '#94a3b8' }} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBill(bill.id)}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--color-error)',
+                              cursor: 'pointer',
+                              padding: '4px',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                            title="Delete bill"
+                          >
+                            <span style={{ fontSize: '18px', color: 'var(--color-error)', cursor: 'pointer', fontWeight: 'bold' }}>✕</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="bill-item__right">
-                      <p className="bill-item__amount">
-                        {typeof bill.amount === 'number'
-                          ? fmt(bill.amount)
-                          : bill.amount}
-                      </p>
-                      <span className={badge.className}>
-                        {badge.icon}
-                        {badge.label}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
 
             {/* Smart Insight */}
@@ -367,6 +512,149 @@ const Bills = () => {
 
         </div>{/* /right-panel */}
       </div>{/* /bills-grid */}
+
+      {/* ── Add Bill Modal ─────────────────────────────── */}
+      {showAddForm && (
+        <div className="modal-overlay" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(11, 28, 48, 0.4)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100000
+        }}>
+          <div className="modal-content" style={{
+            backgroundColor: 'var(--color-surface-container-lowest)',
+            padding: '30px',
+            borderRadius: 'var(--radius-lg)',
+            width: '100%',
+            maxWidth: '450px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.15)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-on-surface)' }}>Add New Bill</h3>
+              <button onClick={() => setShowAddForm(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-secondary)', fontSize: '18px', fontWeight: 'bold' }}>
+                ✕
+              </button>
+            </div>
+
+            {formError && (
+              <div className="error-box" style={{
+                backgroundColor: 'rgba(186, 26, 26, 0.1)',
+                border: '1px solid var(--color-error)',
+                color: 'var(--color-error)',
+                padding: '12px',
+                borderRadius: '8px',
+                marginBottom: '16px',
+                fontSize: '14px',
+                textAlign: 'center'
+              }}>
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--color-secondary)' }}>Bill Description / Title</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
+                  placeholder="e.g. Electric Bill"
+                  required
+                  style={{ width: '100%', padding: '12px', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', background: 'var(--color-surface-container-low)', color: 'var(--color-on-surface)', boxSizing: 'border-box', outline: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--color-secondary)' }}>Amount ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="amount"
+                    value={formData.amount}
+                    onChange={handleInputChange}
+                    placeholder="0.00"
+                    required
+                    style={{ width: '100%', padding: '12px', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', background: 'var(--color-surface-container-low)', color: 'var(--color-on-surface)', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--color-secondary)' }}>Due Date</label>
+                  <input
+                    type="date"
+                    name="due"
+                    value={formData.due}
+                    onChange={handleInputChange}
+                    required
+                    style={{ width: '100%', padding: '12px', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', background: 'var(--color-surface-container-low)', color: 'var(--color-on-surface)', boxSizing: 'border-box', height: '43px', outline: 'none' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--color-secondary)' }}>Category / Type</label>
+                  <select
+                    name="type"
+                    value={formData.type}
+                    onChange={handleInputChange}
+                    style={{ width: '100%', padding: '12px', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', background: 'var(--color-surface-container-low)', color: 'var(--color-on-surface)', boxSizing: 'border-box', height: '43px', outline: 'none', cursor: 'pointer' }}
+                  >
+                    <option value="rent">Rent / Home</option>
+                    <option value="electricity">Electricity / Utility</option>
+                    <option value="subscription">Subscription</option>
+                    <option value="internet">Internet / Wifi</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--color-secondary)' }}>Payment Method</label>
+                  <select
+                    name="payment_method"
+                    value={formData.payment_method}
+                    onChange={handleInputChange}
+                    style={{ width: '100%', padding: '12px', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', background: 'var(--color-surface-container-low)', color: 'var(--color-on-surface)', boxSizing: 'border-box', height: '43px', outline: 'none', cursor: 'pointer' }}
+                  >
+                    <option value="manual">Manual Payment</option>
+                    <option value="auto">Auto-pay</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--color-secondary)' }}>Status</label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleInputChange}
+                  style={{ width: '100%', padding: '12px', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', background: 'var(--color-surface-container-low)', color: 'var(--color-on-surface)', boxSizing: 'border-box', height: '43px', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="unpaid">Unpaid</option>
+                  <option value="paid">Paid</option>
+                  <option value="overdue">Overdue</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setShowAddForm(false)} style={{ flex: 1, padding: '12px', border: '1px solid var(--color-outline-variant)', borderRadius: '8px', background: 'transparent', color: 'var(--color-on-surface)', cursor: 'pointer', fontFamily: 'var(--font-family)', fontSize: '14px' }}>
+                  Cancel
+                </button>
+                <button type="submit" style={{ flex: 1, padding: '12px', border: 'none', borderRadius: '8px', background: 'var(--color-primary)', color: 'var(--color-on-primary)', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-family)', fontSize: '14px' }}>
+                  Save Bill
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 };

@@ -3,6 +3,9 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 
+// Protected Route Component
+import ProtectedRoute from '../components/ProtectedRoute';
+
 // Pages
 import Home from '../pages/Home';
 import Login from '../pages/Login';
@@ -12,6 +15,7 @@ import AdminDashboard from '../pages/AdminDashboard';
 import Bill from '../pages/Bills';
 import Savings from '../pages/Savings';
 import Transactions from '../pages/Transactions';
+import Settings from '../pages/Settings';
 import ForgotPassword from '../pages/ForgotPassword';
 import ResetPassword from '../pages/ResetPassword';
 import VerifyEmail from '../pages/VerifyEmail';
@@ -35,14 +39,15 @@ const AppRoutes = () => {
         element={<SecurityVerification />}
       />
 
-      {/* User Routes */}
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/bills" element={<Bill />} />
-      <Route path="/savings" element={<Savings />} />
-      <Route path="/transactions" element={<Transactions />} />
+      {/* User Routes (Protected) */}
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/bills" element={<ProtectedRoute><Bill /></ProtectedRoute>} />
+      <Route path="/savings" element={<ProtectedRoute><Savings /></ProtectedRoute>} />
+      <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
-      {/* Admin Routes */}
-      <Route path="/admin-dashboard" element={<AdminDashboard />} />
+      {/* Admin Routes (Protected) */}
+      <Route path="/admin-dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
 
       {/* Utility Routes */}
       <Route path="/session-expired" element={<SessionExpired />} />

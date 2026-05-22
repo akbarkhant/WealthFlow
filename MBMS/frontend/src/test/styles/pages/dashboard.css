@@ -1,0 +1,47 @@
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--space-24);
+}
+
+.stats-card {
+  grid-column: span 3;
+  background: var(--color-surface-container-lowest);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-24);
+  box-shadow: var(--shadow-level-1);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+}
+
+.stats-card h4 {
+  font-size: var(--text-label-md-size);
+  color: var(--color-neutral);
+  text-transform: uppercase;
+}
+
+.stats-card h2 {
+  margin-top: var(--space-12);
+  font-size: var(--text-headline-lg-size);
+  font-weight: var(--text-headline-lg-weight);
+  font-family: var(--font-mono); /* Razor sharp balance digits */
+  color: var(--color-on-surface);
+}
+
+/* Income indicator badge modifications */
+.trend-indicator.income {
+  color: var(--color-income);
+  background: var(--color-primary-container);
+}
+
+.trend-indicator.expense {
+  color: var(--color-expense);
+  background: var(--color-error-container);
+}
+
+@media (max-width: 1200px) {
+  .stats-card {
+    grid-column: span 6;
+  }
+}

@@ -41,13 +41,13 @@ const Signup = () => {
 
     try {
       const data = await api.post("/auth/register", {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email,
         password: formData.password,
+        currency: "USD",
       });
 
-      login(data, data.token);
+      login(data);
       navigate("/dashboard");
     } catch (err) {
       setError(err?.message || "Failed to create account");

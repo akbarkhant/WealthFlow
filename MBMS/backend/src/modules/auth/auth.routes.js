@@ -5,8 +5,8 @@ const { Strategy: GitHubStrategy } = require('passport-github2');
 
 const { config } = require('../../config/index.config');
 const { authRateLimiter } = require('../../middleware/rateLimiter.middleware');
-const validate = require('../../middleware/validate.middleware');
-const { authenticate } = require('../../middleware/auth.middleware');
+const {validate} = require('../../middleware/validate.middleware');
+const { authenticate } = require('../../middleware/authorize.middleware');
 
 const {
   registerSchema,
@@ -19,6 +19,7 @@ const { findOrCreateOAuthUser } = require('./auth.service');
 
 const router = Router();
 
+console.log({ authRateLimiter, validate, authenticate });
 // ── Passport: Google ───────────────────────────────────────────────
 passport.use(
   new GoogleStrategy(

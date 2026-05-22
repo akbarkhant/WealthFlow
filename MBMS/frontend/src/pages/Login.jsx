@@ -19,7 +19,7 @@ const Login = () => {
     setLoading(true);
     try {
       const data = await api.post('/auth/login', { email, password });
-      login(data, data.token);
+      login(data);
       navigate('/dashboard');
     } catch (err) {
       setError(err || 'Failed to login');

@@ -21,7 +21,7 @@ const apiLimiter = rateLimit({
 /**
  * Strict limiter for auth routes (login/register)
  */
-const authLimiter = rateLimit({
+const authRateLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
   max: 10, // only 10 attempts per IP
 
@@ -36,5 +36,5 @@ const authLimiter = rateLimit({
 
 module.exports = {
   apiLimiter,
-  authLimiter,
+  authRateLimiter,
 };

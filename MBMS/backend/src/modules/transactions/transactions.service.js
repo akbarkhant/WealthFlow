@@ -6,7 +6,7 @@ const {
 
 const {
   checkBudgetAlerts,
-} = require('../notifications/notifications.service');
+} = require('../notifications/notification.service');
 
 const {
   getUserById,

@@ -1,11 +1,39 @@
 // src/layouts/DashboardLayout.jsx
 
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 import './DashboardLayout.css';
 
 const DashboardLayout = ({ children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  
+  // Theme state
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  // Mobile sidebar state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (err) {
+      console.warn('Backend logout failed:', err);
+    }
+    logout();
+    navigate('/login');
+  };
 
   const navItems = [
     {
@@ -30,20 +58,28 @@ const DashboardLayout = ({ children }) => {
     },
   ];
 
-  const user = {
-    name: 'Akbar Khan',
-    membership: 'Premium Member',
-    image:
-      'https://ui-avatars.com/api/?name=Akbar+Khan&background=2563eb&color=ffffff',
-  };
+  const displayName = user?.name || user?.email?.split('@')[0] || 'User';
+  const displayEmail = user?.email || 'Premium Member';
+  const avatarUrl = user?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=006c49&color=ffffff`;
 
   return (
-    <div className="dashboard-layout">
+    <div className={`dashboard-layout ${isSidebarOpen ? 'sidebar-open' : ''}`}>
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1>WealthFlow</h1>
-          <p>Premium Finance System</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div>
+              <h1>WealthFlow</h1>
+              <p>Premium Finance System</p>
+            </div>
+            <button 
+              className="close-sidebar-btn" 
+              onClick={() => setIsSidebarOpen(false)}
+              style={{ display: 'none' }}
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
         </div>
 
         <nav className="sidebar-nav">
@@ -55,11 +91,11 @@ const DashboardLayout = ({ children }) => {
                 key={item.name}
                 to={item.path}
                 className={`nav-link ${isActive ? 'active' : ''}`}
+                onClick={() => setIsSidebarOpen(false)}
               >
                 <span className="material-symbols-outlined">
                   {item.icon}
                 </span>
-
                 <span>{item.name}</span>
               </Link>
             );
@@ -67,22 +103,34 @@ const DashboardLayout = ({ children }) => {
         </nav>
 
         <div className="sidebar-footer">
-          <Link to="/settings" className="nav-link footer-link">
+          <Link to="/settings" className="nav-link footer-link" onClick={() => setIsSidebarOpen(false)}>
             <span className="material-symbols-outlined">settings</span>
             <span>Settings</span>
           </Link>
 
-          <Link to="/support" className="nav-link footer-link">
-            <span className="material-symbols-outlined">help</span>
-            <span>Support</span>
-          </Link>
+          <button 
+            onClick={handleLogout} 
+            className="nav-link footer-link" 
+            style={{ 
+              width: '100%', 
+              border: 'none', 
+              background: 'transparent', 
+              textAlign: 'left', 
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              color: '#ba1a1a'
+            }}
+          >
+            <span className="material-symbols-outlined">logout</span>
+            <span>Logout</span>
+          </button>
 
           <div className="user-profile">
-            <img src={user.image} alt={user.name} />
-
+            <img src={avatarUrl} alt={displayName} />
             <div>
-              <h4>{user.name}</h4>
-              <p>{user.membership}</p>
+              <h4 style={{ textTransform: 'capitalize' }}>{displayName}</h4>
+              <p style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '140px' }}>{displayEmail}</p>
             </div>
           </div>
         </div>
@@ -92,13 +140,21 @@ const DashboardLayout = ({ children }) => {
       <div className="main-section">
         {/* Topbar */}
         <header className="topbar">
-          <div className="search-box">
-            <span className="material-symbols-outlined">search</span>
-
-            <input
-              type="text"
-              placeholder="Search transactions..."
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button 
+              className="menu-btn" 
+              onClick={() => setIsSidebarOpen(true)}
+              style={{ display: 'none' }}
+            >
+              <span className="material-symbols-outlined">menu</span>
+            </button>
+            <div className="search-box">
+              <span className="material-symbols-outlined">search</span>
+              <input
+                type="text"
+                placeholder="Search transactions..."
+              />
+            </div>
           </div>
 
           <div className="topbar-actions">
@@ -108,13 +164,13 @@ const DashboardLayout = ({ children }) => {
               </span>
             </button>
 
-            <button className="icon-btn">
+            <button className="icon-btn" onClick={toggleTheme}>
               <span className="material-symbols-outlined">
-                dark_mode
+                {theme === 'light' ? 'dark_mode' : 'light_mode'}
               </span>
             </button>
 
-            <button className="add-btn">
+            <button className="add-btn" onClick={() => navigate('/transactions')}>
               <span className="material-symbols-outlined">add</span>
               Add Transaction
             </button>
@@ -131,5 +187,3 @@ const DashboardLayout = ({ children }) => {
 };
 
 export default DashboardLayout;
-
-

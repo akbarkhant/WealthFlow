@@ -1,6 +1,6 @@
 const { Router } = require('express');
 
-const { authenticate } = require('../../middleware/auth.middleware');
+const { authenticate } = require('../../middleware/authorize.middleware');
 const { validate } = require('../../middleware/validate.middleware');
 
 const {
@@ -51,4 +51,4 @@ router.delete(
   controller.remove
 );
 
-module.exports = { transactionsRouter: router };
+module.exports = router;

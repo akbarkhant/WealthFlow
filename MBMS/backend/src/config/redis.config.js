@@ -94,6 +94,11 @@ function getSecondsUntilMidnight() {
   );
 }
 
+async function disconnectRedis() {
+  await redis.quit();
+  logger.info('Redis disconnected');
+}
+
 // ── Exports ──────────────────────────────────────────────────────
 module.exports = {
   redis,

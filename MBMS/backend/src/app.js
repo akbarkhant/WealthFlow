@@ -12,13 +12,16 @@ const { config } = require('../src/config/index.config');
 // Middlewares
 const requestLogger = require('./middleware/requestLogger.middleware');
 const notFound = require('./middleware/notFound.middleware');
-const errorHandler = require('./middleware/errorHandler.middleware');
+const {
+  errorHandler,
+  registerProcessHandlers,
+} = require('./middleware/errorHandler.middleware');
 const { apiLimiter } = require('./middleware/rateLimiter.middleware');
 
 // Routes
 const authRoutes = require('./modules/auth/auth.routes');
-const budgetsRoutes = require('./modules/budgets/budget.routes');
-const transactionsRoutes = require('./modules/transactions/transactions.routes');
+const budgetsRouter = require('./modules/budgets/budget.routes');
+const transactionsRouter = require('./modules/transactions/transactions.routes');
 
 const app = express();
 
@@ -87,11 +90,11 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 
-app.use('/api/budgets', budgetsRoutes);
+app.use('/api/budgets', budgetsRouter);
 
 app.use(
   '/api/transactions',
-  transactionsRoutes
+  transactionsRouter
 );
 
 // ─────────────────────────────────────────────
