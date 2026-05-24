@@ -19,14 +19,16 @@ const { findOrCreateOAuthUser } = require('./auth.service');
 
 const router = Router();
 
-console.log({ authRateLimiter, validate, authenticate });
+const backendBase =
+  process.env.BACKEND_URL || `http://localhost:${config.PORT}`;
+
 // ── Passport: Google ───────────────────────────────────────────────
 passport.use(
   new GoogleStrategy(
     {
       clientID: config.GOOGLE_CLIENT_ID,
       clientSecret: config.GOOGLE_CLIENT_SECRET,
-      callbackURL: `${config.FRONTEND_URL.replace('5173', '4000')}/api/v1/auth/google/callback`,
+      callbackURL: `${backendBase}/api/auth/google/callback`,
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
@@ -52,7 +54,7 @@ passport.use(
     {
       clientID: config.GITHUB_CLIENT_ID,
       clientSecret: config.GITHUB_CLIENT_SECRET,
-      callbackURL: `${config.FRONTEND_URL.replace('5173', '4000')}/api/v1/auth/github/callback`,
+      callbackURL: `${backendBase}/api/auth/github/callback`,
       scope: ['user:email'],
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -80,6 +82,7 @@ passport.use(
 
 // ── Auth Routes ────────────────────────────────────────────────────
 
+router.get('/me',        authenticate,                              controller.me); 
 // Email/password auth
 router.post('/register', authRateLimiter, validate(registerSchema), controller.register);
 router.post('/login', authRateLimiter, validate(loginSchema), controller.login);

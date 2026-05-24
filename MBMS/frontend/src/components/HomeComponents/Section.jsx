@@ -1,4 +1,3 @@
-import React from 'react';
 import { Sparkles, ArrowRight, PlayCircle, Wallet, Bell, Target, CheckCircle2 } from 'lucide-react';
 import '../../styles/components/Section.css';
 
@@ -27,7 +26,9 @@ export default function Sections() {
             
             <div className="hero-cta">
               <button className="btn-hero-primary">
+                <a href="http:/signup">
                 Get Started Free <ArrowRight size={18} />
+                </a>
               </button>
               <button className="btn-hero-secondary">
                 <PlayCircle size={20} /> Watch Demo
@@ -35,13 +36,8 @@ export default function Sections() {
             </div>
             
             <div className="hero-proof">
-              <div className="avatar-stack">
-                <div className="avatar">AM</div>
-                <div className="avatar">JD</div>
-                <div className="avatar">SK</div>
-              </div>
               <p className="proof-text">
-                <strong>50,000+</strong> users tracking $2B+ in assets
+                Built for professionals who want clarity on cashflow, budgets, and goals.
               </p>
             </div>
           </div>
@@ -55,10 +51,9 @@ export default function Sections() {
               <div className="mockup-body">
                 <div className="mockup-stat-row">
                   <div className="mockup-stat">
-                    <span className="stat-label">Net Worth</span>
-                    <span className="stat-val">$142,350.80</span>
+                    <span className="stat-label">Net cashflow</span>
+                    <span className="stat-val">Your data</span>
                   </div>
-                  <div className="mockup-badge-up">+12.4%</div>
                 </div>
                 <div className="mockup-chart-placeholder">
                   <div className="chart-bar" style={{ height: '40%' }}></div>

@@ -26,4 +26,18 @@ class ApiResponse {
   }
 }
 
+function sendSuccess(res, data, statusCode = 200, meta = null) {
+  const body = { success: true, data };
+  if (meta) {
+    body.meta = meta;
+  }
+  return res.status(statusCode).json(body);
+}
+
+function sendCreated(res, data) {
+  return sendSuccess(res, data, 201);
+}
+
 module.exports = ApiResponse;
+module.exports.sendSuccess = sendSuccess;
+module.exports.sendCreated = sendCreated;

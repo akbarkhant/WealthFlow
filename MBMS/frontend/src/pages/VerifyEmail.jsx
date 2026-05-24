@@ -1,8 +1,75 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import "../styles/pages/VerifyEmail.css";
 
 const VerifyEmail = () => {
+  const location = useLocation();
+  
+  // 1. Initialize state with email from navigation history if available
+  const [email, setEmail] = useState(location.state?.email || "");
+  const [loading, setLoading] = useState(!location.state?.email);
+  const [error, setError] = useState(null);
+  const [resendStatus, setResendStatus] = useState(""); // 'idle', 'sending', 'success', 'error'
+
+  // 2. Fetch user data if it wasn't passed via router state (e.g., page refresh)
+  useEffect(() => {
+    if (email) return; // Skip if we already have it
+
+    const fetchUserEmail = async () => {
+      try {
+        setLoading(true);
+        // Replace with your actual endpoint URL. If using cookies/sessions, include credentials
+        const response = await fetch("/api/auth/me", {
+          headers: {
+            "Content-Type": "application/json",
+            // If you use JWT tokens in localStorage:
+            // "Authorization": `Bearer ${localStorage.getItem("token")}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error("Could not retrieve user session details.");
+        }
+
+        const data = await response.json();
+        setEmail(data.email);
+      } catch (err) {
+        setError(err.message);
+        console.log(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserEmail();
+  }, [email]);
+
+  // 3. Handle the Resend Email action triggered by the user
+  const handleResendEmail = async () => {
+    try {
+      setResendStatus("sending");
+      
+      const response = await fetch("/api/v1/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to send verification link.");
+      }
+
+      setResendStatus("success");
+    } catch (err) {
+      setResendStatus("error");
+    }
+  };
+
+  // 4. Open mail client protocol helper
+  const handleOpenEmailApp = () => {
+    window.open("mailto:", "_blank");
+  };
+
   return (
     <div className="verify-email-page">
       {/* Top Navigation */}
@@ -50,18 +117,30 @@ const VerifyEmail = () => {
               </div>
             </div>
 
-            {/* Content */}
+            {/* Content Switchboards based on API lifecycle */}
             <h1 className="verify-title">Check your inbox</h1>
 
-            <p className="verify-description">
-              We've sent a verification link to{" "}
-              <span>alex.finance@example.com</span>. Please click the link to
-              confirm your account and start your journey.
-            </p>
+            {loading ? (
+              <p className="verify-description">Loading user details...</p>
+            ) : error ? (
+              <p className="verify-description" style={{ color: "var(--error-color, red)" }}>
+                Error: {error}. Please try logging in again.
+              </p>
+            ) : (
+              <p className="verify-description">
+                We've sent a verification link to{" "}
+                <span style={{ fontWeight: "bold" }}>{email}</span>. Please click the link to
+                confirm your account and start your journey.
+              </p>
+            )}
 
             {/* Actions */}
             <div className="verify-actions">
-              <button className="open-email-btn">
+              <button 
+                className="open-email-btn" 
+                onClick={handleOpenEmailApp}
+                disabled={loading || !!error}
+              >
                 <span className="material-symbols-outlined">
                   open_in_new
                 </span>
@@ -71,7 +150,24 @@ const VerifyEmail = () => {
               <div className="resend-section">
                 <p>Didn't receive the email?</p>
 
-                <button className="resend-btn">Resend Email</button>
+                <button 
+                  className="resend-btn" 
+                  onClick={handleResendEmail}
+                  disabled={resendStatus === "sending" || loading || !!error}
+                >
+                  {resendStatus === "sending" ? "Sending..." : "Resend Email"}
+                </button>
+
+                {resendStatus === "success" && (
+                  <p style={{ color: "green", fontSize: "0.85rem", marginTop: "4px" }}>
+                    Verification link sent successfully!
+                  </p>
+                )}
+                {resendStatus === "error" && (
+                  <p style={{ color: "red", fontSize: "0.85rem", marginTop: "4px" }}>
+                    Could not resend email. Please try again later.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -126,7 +222,7 @@ const VerifyEmail = () => {
             <div className="footer-logo">WealthFlow</div>
 
             <p>
-              © 2024 WealthFlow Financial Technologies.
+              © {new Date().getFullYear()} WealthFlow Financial Technologies.
               All rights reserved.
             </p>
           </div>

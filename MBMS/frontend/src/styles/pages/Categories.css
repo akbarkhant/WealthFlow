@@ -1,0 +1,40 @@
+@import '../token.css';
+
+.categories-page .categories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.category-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  background: var(--surface);
+}
+
+.category-card__swatch {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.category-card__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.categories-loading {
+  min-height: 12rem;
+  border-radius: var(--radius-lg);
+}
+
+.categories-empty {
+  grid-column: 1 / -1;
+}

@@ -5,7 +5,6 @@ import {
   Cell,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import "../../styles/components/charts/charts.css";
 

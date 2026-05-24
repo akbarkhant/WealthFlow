@@ -1,8 +1,17 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
-import '../styles/pages/Login.css';
+import { login as loginApi, getOAuthUrl } from '../api/authApi';
+import {
+  Wallet,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  ShieldCheck
+} from 'lucide-react';
+import '../styles/pages/legin.css';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -17,12 +26,18 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
     try {
-      const data = await api.post('/auth/login', { email, password });
-      login(data);
-      navigate('/dashboard');
+      const tokens = await loginApi({ email, password });
+
+      if (!tokens?.accessToken) {
+        throw new Error('Login succeeded but no access token was returned.');
+      }
+
+      login(tokens);
+      navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(err || 'Failed to login');
+      setError(err.message || 'Failed to login');
     } finally {
       setLoading(false);
     }
@@ -30,27 +45,18 @@ const Login = () => {
 
   return (
     <div className="login-page">
-      {/* Background blobs */}
       <div className="login-blob login-blob--top" aria-hidden="true" />
       <div className="login-blob login-blob--bottom" aria-hidden="true" />
 
-      {/* Header */}
       <header className="login-header">
         <Link to="/" className="login-brand">
-          <span
-            className="material-symbols-outlined login-brand__icon"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            account_balance_wallet
-          </span>
+          <Wallet className="login-brand__icon" size={28} strokeWidth={2.2} />
           <span className="login-brand__name">WealthFlow</span>
         </Link>
       </header>
 
-      {/* Main */}
       <main className="login-main">
         <div className="login-card">
-          {/* Heading */}
           <div className="login-heading">
             <h1 className="login-heading__title">Welcome Back</h1>
             <p className="login-heading__subtitle">
@@ -58,19 +64,15 @@ const Login = () => {
             </p>
           </div>
 
-          {/* Form */}
           <form className="login-form" onSubmit={handleSubmit}>
             {error && <div className="login-error">{error}</div>}
 
-            {/* Email */}
             <div className="login-field">
               <label className="login-field__label" htmlFor="email">
                 Email Address
               </label>
               <div className="login-input-wrap">
-                <span className="material-symbols-outlined login-input-wrap__icon login-input-wrap__icon--left">
-                  mail
-                </span>
+                <Mail className="login-input-wrap__icon login-input-wrap__icon--left" size={20} />
                 <input
                   className="login-input"
                   id="email"
@@ -84,20 +86,17 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Password */}
             <div className="login-field">
               <div className="login-field__label-row">
                 <label className="login-field__label" htmlFor="password">
                   Password
                 </label>
-                <Link className="login-field__forgot" to="/forgot-password">
-                  Forgot Password?
-                </Link>
+                <span className="login-field__forgot" style={{ opacity: 0.6 }}>
+                  Password reset coming soon
+                </span>
               </div>
               <div className="login-input-wrap">
-                <span className="material-symbols-outlined login-input-wrap__icon login-input-wrap__icon--left">
-                  lock
-                </span>
+                <Lock className="login-input-wrap__icon login-input-wrap__icon--left" size={20} />
                 <input
                   className="login-input"
                   id="password"
@@ -108,18 +107,19 @@ const Login = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
-                <span
-                  className="material-symbols-outlined login-input-wrap__icon login-input-wrap__icon--right"
+                
+                <button
+                  type="button"
+                  className="login-input-wrap__icon login-input-wrap__icon--right"
                   onClick={() => setShowPassword((v) => !v)}
-                  role="button"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  style={{ background: 'none', border: 'none', padding: 0 }}
                 >
-                  {showPassword ? 'visibility_off' : 'visibility'}
-                </span>
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
               </div>
             </div>
 
-            {/* Remember Me */}
             <div className="login-remember">
               <input
                 className="login-remember__checkbox"
@@ -132,45 +132,43 @@ const Login = () => {
               </label>
             </div>
 
-            {/* Submit */}
             <button className="login-btn" type="submit" disabled={loading}>
               {loading ? (
                 'Logging in...'
               ) : (
                 <>
                   Log In
-                  <span className="material-symbols-outlined login-btn__icon">
-                    arrow_forward
-                  </span>
+                  <ArrowRight className="login-btn__icon" size={20} />
                 </>
               )}
             </button>
           </form>
 
-          {/* Divider */}
           <div className="login-divider">
             <span className="login-divider__label">Or continue with</span>
           </div>
 
-          {/* Social */}
           <div className="login-social-grid">
-            <button className="login-social-btn" type="button">
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCar-w_fZW7zBTOwIWslJFz-RX6pnUabvQqIREXIEuMBAZP3WlEAuPnObKhD9St9lgrwxjIKu6Yfv4dJMELJ_63gIprOHEqCqOUMkncj7qzU77QZC-mlt1_e_t1LuNL6UFTafjW8cOcWQCURbO3a6XWsihol5ESfuxe2rGSENLDtO3iiZ9aguyD5muRWAFwdfzYYHIVcl5fDST_ByQ4qIydMTKALYOJ_3qjGQNFA1EN6AaPMdg6XBeQOSrjLeE8BIs5kBFPQs58v9rd"
-                alt="Google Logo"
-              />
+            <button
+              className="login-social-btn"
+              type="button"
+              onClick={() => {
+                window.location.href = getOAuthUrl('google');
+              }}
+            >
               Google
             </button>
-            <button className="login-social-btn" type="button">
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuB2HyGSDRqxF4ucNwAWR_H_DxnoS_nR3ghmONW24Ihco-t9kUCQaL6rOd_cGDpPP6hOGM0Nh4ipi0Lzit1CG88UC6LGAiPzldlJAJQkQ6yrghHsvAku2t5ytDtnxCbWfYqNMZR9OFIU-clbXJdgS2H6A3AMbJDPpCO0uQDfxCgtvJtB3vGaj9gVopn4dPPQAfsOVLu2QjYhIAcpppPZ6UgH8k_NoY8xNqTma1x_sm5thVGwfiO6FoAG1-4goz1kWyubg1bNSIzYHnS0"
-                alt="Apple Logo"
-              />
-              Apple
+            <button
+              className="login-social-btn"
+              type="button"
+              onClick={() => {
+                window.location.href = getOAuthUrl('github');
+              }}
+            >
+              GitHub
             </button>
           </div>
 
-          {/* Register */}
           <p className="login-register">
             New to WealthFlow?
             <Link className="login-register__link" to="/signup">
@@ -179,31 +177,37 @@ const Login = () => {
           </p>
         </div>
 
-        {/* Trust strip */}
         <div className="login-trust">
           <div className="login-trust__item">
-            <span className="material-symbols-outlined">verified_user</span>
+            <ShieldCheck size={16} />
             SECURED BY FLOWLOCK
           </div>
           <div className="login-trust__item">
-            <span className="material-symbols-outlined">lock_reset</span>
+            <Lock size={16} />
             256-BIT ENCRYPTION
           </div>
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="login-footer">
         <div className="login-footer__inner">
           <div className="login-footer__brand">WealthFlow</div>
           <nav className="login-footer__links">
-            <Link className="login-footer__link" to="/privacy">Privacy Policy</Link>
-            <Link className="login-footer__link" to="/terms">Terms of Service</Link>
-            <Link className="login-footer__link" to="/security">Security</Link>
-            <Link className="login-footer__link" to="/cookie-settings">Cookie Settings</Link>
+            <Link className="login-footer__link" to="/privacy">
+              Privacy Policy
+            </Link>
+            <Link className="login-footer__link" to="/terms">
+              Terms of Service
+            </Link>
+            <Link className="login-footer__link" to="/security">
+              Security
+            </Link>
+            <Link className="login-footer__link" to="/cookie-settings">
+              Cookie Settings
+            </Link>
           </nav>
           <p className="login-footer__copy">
-            © 2024 WealthFlow Financial Technologies. All rights reserved.
+            © 2026 WealthFlow Financial Technologies. All rights reserved.
           </p>
         </div>
       </footer>

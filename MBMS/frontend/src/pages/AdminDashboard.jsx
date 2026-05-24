@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import DashboardLayout from '../layouts/DashboardLayout';
 import api from '../utils/api';
 import '../styles/pages/AdminDashboard.css';

@@ -3,12 +3,12 @@
    All design tokens from the original Tailwind config
    ============================================================ */
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import '../token.css';
 
-/* ── Design Tokens ──────────────────────────────────────── */
+/*─ Design Tokens ──────────────────────────────────────── */
 :root {
-  /* Colors */
+   /*Colors*/
   --color-primary:                #006c49;
   --color-on-primary:             #ffffff;
   --color-on-primary-fixed-variant: #005236;
@@ -28,10 +28,7 @@
   --spacing-container-mobile:     16px;
   --spacing-container-desktop:    40px;
 
-  /* Typography */
-  --font-family:                  "Inter", sans-serif;
 }
-
 /* ── Base Reset ─────────────────────────────────────────── */
 *,
 *::before,
@@ -43,7 +40,7 @@
 
 /* ── Page Root ──────────────────────────────────────────── */
 .login-page {
-  font-family: var(--font-family);
+  font-family: var(--font-mono);
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;
@@ -96,6 +93,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: 'Poppins';
 }
 
 .login-brand {
@@ -115,6 +113,7 @@
   font-weight: 700;
   color: var(--color-primary);
   letter-spacing: -0.01em;
+  font-family: 'Poppins';
 }
 
 /* ── Main Content ───────────────────────────────────────── */
@@ -482,3 +481,4 @@
     text-align: center;
   }
 }
+

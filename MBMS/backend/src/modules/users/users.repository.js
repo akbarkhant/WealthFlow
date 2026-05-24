@@ -11,8 +11,7 @@ async function getUserById(id) {
         currency,
         created_at AS "createdAt"
      FROM users
-     WHERE id = $1
-       AND deleted_at IS NULL`,
+     WHERE id = $1`,
     [id]
   );
 
@@ -53,20 +52,17 @@ async function updateUser(id, data) {
   await query(
     `UPDATE users
      SET ${fields.join(', ')}
-     WHERE id = $${idx}
-       AND deleted_at IS NULL`,
+     WHERE id = $${idx}`,
     values
   );
 
   return getUserById(id);
 }
 
-// ── Soft Delete User ─────────────────────────────────────────────
-async function softDeleteUser(id) {
+// ── Hard Delete User ─────────────────────────────────────────────
+async function deleteUser(id) {
   await query(
-    `UPDATE users
-     SET deleted_at = NOW(),
-         email = email || '_deleted_' || id
+    `DELETE FROM users
      WHERE id = $1`,
     [id]
   );
@@ -76,5 +72,5 @@ async function softDeleteUser(id) {
 module.exports = {
   getUserById,
   updateUser,
-  softDeleteUser,
+  deleteUser, // Renamed from softDeleteUser to reflect hard delete
 };

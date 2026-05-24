@@ -1,504 +1,591 @@
-import React, { useEffect, useState } from "react";
-import DashboardLayout from "../layouts/DashboardLayout";
-import api from "../utils/api";
-import "../styles/pages/Transactions.css";
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Filter,
+  Plus,
+  ReceiptText,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  WalletCards,
+  X,
+} from 'lucide-react';
+import DashboardLayout from '../layouts/DashboardLayout';
+import {
+  listTransactions,
+  createTransaction,
+  deleteTransaction,
+} from '../api/transactionsApi';
+import { listBudgets } from '../api/budgetsApi';
+import { listCategories } from '../api/categoriesApi';
+import { getMonthlyReport } from '../api/chartsApi';
+import { mapBudgetForUi } from '../services/mappers';
+import { getCurrentPeriod, getMonthDateRange } from '../utils/dateRange';
+import { TableRowSkeleton } from '../components/feedback/LoadingSkeleton';
+import ErrorMessage from '../components/feedback/ErrorMessage';
+import EmptyState from '../components/feedback/EmptyState';
+import '../styles/pages/Transactions.css';
+
+const PAGE_SIZE = 7;
+const period = getMonthDateRange(...Object.values(getCurrentPeriod()).reverse());
+
+const money = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+});
+
+const getCategoryClass = (category = '') => {
+  const normalized = category.toLowerCase();
+  if (normalized === 'income') return 'status-success';
+  if (normalized === 'food') return 'category-food';
+  if (normalized === 'utilities') return 'category-utilities';
+  if (normalized === 'entertainment') return 'category-entertainment';
+  return 'status-muted';
+};
+
+const getLocalDateString = () => {
+  const date = new Date();
+  const offset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+  return localDate.toISOString().split('T')[0];
+};
 
 const Transactions = () => {
+  const [searchParams] = useSearchParams();
   const [transactions, setTransactions] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0, hasMore: false });
+  const [summary, setSummary] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
 
-  // Search & Filter state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("date-desc");
-
-  // Pagination state
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || '');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('date-desc');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
 
-  // Add Transaction Modal / Form state
   const [showAddForm, setShowAddForm] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [formError, setFormError] = useState('');
   const [formData, setFormData] = useState({
-    description: "",
-    amount: "",
-    category: "Food",
-    type: "expense",
-    date: new Date().toISOString().split("T")[0]
+    description: '',
+    amount: '',
+    categoryId: '',
+    type: 'expense',
+    date: getLocalDateString(),
+    currency: 'USD',
   });
-  const [formError, setFormError] = useState("");
 
-  const loadData = async () => {
+  const showToast = useCallback((message, tone = 'success') => {
+    setToast({ message, tone });
+    const timer = window.setTimeout(() => setToast(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const categoryIdFilter =
+    categoryFilter === 'all'
+      ? undefined
+      : categories.find((c) => c.name === categoryFilter)?.id;
+
+  const loadData = useCallback(async () => {
     setLoading(true);
+    setError('');
+
     try {
-      const txs = await api.get('/transactions');
-      setTransactions(txs);
-      
-      const bgs = await api.get('/budgets');
-      const formattedBgs = bgs.map(b => {
-        const usedPercent = b.limit > 0 ? Math.round((b.spent / b.limit) * 100) : 0;
-        return {
-          ...b,
-          usedPercent,
-          used: b.spent,
-          fillClass: usedPercent >= 90 ? 'danger' : usedPercent >= 70 ? 'warning' : 'success'
-        };
+      const [txResult, bgs, cats, monthly] = await Promise.all([
+        listTransactions({
+          page: currentPage,
+          limit: PAGE_SIZE,
+          search: searchQuery.trim() || undefined,
+          type: typeFilter === 'all' ? undefined : typeFilter,
+          categoryId: categoryIdFilter,
+          startDate: period.startDate,
+          endDate: period.endDate,
+        }),
+        listBudgets({ month: period.month, year: period.year }),
+        listCategories(),
+        getMonthlyReport({ month: period.month, year: period.year }),
+      ]);
+
+      let rows = txResult.data;
+      if (sortBy === 'date-asc') rows = [...rows].sort((a, b) => new Date(a.date) - new Date(b.date));
+      else if (sortBy === 'amount-desc') rows = [...rows].sort((a, b) => Number(b.amount) - Number(a.amount));
+      else if (sortBy === 'amount-asc') rows = [...rows].sort((a, b) => Number(a.amount) - Number(b.amount));
+
+      setTransactions(rows);
+      setPagination({
+        page: txResult.meta.page,
+        totalPages: Math.max(1, txResult.meta.totalPages),
+        total: txResult.meta.total,
+        hasMore: txResult.meta.hasMore,
       });
-      setBudgets(formattedBgs);
+      setCategories(Array.isArray(cats) ? cats : []);
+      setBudgets((Array.isArray(bgs) ? bgs : []).map(mapBudgetForUi));
+      setSummary(monthly);
     } catch (err) {
       console.error('Failed to load transaction data:', err);
+      setError(err.message || 'We could not load transactions.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, searchQuery, typeFilter, categoryIdFilter, sortBy]);
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    const match = categories.find((c) => c.type === formData.type);
+    if (match && !categories.some((c) => c.id === formData.categoryId && c.type === formData.type)) {
+      setFormData((current) => ({ ...current, categoryId: match.id }));
+    }
+  }, [formData.type, categories, formData.categoryId]);
+
+  useEffect(() => {
+    const query = searchParams.get('search') || '';
+    setSearchQuery(query);
+    setCurrentPage(1);
+  }, [searchParams]);
+
+  // Escape key handler to close active overlays gracefully
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowAddForm(false);
+        setPendingDelete(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((current) => ({ ...current, [name]: value }));
   };
 
-  const handleFormSubmit = async (e) => {
-    e.preventDefault();
-    setFormError("");
+  const resetForm = () => {
+    const defaultCat = categories.find((c) => c.type === 'expense');
+    setFormData({
+      description: '',
+      amount: '',
+      categoryId: defaultCat?.id || '',
+      type: 'expense',
+      date: getLocalDateString(),
+      currency: 'USD',
+    });
+    setFormError('');
+  };
 
+  const handleFormSubmit = async (event) => {
+    event.preventDefault();
+    setFormError('');
+
+    const amount = Number(formData.amount);
     if (!formData.description.trim()) {
-      setFormError("Description is required");
+      setFormError('Description is required.');
       return;
     }
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      setFormError("Amount must be greater than zero");
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setFormError('Amount must be greater than zero.');
+      return;
+    }
+    if (!formData.date) {
+      setFormError('Date is required.');
+      return;
+    }
+
+    if (!formData.categoryId) {
+      setFormError('Select a category.');
       return;
     }
 
     try {
-      const newTx = {
-        description: formData.description,
-        amount: parseFloat(formData.amount),
-        category: formData.category,
+      await createTransaction({
+        description: formData.description.trim(),
+        amount,
+        categoryId: formData.categoryId,
+        currency: formData.currency || 'USD',
         type: formData.type,
-        date: formData.date
-      };
-
-      await api.post('/transactions', newTx);
-      
-      // Clear form and reload
-      setFormData({
-        description: "",
-        amount: "",
-        category: "Food",
-        type: "expense",
-        date: new Date().toISOString().split("T")[0]
+        date: formData.date,
+        isRecurring: false,
       });
+
+      resetForm();
       setShowAddForm(false);
-      loadData();
+      await loadData();
+      showToast('Transaction added successfully.');
     } catch (err) {
-      setFormError("Failed to add transaction");
+      setFormError('Failed to add transaction.');
     }
   };
 
-  const handleDeleteTransaction = async (id) => {
-    if (window.confirm("Are you sure you want to delete this transaction?")) {
-      try {
-        await api.delete(`/transactions/${id}`);
-        loadData();
-      } catch (err) {
-        console.error("Failed to delete transaction", err);
-      }
+  const handleDeleteTransaction = async () => {
+    if (!pendingDelete) return;
+
+    try {
+      await deleteTransaction(pendingDelete.id);
+      setPendingDelete(null);
+      await loadData();
+      showToast('Transaction deleted successfully.');
+    } catch (err) {
+      showToast('Failed to delete transaction.', 'error');
     }
   };
 
-  // 1. Filtering logic
-  const filteredTransactions = transactions.filter(tx => {
-    const matchesSearch = tx.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = typeFilter === "all" || tx.type === typeFilter;
-    const matchesCategory = categoryFilter === "all" || tx.category === categoryFilter;
-    return matchesSearch && matchesType && matchesCategory;
-  });
-
-  // 2. Sorting logic
-  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
-    if (sortBy === "date-desc") {
-      return new Date(b.date) - new Date(a.date);
-    }
-    if (sortBy === "date-asc") {
-      return new Date(a.date) - new Date(b.date);
-    }
-    if (sortBy === "amount-desc") {
-      return b.amount - a.amount;
-    }
-    if (sortBy === "amount-asc") {
-      return a.amount - b.amount;
-    }
-    return 0;
-  });
-
-  // 3. Pagination calculation
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentTransactions = sortedTransactions.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(sortedTransactions.length / itemsPerPage);
-
-  const getTagClass = (category) => {
-    switch (category?.toLowerCase()) {
-      case "food": return "tag-food";
-      case "utilities": return "tag-utilities";
-      case "entertainment": return "tag-entertainment";
-      case "income": return "tag-income";
-      default: return "tag-other";
-    }
+  const clearFilters = () => {
+    setSearchQuery('');
+    setTypeFilter('all');
+    setCategoryFilter('all');
+    setSortBy('date-desc');
+    setCurrentPage(1);
   };
+
+  const totalPages = pagination.totalPages;
+  const currentTransactions = transactions;
 
   return (
     <DashboardLayout>
-      <div className="transactions-page">
-        {/* Header Section */}
-        <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <section className="page-stack transactions-page">
+        <div className="page-header">
           <div>
-            <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-main)' }}>Transactions Ledger</h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Monitor and analyze your financial transactions</p>
+            <p className="page-eyebrow">Ledger</p>
+            <h1 className="page-title">Transactions</h1>
+            <p className="page-subtitle">
+              Review, filter, sort, and record income or expenses with a clean audit trail.
+            </p>
           </div>
-          <button className="add-btn" onClick={() => setShowAddForm(true)}>
-            <span className="material-symbols-outlined">add</span>
+
+          <button className="btn btn-primary" type="button" onClick={() => setShowAddForm(true)}>
+            <Plus size={18} />
             New Transaction
           </button>
         </div>
 
-        {/* Budgets Section */}
+        <div className="transaction-summary-grid">
+          <article className="summary-tile">
+            <span><WalletCards size={19} /></span>
+            <div>
+              <p>Total Income</p>
+              <strong className="amount">{money.format(Number(summary?.totalIncome ?? 0))}</strong>
+            </div>
+          </article>
+          <article className="summary-tile">
+            <span><ReceiptText size={19} /></span>
+            <div>
+              <p>Total Expenses</p>
+              <strong className="amount">{money.format(Number(summary?.totalExpenses ?? 0))}</strong>
+            </div>
+          </article>
+          <article className="summary-tile">
+            <span><SlidersHorizontal size={19} /></span>
+            <div>
+              <p>Visible Records</p>
+              <strong>{pagination.total}</strong>
+            </div>
+          </article>
+        </div>
+
         <div className="budget-list">
           {budgets.map((budget) => (
-            <div className="budget-item" key={budget.id}>
+            <article className="budget-item" key={budget.id}>
               <div className="budget-top">
                 <div className="budget-info">
-                  <div className="budget-icon" style={{ backgroundColor: budget.color + '15', color: budget.color }}>
-                    <span className="material-symbols-outlined">
-                      {budget.category === 'Food' ? 'restaurant' : budget.category === 'Utilities' ? 'bolt' : 'movie'}
-                    </span>
-                  </div>
+                  <span className="budget-icon" style={{ backgroundColor: budget.color ? `${budget.color}18` : 'rgba(0, 108, 73, 0.10)', color: budget.color || 'var(--primary)' }}>
+                    <WalletCards size={18} />
+                  </span>
                   <div>
                     <p className="budget-name">{budget.category}</p>
-                    <p className="budget-meta">
-                      {budget.usedPercent}% of ${budget.limit} limit
-                    </p>
+                    <p className="budget-meta">{budget.usedPercent}% of {money.format(Number(budget.limit || 0))}</p>
                   </div>
                 </div>
-                <p className="budget-price">${budget.used}</p>
+                <p className="budget-price amount">{money.format(Number(budget.used || 0))}</p>
               </div>
               <div className="progress-bar">
                 <div
                   className={`progress-fill ${budget.fillClass}`}
-                  style={{
+                  style={{ 
                     width: `${Math.min(budget.usedPercent, 100)}%`,
-                    backgroundColor: budget.color
+                    ...(!['warning', 'danger'].includes(budget.fillClass) && budget.color ? { backgroundColor: budget.color } : {})
                   }}
-                ></div>
+                />
               </div>
-            </div>
+            </article>
           ))}
         </div>
 
-        {/* Filters and Controls */}
-        <div className="filter-bar" style={{
-          display: 'flex',
-          gap: '16px',
-          backgroundColor: 'var(--surface-container-lowest)',
-          padding: '16px',
-          borderRadius: 'var(--radius-xl)',
-          marginBottom: '20px',
-          flexWrap: 'wrap',
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          <div style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', background: 'var(--background)', borderRadius: 'var(--radius-md)', padding: '0 12px' }}>
-            <span className="material-symbols-outlined" style={{ color: 'var(--text-muted)', marginRight: '8px' }}>search</span>
-            <input
-              type="text"
-              placeholder="Search by description..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              style={{ width: '100%', padding: '10px 0', border: 'none', background: 'transparent', color: 'var(--text-main)', fontSize: '14px', outline: 'none' }}
-            />
+        <div className="filter-panel">
+          <div className="filter-panel__title">
+            <Filter size={18} />
+            Filters
           </div>
 
-          <select
-            value={typeFilter}
-            onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1); }}
-            style={{ padding: '10px 16px', background: 'var(--background)', color: 'var(--text-main)', borderRadius: 'var(--radius-md)', border: '1px solid var(--outline-variant)', fontSize: '14px', cursor: 'pointer' }}
-          >
-            <option value="all">All Types</option>
-            <option value="income">Income</option>
-            <option value="expense">Expense</option>
-          </select>
+          <div className="filter-controls">
+            <div className="input-shell filter-search">
+              <Search className="input-icon" />
+              <input
+                className="input"
+                type="search"
+                placeholder="Search by description"
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
 
-          <select
-            value={categoryFilter}
-            onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
-            style={{ padding: '10px 16px', background: 'var(--background)', color: 'var(--text-main)', borderRadius: 'var(--radius-md)', border: '1px solid var(--outline-variant)', fontSize: '14px', cursor: 'pointer' }}
-          >
-            <option value="all">All Categories</option>
-            <option value="Food">Food</option>
-            <option value="Utilities">Utilities</option>
-            <option value="Entertainment">Entertainment</option>
-            <option value="Income">Income</option>
-            <option value="Other">Other</option>
-          </select>
+            <select className="select" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setCurrentPage(1); }}>
+              <option value="all">All types</option>
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+            </select>
 
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            style={{ padding: '10px 16px', background: 'var(--background)', color: 'var(--text-main)', borderRadius: 'var(--radius-md)', border: '1px solid var(--outline-variant)', fontSize: '14px', cursor: 'pointer' }}
-          >
-            <option value="date-desc">Newest First</option>
-            <option value="date-asc">Oldest First</option>
-            <option value="amount-desc">Highest Amount</option>
-            <option value="amount-asc">Lowest Amount</option>
-          </select>
+            <select className="select" value={categoryFilter} onChange={(event) => { setCategoryFilter(event.target.value); setCurrentPage(1); }}>
+              <option value="all">All categories</option>
+              {[...new Set(categories.map((c) => c.name))].map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+
+            <select className="select" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+              <option value="date-desc">Newest first</option>
+              <option value="date-asc">Oldest first</option>
+              <option value="amount-desc">Highest amount</option>
+              <option value="amount-asc">Lowest amount</option>
+            </select>
+
+            <button className="btn btn-secondary" type="button" onClick={clearFilters}>
+              <RotateCcw size={16} />
+              Reset
+            </button>
+          </div>
         </div>
 
-        {/* Transactions Table */}
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Loading transactions...</div>
-        ) : currentTransactions.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '60px 20px',
-            backgroundColor: 'var(--surface-container-lowest)',
-            borderRadius: 'var(--radius-2xl)',
-            color: 'var(--text-muted)',
-            boxShadow: 'var(--shadow-sm)'
-          }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--outline-variant)', marginBottom: '12px' }}>info</span>
-            <h3>No Transactions Found</h3>
-            <p>Try refining your filters or add a new transaction to get started.</p>
-          </div>
-        ) : (
-          <div style={{ backgroundColor: 'var(--surface-container-lowest)', borderRadius: 'var(--radius-2xl)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-            <table className="transactions-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th>Category</th>
-                  <th className="right">Amount</th>
-                  <th style={{ width: '80px', textAlign: 'center' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentTransactions.map((item) => {
-                  const shortName = item.description ? item.description.substring(0, 2).toUpperCase() : "TX";
-                  return (
-                    <tr key={item.id}>
-                      <td>{item.date}</td>
-                      <td>
-                        <div className="merchant">
-                          <div className="merchant-logo" style={{
-                            backgroundColor: item.type === 'income' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(186, 26, 26, 0.1)',
-                            color: item.type === 'income' ? 'var(--success)' : 'var(--error)'
-                          }}>
-                            {shortName}
-                          </div>
-                          <span>{item.description}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`tag ${getTagClass(item.category)}`}>
-                          {item.category}
-                        </span>
-                      </td>
-                      <td className={`right ${item.type === "income" ? "amount-positive" : "amount-negative"}`}>
-                        {item.type === "income" ? "+" : "-"}${Math.abs(item.amount).toFixed(2)}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button
-                          onClick={() => handleDeleteTransaction(item.id)}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer' }}
-                          title="Delete transaction"
-                        >
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {loading && <TableRowSkeleton rows={6} />}
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="pagination" style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '16px 24px',
-                borderTop: '1px solid var(--outline-variant)'
-              }}>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--outline-variant)',
-                    background: currentPage === 1 ? '#f1f5f9' : 'transparent',
-                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                    color: currentPage === 1 ? '#cbd5e1' : 'var(--text-main)'
-                  }}
-                >
-                  Previous
-                </button>
-                <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                  Page <strong>{currentPage}</strong> of {totalPages}
-                </span>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--outline-variant)',
-                    background: currentPage === totalPages ? '#f1f5f9' : 'transparent',
-                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                    color: currentPage === totalPages ? '#cbd5e1' : 'var(--text-main)'
-                  }}
-                >
-                  Next
-                </button>
-              </div>
-            )}
-          </div>
+        {!loading && error && (
+          <ErrorMessage title="Transactions unavailable" message={error} onRetry={loadData} />
         )}
 
-        {/* Add Transaction Modal */}
+        {!loading && !error && currentTransactions.length === 0 && (
+          <EmptyState
+            icon={ReceiptText}
+            title="No transactions found"
+            description="Try changing your filters, or add a new transaction to start building the ledger."
+            action={
+              <button className="btn btn-primary" type="button" onClick={() => setShowAddForm(true)}>
+                <Plus size={18} />
+                Add Transaction
+              </button>
+            }
+          />
+        )}
+
+        {!loading && !error && currentTransactions.length > 0 && (
+          <section className="table-card">
+            <div className="table-scroll">
+              <table className="data-table transactions-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Category</th>
+                    <th className="right">Amount</th>
+                    <th className="table-action">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentTransactions.map((item) => {
+                    const isIncome = item.type === 'income';
+                    const initials = (item.description || 'TX').slice(0, 2).toUpperCase();
+                    return (
+                      <tr key={item.id}>
+                        <td className="timestamp">{item.date}</td>
+                        <td>
+                          <div className="merchant">
+                            <span className={`merchant-logo ${isIncome ? 'income' : 'expense'}`}>{initials}</span>
+                            <span>{item.description}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`status-pill ${getCategoryClass(item.categoryName || item.category)}`}>{item.categoryName || item.category || 'Other'}</span>
+                        </td>
+                        <td className={`right amount ${isIncome ? 'amount-positive' : 'amount-negative'}`}>
+                          {isIncome ? '+' : '-'}{money.format(Math.abs(Number(item.amount || 0)))}
+                        </td>
+                        <td className="table-action">
+                          <button
+                            className="icon-button danger-button"
+                            type="button"
+                            aria-label={`Delete ${item.description}`}
+                            onClick={() => setPendingDelete(item)}
+                          >
+                            <Trash2 size={17} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="pagination">
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+              >
+                Previous
+              </button>
+              <span className="pagination__meta">
+                Page {currentPage} of {totalPages} ({pagination.total} total)
+              </span>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                disabled={currentPage >= totalPages || !pagination.hasMore}
+                onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
+              >
+                Next
+              </button>
+            </div>
+          </section>
+        )}
+
         {showAddForm && (
-          <div className="modal-overlay" style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(11, 28, 48, 0.4)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100000
-          }}>
-            <div className="modal-content" style={{
-              backgroundColor: 'var(--surface-container-lowest)',
-              padding: '30px',
-              borderRadius: 'var(--radius-2xl)',
-              width: '100%',
-              maxWidth: '450px',
-              boxShadow: 'var(--shadow-lg)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-main)' }}>Add New Transaction</h3>
-                <button onClick={() => setShowAddForm(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                  <span className="material-symbols-outlined">close</span>
+          <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="transaction-modal-title">
+            <div className="modal-panel">
+              <div className="modal-header">
+                <h2 className="modal-title" id="transaction-modal-title">Add Transaction</h2>
+                <button className="icon-button" type="button" aria-label="Close modal" onClick={() => { setShowAddForm(false); resetForm(); }}>
+                  <X />
                 </button>
               </div>
 
-              {formError && <div className="error-box" style={{
-                backgroundColor: 'rgba(186, 26, 26, 0.1)',
-                border: '1px solid var(--error)',
-                color: 'var(--error)',
-                padding: '12px',
-                borderRadius: 'var(--radius-md)',
-                marginBottom: '16px',
-                fontSize: '14px',
-                textAlign: 'center'
-              }}>{formError}</div>}
+              <div className="modal-body">
+                {formError && <div className="alert alert-error">{formError}</div>}
 
-              <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--text-soft)' }}>Description</label>
-                  <input
-                    type="text"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    placeholder="e.g. Grocery Store"
-                    required
-                    style={{ width: '100%', padding: '12px', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-md)', background: 'var(--background)', color: 'var(--text-main)', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--text-soft)' }}>Amount ($)</label>
+                <form className="modal-form" onSubmit={handleFormSubmit}>
+                  <div className="field">
+                    <label htmlFor="description">Description</label>
                     <input
-                      type="number"
-                      step="0.01"
-                      name="amount"
-                      value={formData.amount}
+                      className="input"
+                      id="description"
+                      name="description"
+                      type="text"
+                      placeholder="Grocery Store"
+                      value={formData.description}
                       onChange={handleInputChange}
-                      placeholder="0.00"
-                      required
-                      style={{ width: '100%', padding: '12px', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-md)', background: 'var(--background)', color: 'var(--text-main)', boxSizing: 'border-box' }}
                     />
                   </div>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--text-soft)' }}>Type</label>
-                    <select
-                      name="type"
-                      value={formData.type}
-                      onChange={handleInputChange}
-                      style={{ width: '100%', padding: '12px', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-md)', background: 'var(--background)', color: 'var(--text-main)', boxSizing: 'border-box', height: '45px' }}
-                    >
-                      <option value="expense">Expense</option>
-                      <option value="income">Income</option>
-                    </select>
-                  </div>
-                </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--text-soft)' }}>Category</label>
-                    <select
-                      name="category"
-                      value={formData.category}
-                      onChange={handleInputChange}
-                      style={{ width: '100%', padding: '12px', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-md)', background: 'var(--background)', color: 'var(--text-main)', boxSizing: 'border-box', height: '45px' }}
-                    >
-                      <option value="Food">Food</option>
-                      <option value="Utilities">Utilities</option>
-                      <option value="Entertainment">Entertainment</option>
-                      <option value="Rent">Rent</option>
-                      <option value="Technology">Technology</option>
-                      <option value="Other">Other</option>
-                    </select>
+                  <div className="form-grid">
+                    <div className="field">
+                      <label htmlFor="amount">Amount</label>
+                      <input
+                        className="input"
+                        id="amount"
+                        name="amount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formData.amount}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="type">Type</label>
+                      <select className="select" id="type" name="type" value={formData.type} onChange={handleInputChange}>
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '14px', fontWeight: 500, color: 'var(--text-soft)' }}>Date</label>
-                    <input
-                      type="date"
-                      name="date"
-                      value={formData.date}
-                      onChange={handleInputChange}
-                      required
-                      style={{ width: '100%', padding: '12px', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-md)', background: 'var(--background)', color: 'var(--text-main)', boxSizing: 'border-box', height: '45px' }}
-                    />
-                  </div>
-                </div>
 
-                <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                  <button type="button" onClick={() => setShowAddForm(false)} style={{ flex: 1, padding: '12px', border: '1px solid var(--outline-variant)', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--text-main)', cursor: 'pointer' }}>
-                    Cancel
-                  </button>
-                  <button type="submit" style={{ flex: 1, padding: '12px', border: 'none', borderRadius: 'var(--radius-md)', background: 'var(--primary)', color: 'white', fontWeight: 600, cursor: 'pointer' }}>
-                    Save
-                  </button>
-                </div>
-              </form>
+                  <div className="form-grid">
+                    <div className="field">
+                      <label htmlFor="categoryId">Category</label>
+                      <select
+                        className="select"
+                        id="categoryId"
+                        name="categoryId"
+                        value={formData.categoryId}
+                        onChange={handleInputChange}
+                      >
+                        <option value="">Select category</option>
+                        {categories
+                          .filter((c) => c.type === formData.type)
+                          .map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="date">Date</label>
+                      <input className="input" id="date" name="date" type="date" value={formData.date} onChange={handleInputChange} />
+                    </div>
+                  </div>
+
+                  <div className="modal-actions">
+                    <button className="btn btn-secondary" type="button" onClick={() => { setShowAddForm(false); resetForm(); }}>
+                      Cancel
+                    </button>
+                    <button className="btn btn-primary" type="submit">
+                      Save Transaction
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         )}
-      </div>
+
+        {pendingDelete && (
+          <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-transaction-title">
+            <div className="modal-panel confirm-panel">
+              <div className="modal-header">
+                <h2 className="modal-title" id="delete-transaction-title">Delete transaction?</h2>
+                <button className="icon-button" type="button" aria-label="Close modal" onClick={() => setPendingDelete(null)}>
+                  <X />
+                </button>
+              </div>
+              <div className="modal-body">
+                <p className="confirm-copy">
+                  This will remove <strong>{pendingDelete.description}</strong> from your ledger.
+                </p>
+                <div className="modal-actions">
+                  <button className="btn btn-secondary" type="button" onClick={() => setPendingDelete(null)}>Cancel</button>
+                  <button className="btn btn-danger" type="button" onClick={handleDeleteTransaction}>
+                    <Trash2 size={16} />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {toast && (
+          <div className="toast-stack" role="status" aria-live="polite">
+            <div className={`toast toast-${toast.tone}`}>
+              {toast.tone === 'error' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+              <span>{toast.message}</span>
+            </div>
+          </div>
+        )}
+      </section>
     </DashboardLayout>
   );
 };

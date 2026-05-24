@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import api from "../utils/api";
+import { register as registerApi } from "../api/authApi";
 import "../styles/pages/Register.css";
 
 const Signup = () => {
@@ -40,7 +40,7 @@ const Signup = () => {
     setLoading(true);
 
     try {
-      const data = await api.post("/auth/register", {
+      const data = await registerApi({
         name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email,
         password: formData.password,
@@ -48,7 +48,7 @@ const Signup = () => {
       });
 
       login(data);
-      navigate("/dashboard");
+      navigate("/verify-email");
     } catch (err) {
       setError(err?.message || "Failed to create account");
     } finally {

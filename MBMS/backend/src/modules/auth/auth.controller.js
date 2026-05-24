@@ -2,6 +2,17 @@ const authService = require('./auth.service');
 const { sendSuccess } = require('../../shared/ApiResponse');
 const { config } = require('../../config/index.config');
 
+//me -----
+async function me(req, res, next) {
+  try {
+    const user = await authService.getMe(req.user.id ?? req.user.sub);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, data: user });
+  } catch (err) {
+    next(err);
+  }
+} 
+
 async function register(req, res, next) {
   try {
     const tokens = await authService.register(req.body);
@@ -59,6 +70,7 @@ async function oauthCallback(req, res) {
 }
 
 module.exports = {
+  me,
   register,
   login,
   refresh,

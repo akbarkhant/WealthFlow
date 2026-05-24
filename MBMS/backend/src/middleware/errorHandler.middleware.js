@@ -1,6 +1,6 @@
 // middlewares/errorHandler.middleware.js
 
-const logger = require('../config/logger.config');
+const {logger} = require('../config/logger.config');
 
 // ─────────────────────────────────────────────
 // AppError — use this for all intentional errors

@@ -3,7 +3,7 @@
 const jwt = require('jsonwebtoken');
 
 const { config } = require('../config/index.config');
-const logger = require('../config/logger.config');
+const {logger} = require('../config/logger.config');
 
 /**
  * Authentication Middleware
@@ -32,7 +32,7 @@ function authenticate(req, res, next) {
 
     // Attach user data to request
     req.user = {
-      id: decoded.id,
+      id: decoded.sub ?? decoded.id,
       email: decoded.email,
       role: decoded.role,
       jti: decoded.jti,

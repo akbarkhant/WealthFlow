@@ -58,3 +58,4 @@ process.on('SIGTERM', async () => {
   await disconnectRedis();
   process.exit(0);
 });
+

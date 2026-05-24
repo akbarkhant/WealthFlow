@@ -22,6 +22,9 @@ const { apiLimiter } = require('./middleware/rateLimiter.middleware');
 const authRoutes = require('./modules/auth/auth.routes');
 const budgetsRouter = require('./modules/budgets/budget.routes');
 const transactionsRouter = require('./modules/transactions/transactions.routes');
+const { usersRouter } = require('./modules/users/users.routes');
+const { categoriesRouter } = require('./modules/categories/categories.routes');
+const { reportsRouter } = require('./modules/reports/reports.routes');
 
 const app = express();
 
@@ -96,6 +99,10 @@ app.use(
   '/api/transactions',
   transactionsRouter
 );
+
+app.use('/api/users', usersRouter);
+app.use('/api/categories', categoriesRouter);
+app.use('/api/reports', reportsRouter);
 
 // ─────────────────────────────────────────────
 // Root Route

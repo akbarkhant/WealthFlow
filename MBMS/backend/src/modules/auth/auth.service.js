@@ -100,33 +100,55 @@ async function register(input) {
   });
 }
 
+async function getMe(userId) {
+  const result = await query(
+    'SELECT id, name, email, currency, avatar_url, created_at FROM users WHERE id = $1',
+    [userId]
+  );
+  return result[0] || null;
+}
+
 async function login(input) {
-  const rows = await query(
-    'SELECT id, email, password_hash FROM users WHERE email = $1 AND deleted_at IS NULL',
+  const result = await query(
+    'SELECT id, email, password_hash FROM users WHERE email = $1',
     [input.email]
   );
 
-  const user = rows[0];
+  console.log('Query result:', JSON.stringify(result));
+  const user = result[0];
 
-  // constant-time comparison safety
-  const hashToCompare =
-    (user && user.password_hash) ||
-    '$2b$12$invalidhashpadding000000000000000000000000000000000000';
+  if (!user) {
+    throw new UnauthorizedError('Invalid email or password');
+  }
 
-  const valid = await bcrypt.compare(input.password, hashToCompare);
+  const valid = await bcrypt.compare(
+    input.password,
+    user.password_hash
+  );
 
-  if (!user || !valid) {
+  if (!valid) {
     throw new UnauthorizedError('Invalid email or password');
   }
 
   return withTransaction(async (client) => {
     const accessToken = signAccessToken(user.id, user.email);
-    const { token: refreshToken, jti } = signRefreshToken(user.id);
+
+    const { token: refreshToken, jti } =
+      signRefreshToken(user.id);
 
     const tokenHash = await bcrypt.hash(refreshToken, 10);
-    await storeRefreshToken(client, user.id, jti, tokenHash);
 
-    return { accessToken, refreshToken };
+    await storeRefreshToken(
+      client,
+      user.id,
+      jti,
+      tokenHash
+    );
+
+    return {
+      accessToken,
+      refreshToken,
+    };
   });
 }
 
@@ -295,6 +317,7 @@ async function findOrCreateOAuthUser(profile) {
 // ── exports ────────────────────────────────────────────────────────────────────
 
 module.exports = {
+  getMe,
   register,
   login,
   refresh,
