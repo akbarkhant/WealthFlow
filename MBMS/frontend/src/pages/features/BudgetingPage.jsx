@@ -351,9 +351,7 @@ export default function BudgetingPage() {
                             Join 2 million people who've transformed their finances with WealthFlow.
                         </p>
                         <button className="bp-btn-white">
-                            <a href="/signup">
                                 Get started — it's free
-                            </a>
                             <span className="bp-btn-arrow"><IconArrowRight /></span>
                         </button>
                     </div>
