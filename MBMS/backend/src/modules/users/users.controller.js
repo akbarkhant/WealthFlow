@@ -1,22 +1,22 @@
 const service = require('./users.service');
-
-const {
-  sendSuccess,
-} = require('../../shared/ApiResponse');
+const {  sendSuccess  } = require('../../shared/ApiResponse');
 
 // ── Get Current User ─────────────────────────────────────────────
 async function getMe(req, res, next) {
   try {
-    const user = await service.getMe(
-      req.user.id
-    );
+    const user = await service.getMe(req.user.id);
 
-    sendSuccess(res, user);
+    sendSuccess(res, {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    });
   } catch (err) {
     next(err);
   }
 }
-
 // ── Update Current User ──────────────────────────────────────────
 async function updateMe(req, res, next) {
   try {

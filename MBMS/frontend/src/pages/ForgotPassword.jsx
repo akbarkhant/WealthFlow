@@ -122,7 +122,8 @@ const ForgotPassword = () => {
 
       {/* Footer */}
       <footer className="footer">
-        <p>© 2024 WealthFlow</p>
+        <p>© {new Date().getFullYear()}  WealthFlow Financial Technologies.
+              All rights reserved.</p>
         <div className="footer-links">
           <Link to="/privacy">Privacy</Link>
           <Link to="/terms">Terms</Link>

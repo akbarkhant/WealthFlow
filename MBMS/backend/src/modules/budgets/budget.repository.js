@@ -317,6 +317,51 @@ async function syncSpent(budgetId, userId) {
   return findById(budgetId, userId);
 }
 
+/**
+ * Get all budgets for a user for a specific month and year.
+ */
+async function findAllForMonth(userId, month, year) {
+  const rows = await query(
+    `SELECT ${BUDGET_SELECT}
+     FROM   budgets b
+     JOIN   categories c ON c.id = b.category_id
+     LEFT   JOIN transactions t ON t.category_id = b.category_id
+                                AND t.user_id     = b.user_id
+     WHERE  b.user_id    = $1
+       AND  EXTRACT(MONTH FROM b.start_date) = $2
+       AND  EXTRACT(YEAR FROM b.start_date)  = $3
+       AND  b.deleted_at IS NULL
+     ${GROUP_BY}
+     ORDER BY b.created_at DESC`,
+    [userId, month, year]
+  );
+
+  return rows.map(enrichBudget);
+}
+
+/**
+ * Find a budget for a category and specific month/year.
+ */
+async function findByCategoryMonth(userId, categoryId, month, year) {
+  const rows = await query(
+    `SELECT ${BUDGET_SELECT}
+     FROM   budgets b
+     JOIN   categories c ON c.id = b.category_id
+     LEFT   JOIN transactions t ON t.category_id = b.category_id
+                                AND t.user_id     = b.user_id
+     WHERE  b.user_id     = $1
+       AND  b.category_id = $2
+       AND  EXTRACT(MONTH FROM b.start_date) = $3
+       AND  EXTRACT(YEAR FROM b.start_date)  = $4
+       AND  b.deleted_at  IS NULL
+     ${GROUP_BY}`,
+    [userId, categoryId, month, year]
+  );
+
+  if (!rows[0]) return null;
+  return enrichBudget(rows[0]);
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -324,6 +369,8 @@ module.exports = {
   findActive,
   findById,
   findByCategory,
+  findByCategoryMonth,
+  findAllForMonth,
   create,
   update,
   remove,

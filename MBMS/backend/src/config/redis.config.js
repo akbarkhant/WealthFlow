@@ -103,6 +103,7 @@ async function disconnectRedis() {
 module.exports = {
   redis,
   connectRedis,
+  disconnectRedis,
 
   blacklistToken,
   isTokenBlacklisted,

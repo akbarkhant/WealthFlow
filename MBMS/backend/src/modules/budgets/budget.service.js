@@ -1,3 +1,4 @@
+const { query } = require('../../config/db.config');
 const repo = require('./budget.repository');
 
 const {
@@ -33,7 +34,25 @@ async function create(userId, input) {
     );
   }
 
-  return repo.create(userId, input);
+  // Look up category name to formulate budget name
+  const categories = await query('SELECT name FROM categories WHERE id = $1', [input.categoryId]);
+  const categoryName = categories[0] ? categories[0].name : 'Category';
+
+  const startDate = `${input.year}-${String(input.month).padStart(2, '0')}-01`;
+  const lastDay = new Date(input.year, input.month, 0).getDate();
+  const endDate = `${input.year}-${String(input.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  const repoInput = {
+    categoryId: input.categoryId,
+    name: `${categoryName} Budget`,
+    amount: input.amountLimit,
+    period: 'monthly',
+    startDate,
+    endDate,
+    alertThreshold: 80
+  };
+
+  return repo.create(userId, repoInput);
 }
 
 async function update(id, userId, input) {
@@ -43,7 +62,12 @@ async function update(id, userId, input) {
     throw new NotFoundError('Budget');
   }
 
-  const updated = await repo.update(id, userId, input);
+  const repoInput = {};
+  if (input.amountLimit !== undefined) {
+    repoInput.amount = input.amountLimit;
+  }
+
+  const updated = await repo.update(id, userId, repoInput);
 
   return updated;
 }

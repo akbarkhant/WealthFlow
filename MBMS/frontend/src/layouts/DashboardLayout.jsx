@@ -7,7 +7,6 @@ import {
   LogOut,
   Menu,
   Moon,
-  Plus,
   ReceiptText,
   Search,
   Settings,
@@ -16,6 +15,7 @@ import {
   Target,
   UserRound,
   WalletCards,
+  Banknote,
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -28,10 +28,11 @@ import './DashboardLayout.css';
 
 const navItems = [
   { name: 'Dashboard',    path: '/dashboard',    icon: LayoutDashboard },
-  { name: 'Transactions', path: '/transactions', icon: ReceiptText },
+  { name: 'Transactions', path: '/transactions', icon: Banknote },
   { name: 'Budgets',      path: '/budgets',      icon: Target },
   { name: 'Categories',   path: '/categories',   icon: Tags },
   { name: 'Settings',     path: '/settings',     icon: Settings },
+  { name: 'Bills',     path: '/bills',     icon:  ReceiptText },
 ];
 
 const { month, year } = getCurrentPeriod();
@@ -44,15 +45,15 @@ const currency = new Intl.NumberFormat('en-US', {
 });
 
 const DashboardLayout = ({ children }) => {
-  const location  = useLocation();
-  const navigate  = useNavigate();
+  const location        = useLocation();
+  const navigate        = useNavigate();
   const { user, logout } = useAuth();
 
-  const [theme,                setTheme]                = useState(() => localStorage.getItem('theme') || 'light');
-  const [isSidebarOpen,        setIsSidebarOpen]        = useState(false);
-  const [searchQuery,          setSearchQuery]          = useState('');
-  const [isNotificationsOpen,  setIsNotificationsOpen]  = useState(false);
-  const [isProfileOpen,        setIsProfileOpen]        = useState(false);
+  const [theme,               setTheme]               = useState(() => localStorage.getItem('theme') || 'light');
+  const [isSidebarOpen,       setIsSidebarOpen]       = useState(() => window.innerWidth > 768);
+  const [searchQuery,         setSearchQuery]         = useState('');
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isProfileOpen,       setIsProfileOpen]       = useState(false);
 
   const { data: monthlySummary } = useApi(
     () => getMonthlyReport({ month: period.month, year: period.year }),
@@ -71,23 +72,24 @@ const DashboardLayout = ({ children }) => {
 
   const netCashflow = Number(monthlySummary?.netSavings ?? 0);
 
+  // ── Theme ────────────────────────────────────────────────────────
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  /* Close all drawers on route change */
+  // ── Close drawers on route change (sidebar only on mobile) ───────
   useEffect(() => {
-    setIsSidebarOpen(false);
+    if (window.innerWidth <= 768) setIsSidebarOpen(false);
     setIsNotificationsOpen(false);
     setIsProfileOpen(false);
   }, [location.pathname]);
 
-  /* ESC key closes everything */
+  // ── ESC key ──────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
-        setIsSidebarOpen(false);
+        if (window.innerWidth <= 768) setIsSidebarOpen(false);
         setIsNotificationsOpen(false);
         setIsProfileOpen(false);
       }
@@ -96,6 +98,7 @@ const DashboardLayout = ({ children }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // ── Derived display values ───────────────────────────────────────
   const displayName  = user?.name || user?.email?.split('@')[0] || 'User';
   const displayEmail = user?.email || '';
   const initials     = useMemo(
@@ -124,7 +127,8 @@ const DashboardLayout = ({ children }) => {
   };
 
   return (
-    <div className={`dashboard-shell ${isSidebarOpen ? 'is-sidebar-open' : ''}`}>
+    <div className={`dashboard-shell ${!isSidebarOpen ? 'is-sidebar-closed' : ''}`}>
+
       {/* Mobile scrim */}
       <button
         className="sidebar-scrim"
@@ -139,7 +143,6 @@ const DashboardLayout = ({ children }) => {
         {/* Brand */}
         <div className="sidebar-brand-row">
           <Link to="/dashboard" className="sidebar-brand" aria-label="WealthFlow">
-            {/* Icon only — no colored blob wrapper */}
             <span className="sidebar-brand__mark">
               <WalletCards size={16} />
             </span>
@@ -153,7 +156,7 @@ const DashboardLayout = ({ children }) => {
             className="icon-button sidebar-close"
             type="button"
             aria-label="Close navigation"
-            onClick={() => setIsSidebarOpen(false)}
+            onClick={() => setIsSidebarOpen((o) => !o)}
           >
             <X size={14} />
           </button>
@@ -171,7 +174,6 @@ const DashboardLayout = ({ children }) => {
                 to={item.path}
                 className={`sidebar-link ${isActive ? 'is-active' : ''}`}
               >
-                {/* Icons are 14px, same color as text — no separate accent color */}
                 <Icon size={14} />
                 <span>{item.name}</span>
               </Link>
@@ -198,12 +200,13 @@ const DashboardLayout = ({ children }) => {
             <span>{displayEmail}</span>
           </div>
         </div>
+
       </aside>
 
       {/* ── Main ───────────────────────────────────────────────────── */}
       <div className="dashboard-main">
 
-        {/* Topbar — 48px height */}
+        {/* Topbar */}
         <header className="dashboard-topbar">
 
           {/* Left */}
@@ -211,8 +214,8 @@ const DashboardLayout = ({ children }) => {
             <button
               className="icon-button menu-trigger"
               type="button"
-              aria-label="Open navigation"
-              onClick={() => setIsSidebarOpen(true)}
+              aria-label="Toggle navigation"
+              onClick={() => setIsSidebarOpen((o) => !o)}
             >
               <Menu size={15} />
             </button>
@@ -292,16 +295,6 @@ const DashboardLayout = ({ children }) => {
               )}
             </div>
 
-            {/* Add transaction */}
-            <button
-              className="btn btn-primary topbar-add"
-              type="button"
-              onClick={() => navigate('/transactions')}
-            >
-              <Plus size={13} />
-              <span>Add Transaction</span>
-            </button>
-
             {/* Profile */}
             <div className="dropdown">
               <button
@@ -342,6 +335,7 @@ const DashboardLayout = ({ children }) => {
                 </div>
               )}
             </div>
+
           </div>
         </header>
 

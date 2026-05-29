@@ -1,5 +1,13 @@
 // SessionExpired.jsx
+
 import { Link } from 'react-router-dom';
+import {
+  LockKeyhole,
+  ShieldCheck,
+  ArrowRight,
+  ShieldEllipsis,
+} from 'lucide-react';
+
 import '../styles/pages/sessionExpired.css';
 
 const SessionExpired = () => {
@@ -25,21 +33,20 @@ const SessionExpired = () => {
 
           {/* Icon */}
           <div className="session-icon-wrapper">
+
             <div className="session-icon">
-              <span className="material-symbols-outlined">
-                lock_clock
-              </span>
+              <LockKeyhole size={42} strokeWidth={2.2} />
             </div>
 
             <div className="session-security-badge">
-              <span className="material-symbols-outlined">
-                security
-              </span>
+              <ShieldCheck size={18} strokeWidth={2.5} />
             </div>
+
           </div>
 
           {/* Text */}
           <div className="session-text">
+
             <h1>Your session has expired</h1>
 
             <p>
@@ -47,17 +54,22 @@ const SessionExpired = () => {
               period of inactivity. Please log in again to continue managing
               your wealth.
             </p>
+
           </div>
 
           {/* Card */}
           <div className="session-card">
 
             <Link to="/login" className="primary-btn">
+
               <span>Log In Again</span>
 
-              <span className="material-symbols-outlined arrow-icon">
-                arrow_forward
-              </span>
+              <ArrowRight
+                size={18}
+                strokeWidth={2.5}
+                className="arrow-icon"
+              />
+
             </Link>
 
             <Link to="/" className="secondary-btn">
@@ -68,11 +80,11 @@ const SessionExpired = () => {
 
           {/* Trust Indicator */}
           <div className="trust-indicator">
-            <span className="material-symbols-outlined">
-              encrypted
-            </span>
+
+            <ShieldEllipsis size={18} strokeWidth={2.2} />
 
             <p>Bank-Grade Encryption Enabled</p>
+
           </div>
 
         </div>
@@ -84,12 +96,14 @@ const SessionExpired = () => {
         <div className="footer-container">
 
           <div className="footer-left">
+
             <h3>WealthFlow</h3>
 
             <p>
-              © 2024 WealthFlow Financial Technologies.
+              © {new Date().getFullYear()} WealthFlow Financial Technologies.
               All rights reserved.
             </p>
+
           </div>
 
           <div className="footer-links">

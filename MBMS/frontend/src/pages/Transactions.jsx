@@ -82,16 +82,22 @@ const Transactions = () => {
     currency: 'USD',
   });
 
+  // Track active toast timer to prevent memory leaks
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   const showToast = useCallback((message, tone = 'success') => {
     setToast({ message, tone });
-    const timer = window.setTimeout(() => setToast(null), 3000);
-    return () => window.clearTimeout(timer);
   }, []);
 
-  const categoryIdFilter =
-    categoryFilter === 'all'
+  const categoryIdFilter = useMemo(() => {
+    return categoryFilter === 'all'
       ? undefined
       : categories.find((c) => c.name === categoryFilter)?.id;
+  }, [categoryFilter, categories]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -105,6 +111,7 @@ const Transactions = () => {
           search: searchQuery.trim() || undefined,
           type: typeFilter === 'all' ? undefined : typeFilter,
           categoryId: categoryIdFilter,
+          sortBy, // Pass sorting string straight to API instead of evaluating after delivery
           startDate: period.startDate,
           endDate: period.endDate,
         }),
@@ -113,12 +120,7 @@ const Transactions = () => {
         getMonthlyReport({ month: period.month, year: period.year }),
       ]);
 
-      let rows = txResult.data;
-      if (sortBy === 'date-asc') rows = [...rows].sort((a, b) => new Date(a.date) - new Date(b.date));
-      else if (sortBy === 'amount-desc') rows = [...rows].sort((a, b) => Number(b.amount) - Number(a.amount));
-      else if (sortBy === 'amount-asc') rows = [...rows].sort((a, b) => Number(a.amount) - Number(b.amount));
-
-      setTransactions(rows);
+      setTransactions(txResult.data);
       setPagination({
         page: txResult.meta.page,
         totalPages: Math.max(1, txResult.meta.totalPages),
@@ -140,37 +142,23 @@ const Transactions = () => {
     loadData();
   }, [loadData]);
 
-  useEffect(() => {
-    const match = categories.find((c) => c.type === formData.type);
-    if (match && !categories.some((c) => c.id === formData.categoryId && c.type === formData.type)) {
-      setFormData((current) => ({ ...current, categoryId: match.id }));
-    }
-  }, [formData.type, categories, formData.categoryId]);
-
-  useEffect(() => {
-    const query = searchParams.get('search') || '';
-    setSearchQuery(query);
-    setCurrentPage(1);
-  }, [searchParams]);
-
-  // Escape key handler to close active overlays gracefully
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        setShowAddForm(false);
-        setPendingDelete(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
+  // Handle Type switching and category syncing gracefully inside an input handler context
   const handleInputChange = (event) => {
     const { name, value } = event.target;
-    setFormData((current) => ({ ...current, [name]: value }));
+
+    setFormData((current) => {
+      const updated = { ...current, [name]: value };
+
+      // If the user flips the transaction type, automatically pick the first valid matching category
+      if (name === 'type') {
+        const firstMatchingCat = categories.find((c) => c.type === value);
+        updated.categoryId = firstMatchingCat ? firstMatchingCat.id : '';
+      }
+      return updated;
+    });
   };
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     const defaultCat = categories.find((c) => c.type === 'expense');
     setFormData({
       description: '',
@@ -181,7 +169,34 @@ const Transactions = () => {
       currency: 'USD',
     });
     setFormError('');
-  };
+  }, [categories]);
+
+  // Set initial category value once categories load from backend
+  useEffect(() => {
+    if (categories.length > 0 && !formData.categoryId) {
+      const defaultCat = categories.find((c) => c.type === 'expense');
+      if (defaultCat) {
+        setFormData((curr) => ({ ...curr, categoryId: defaultCat.id }));
+      }
+    }
+  }, [categories, formData.categoryId]);
+
+  useEffect(() => {
+    const query = searchParams.get('search') || '';
+    setSearchQuery(query);
+    setCurrentPage(1);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowAddForm(false);
+        setPendingDelete(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleFormSubmit = async (event) => {
     event.preventDefault();
@@ -200,7 +215,6 @@ const Transactions = () => {
       setFormError('Date is required.');
       return;
     }
-
     if (!formData.categoryId) {
       setFormError('Select a category.');
       return;
@@ -222,7 +236,7 @@ const Transactions = () => {
       await loadData();
       showToast('Transaction added successfully.');
     } catch (err) {
-      setFormError('Failed to add transaction.');
+      setFormError(err.response?.data?.error || err.message || 'Failed to add transaction.');
     }
   };
 
@@ -310,7 +324,7 @@ const Transactions = () => {
               <div className="progress-bar">
                 <div
                   className={`progress-fill ${budget.fillClass}`}
-                  style={{ 
+                  style={{
                     width: `${Math.min(budget.usedPercent, 100)}%`,
                     ...(!['warning', 'danger'].includes(budget.fillClass) && budget.color ? { backgroundColor: budget.color } : {})
                   }}

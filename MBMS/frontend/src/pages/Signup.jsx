@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { register as registerApi } from "../api/authApi";
+// Import the Lucide components
+import { ShieldCheck, TrendingUp, User, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import "../styles/pages/Register.css";
 
 const Signup = () => {
@@ -82,22 +84,16 @@ const Signup = () => {
 
             <div className="feature-grid">
               <div className="feature-card">
-                <span className="material-symbols-outlined feature-icon">
-                  verified_user
-                </span>
-
+                {/* Replaced verified_user */}
+                <ShieldCheck className="feature-icon" size={24} />
                 <h3>Secure</h3>
-
                 <p>Bank-grade 256-bit encryption for all data.</p>
               </div>
 
               <div className="feature-card">
-                <span className="material-symbols-outlined feature-icon">
-                  trending_up
-                </span>
-
+                {/* Replaced trending_up */}
+                <TrendingUp className="feature-icon" size={24} />
                 <h3>Insightful</h3>
-
                 <p>Real-time tracking of all your assets.</p>
               </div>
             </div>
@@ -145,9 +141,8 @@ const Signup = () => {
                   <label>First Name</label>
 
                   <div className="input-box">
-                    <span className="material-symbols-outlined input-icon">
-                      person
-                    </span>
+                    {/* Replaced person */}
+                    <User className="input-icon" size={20} />
 
                     <input
                       type="text"
@@ -164,9 +159,8 @@ const Signup = () => {
                   <label>Last Name</label>
 
                   <div className="input-box">
-                    <span className="material-symbols-outlined input-icon">
-                      person
-                    </span>
+                    {/* Replaced person */}
+                    <User className="input-icon" size={20} />
 
                     <input
                       type="text"
@@ -183,9 +177,8 @@ const Signup = () => {
                   <label>Email Address</label>
 
                   <div className="input-box">
-                    <span className="material-symbols-outlined input-icon">
-                      mail
-                    </span>
+                    {/* Replaced mail */}
+                    <Mail className="input-icon" size={20} />
 
                     <input
                       type="email"
@@ -202,9 +195,8 @@ const Signup = () => {
                   <label>Password</label>
 
                   <div className="input-box">
-                    <span className="material-symbols-outlined input-icon">
-                      lock
-                    </span>
+                    {/* Replaced lock */}
+                    <Lock className="input-icon" size={20} />
 
                     <input
                       type={showPassword ? "text" : "password"}
@@ -218,13 +210,10 @@ const Signup = () => {
                     <button
                       type="button"
                       className="password-toggle"
-                      onClick={() =>
-                        setShowPassword(!showPassword)
-                      }
+                      onClick={() => setShowPassword(!showPassword)}
                     >
-                      <span className="material-symbols-outlined">
-                        {showPassword ? "visibility_off" : "visibility"}
-                      </span>
+                      {/* Replaced visibility / visibility_off */}
+                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
                   </div>
 
@@ -237,14 +226,11 @@ const Signup = () => {
                   <label>Confirm Password</label>
 
                   <div className="input-box">
-                    <span className="material-symbols-outlined input-icon">
-                      lock
-                    </span>
+                    {/* Replaced lock */}
+                    <Lock className="input-icon" size={20} />
 
                     <input
-                      type={
-                        showConfirmPassword ? "text" : "password"
-                      }
+                      type={showConfirmPassword ? "text" : "password"}
                       name="confirmPassword"
                       placeholder="••••••••"
                       value={formData.confirmPassword}
@@ -256,16 +242,11 @@ const Signup = () => {
                       type="button"
                       className="password-toggle"
                       onClick={() =>
-                        setShowConfirmPassword(
-                          !showConfirmPassword
-                        )
+                        setShowConfirmPassword(!showConfirmPassword)
                       }
                     >
-                      <span className="material-symbols-outlined">
-                        {showConfirmPassword
-                          ? "visibility_off"
-                          : "visibility"}
-                      </span>
+                      {/* Replaced visibility / visibility_off */}
+                      {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
                   </div>
                 </div>
@@ -285,9 +266,7 @@ const Signup = () => {
                   className="signup-btn"
                   disabled={loading}
                 >
-                  {loading
-                    ? "Creating Account..."
-                    : "Create Account"}
+                  {loading ? "Creating Account..." : "Create Account"}
                 </button>
               </form>
 
@@ -308,7 +287,7 @@ const Signup = () => {
           <div className="footer-left">
             <h3>WealthFlow</h3>
             <p>
-              © 2024 WealthFlow Financial Technologies.
+              © 2026 WealthFlow Financial Technologies.
               All rights reserved.
             </p>
           </div>

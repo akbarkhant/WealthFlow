@@ -1,5 +1,6 @@
-const service = require('./transactions.service');
+// transactions.controller.js
 
+const service = require('./transactions.service');
 const { sendSuccess } = require('../../shared/ApiResponse');
 
 // ── Get All Transactions ─────────────────────────────────────────

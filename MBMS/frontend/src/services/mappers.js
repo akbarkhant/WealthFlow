@@ -1,7 +1,7 @@
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function mapBudgetForUi(budget) {
-  const limit = Number(budget.amountLimit ?? budget.limit ?? 0);
+  const limit = Number(budget.amountLimit ?? budget.amount ?? budget.limit ?? 0);
   const spent = Number(budget.spent ?? 0);
   const usedPercent =
     budget.percentUsed != null

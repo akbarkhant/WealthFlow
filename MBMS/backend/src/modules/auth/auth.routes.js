@@ -2,18 +2,11 @@ const { Router } = require('express');
 const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
 const { Strategy: GitHubStrategy } = require('passport-github2');
-
 const { config } = require('../../config/index.config');
 const { authRateLimiter } = require('../../middleware/rateLimiter.middleware');
 const {validate} = require('../../middleware/validate.middleware');
 const { authenticate } = require('../../middleware/authorize.middleware');
-
-const {
-  registerSchema,
-  loginSchema,
-  refreshSchema,
-} = require('./auth.schema');
-
+const {registerSchema,  loginSchema,  refreshSchema } = require('./auth.schema');
 const controller = require('./auth.controller');
 const { findOrCreateOAuthUser } = require('./auth.service');
 
@@ -83,11 +76,24 @@ passport.use(
 // ── Auth Routes ────────────────────────────────────────────────────
 
 router.get('/me',        authenticate,                              controller.me); 
-// Email/password auth
+
+// ==== Email/password auth =========================
 router.post('/register', authRateLimiter, validate(registerSchema), controller.register);
 router.post('/login', authRateLimiter, validate(loginSchema), controller.login);
 router.post('/refresh', authRateLimiter, validate(refreshSchema), controller.refresh);
 router.post('/logout', authenticate, controller.logout);
+
+// ==== verification ====================
+router.get('/verify-email', controller.verifyEmail);
+
+// ===== resend-verification link ========================
+router.post('/resend-verification', authRateLimiter, controller.resendVerification);
+
+// ===== forget-password ============
+router.post('/forgot-password', authRateLimiter, controller.forgotPassword);
+
+// ====== reset-password ==================
+router.post('/reset-password',  authRateLimiter, controller.resetPassword);
 
 // Google OAuth
 router.get(

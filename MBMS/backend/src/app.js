@@ -25,6 +25,8 @@ const transactionsRouter = require('./modules/transactions/transactions.routes')
 const { usersRouter } = require('./modules/users/users.routes');
 const { categoriesRouter } = require('./modules/categories/categories.routes');
 const { reportsRouter } = require('./modules/reports/reports.routes');
+const notificationRoutes = require('./modules/notifications/notification.routes');
+const billsRouter = require(.)
 
 const app = express();
 
@@ -103,6 +105,15 @@ app.use(
 app.use('/api/users', usersRouter);
 app.use('/api/categories', categoriesRouter);
 app.use('/api/reports', reportsRouter);
+app.use('/api/bills', billsRouter);
+app.use('/api/search', searchRouter);
+
+//==============================================
+// notifications
+//==============================================
+
+app.use('/api/notifications', notificationRoutes);
+
 
 // ─────────────────────────────────────────────
 // Root Route
@@ -128,5 +139,6 @@ app.use(notFound);
 // ─────────────────────────────────────────────
 
 app.use(errorHandler);
+
 
 module.exports = app;

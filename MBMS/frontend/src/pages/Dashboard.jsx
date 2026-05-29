@@ -4,6 +4,8 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   AlertTriangle,
+  Bell,
+  BellOff,
   RefreshCw,
   TrendingUp,
   WalletCards,
@@ -17,6 +19,7 @@ import { getCurrentPeriod, getMonthDateRange, periodFromDateInputs } from '../ut
 import { MetricCardSkeleton, ChartSkeleton } from '../components/feedback/LoadingSkeleton';
 import ErrorMessage from '../components/feedback/ErrorMessage';
 import EmptyState from '../components/feedback/EmptyState';
+import usePushNotification from '../hooks/usePushNotification';
 import '../styles/pages/Dashboard.css';
 
 const currency = new Intl.NumberFormat('en-US', {
@@ -36,6 +39,14 @@ const Dashboard = () => {
   const [range, setRange] = useState('6m');
   const [startDate, setStartDate] = useState(defaultPeriod.startDate);
   const [endDate, setEndDate] = useState(defaultPeriod.endDate);
+
+  const {
+    isSubscribed,
+    isSupported,
+    isLoading: notifLoading,
+    error: notifError,
+    toggle,
+  } = usePushNotification();
 
   const period = useMemo(
     () => periodFromDateInputs(startDate, endDate),
@@ -108,18 +119,49 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <section className="page-stack dashboard-page">
+
+        {/* ── Page Header ── */}
         <div className="page-header">
           <div>
             <p className="page-eyebrow">Financial command center</p>
             <h1 className="page-title">Dashboard Overview</h1>
             <p className="page-subtitle">Live KPIs, charts, and activity from your WealthFlow API.</p>
           </div>
-          <button className="btn btn-secondary" type="button" onClick={refetch} disabled={loading}>
-            <RefreshCw size={18} />
-            Refresh
-          </button>
+
+          <div className="page-header__actions">
+            {/* Notification toggle — hidden if browser doesn't support push */}
+            {isSupported && (
+              <div className="notif-toggle-wrap">
+                <button
+                  className={`btn ${isSubscribed ? 'btn-danger' : 'btn-secondary'}`}
+                  type="button"
+                  onClick={toggle}
+                  disabled={notifLoading}
+                  title={isSubscribed ? 'Disable notifications' : 'Enable notifications'}
+                >
+                  {notifLoading ? (
+                    <RefreshCw size={18} className="spin" />
+                  ) : isSubscribed ? (
+                    <BellOff size={18} />
+                  ) : (
+                    <Bell size={18} />
+                  )}
+                  {isSubscribed ? 'Notifications On' : 'Notifications Off'}
+                </button>
+                {notifError && (
+                  <p className="notif-error">{notifError}</p>
+                )}
+              </div>
+            )}
+
+            <button className="btn btn-secondary" type="button" onClick={refetch} disabled={loading}>
+              <RefreshCw size={18} />
+              Refresh
+            </button>
+          </div>
         </div>
 
+        {/* ── Date Filters ── */}
         <div className="dashboard-filters">
           <label>
             From
@@ -144,6 +186,7 @@ const Dashboard = () => {
           </button>
         </div>
 
+        {/* ── Loading Skeletons ── */}
         {loading && (
           <>
             <MetricCardSkeleton count={4} />
@@ -154,12 +197,15 @@ const Dashboard = () => {
           </>
         )}
 
+        {/* ── Error State ── */}
         {!loading && error && (
           <ErrorMessage title="Dashboard unavailable" message={error} onRetry={refetch} />
         )}
 
+        {/* ── Main Content ── */}
         {!loading && !error && metrics && (
           <>
+            {/* Metric Cards */}
             <div className="metrics-grid">
               {summaryCards.map((card) => {
                 const Icon = card.icon;
@@ -180,7 +226,10 @@ const Dashboard = () => {
               })}
             </div>
 
+            {/* Charts */}
             <div className="dashboard-analytics-grid">
+
+              {/* Income vs Expenses Bar Chart */}
               <section className="analytics-card chart-card-large">
                 <div className="analytics-card__header">
                   <div>
@@ -250,6 +299,7 @@ const Dashboard = () => {
                 )}
               </section>
 
+              {/* Spending Breakdown Donut */}
               <section className="analytics-card spending-card">
                 <div className="analytics-card__header">
                   <div>
@@ -304,7 +354,10 @@ const Dashboard = () => {
               </section>
             </div>
 
+            {/* Bottom Grid: Transactions + Budgets */}
             <div className="dashboard-bottom-grid">
+
+              {/* Recent Transactions */}
               <section className="table-card">
                 <div className="dashboard-table-header">
                   <div>
@@ -363,6 +416,7 @@ const Dashboard = () => {
                 </div>
               </section>
 
+              {/* Budgets At Risk */}
               <section className="analytics-card upcoming-bills-card">
                 <div className="analytics-card__header">
                   <div>
@@ -399,9 +453,11 @@ const Dashboard = () => {
                   )}
                 </div>
               </section>
+
             </div>
           </>
         )}
+
       </section>
     </DashboardLayout>
   );

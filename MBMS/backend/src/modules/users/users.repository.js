@@ -1,17 +1,20 @@
+// users.repository.js
+
 const { query } = require('../../config/db.config');
 
 // ── Get User By ID ───────────────────────────────────────────────
 async function getUserById(id) {
   const rows = await query(
     `SELECT
-        id,
-        name,
-        email,
-        avatar_url AS "avatarUrl",
-        currency,
-        created_at AS "createdAt"
-     FROM users
-     WHERE id = $1`,
+    id,
+    name,
+    email,
+    avatar_url   AS "avatarUrl",
+    currency,
+    balance,        -- ← add this
+    created_at   AS "createdAt"
+ FROM users
+ WHERE id = $1`,
     [id]
   );
 
@@ -68,9 +71,25 @@ async function deleteUser(id) {
   );
 }
 
+async function updateBalance(userId, amount) {
+  if (amount == null || !Number.isFinite(amount)) return null;
+
+  const rows = await query(
+    `UPDATE users
+     SET balance = balance + $1,
+         updated_at = NOW()
+     WHERE id = $2
+     RETURNING id, balance`,
+    [amount, userId]
+  );
+
+  return rows[0] || null;
+}
+
 // ── Exports ──────────────────────────────────────────────────────
 module.exports = {
   getUserById,
   updateUser,
   deleteUser, // Renamed from softDeleteUser to reflect hard delete
+  updateBalance,
 };

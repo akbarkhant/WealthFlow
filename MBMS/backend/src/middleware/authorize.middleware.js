@@ -3,7 +3,7 @@
 const jwt = require('jsonwebtoken');
 
 const { config } = require('../config/index.config');
-const {logger} = require('../config/logger.config');
+const { logger } = require('../config/logger.config');
 
 /**
  * Authentication Middleware
@@ -22,8 +22,26 @@ function authenticate(req, res, next) {
     }
 
     // Extract token
-    const token = authHeader.split(' ')[1];
+    const parts = authHeader.split(' ');
 
+    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      return res.status(401).json({
+        success: false,
+        message: 'Malformed authorization header',
+      });
+    }
+
+    const token = parts[1];
+
+    if (!token || token === 'undefined' || token === 'null') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token',
+      });
+    }
+
+    //console.log("AUTH HEADER:", req.headers.authorization);
+    //console.log("TOKEN:", token);
     // Verify token
     const decoded = jwt.verify(
       token,

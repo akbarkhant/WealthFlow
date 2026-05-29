@@ -1,0 +1,137 @@
+import { useState, useEffect } from 'react';
+
+const API_BASE = '/api/notifications';
+
+// ─── Helper: convert VAPID key ────────────────────────────────────
+const urlBase64ToUint8Array = (base64String) => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+};
+
+const usePushNotification = () => {
+  const [isSubscribed, setIsSubscribed]   = useState(false);
+  const [isSupported, setIsSupported]     = useState(true);
+  const [isLoading, setIsLoading]         = useState(true);
+  const [error, setError]                 = useState(null);
+  const [swRegistration, setSwRegistration] = useState(null);
+
+  // ─── Get user_id from localStorage ─────────────────────────────
+  const getUserId = () => localStorage.getItem('user_id');
+
+  // ─── 1. Register service worker on mount ───────────────────────
+  useEffect(() => {
+    const init = async () => {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        setIsSupported(false);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const registration = await navigator.serviceWorker.register('../../public/service-worker.js');
+        setSwRegistration(registration);
+
+        // Check if already subscribed
+        const existing = await registration.pushManager.getSubscription();
+        setIsSubscribed(!!existing);
+      } catch (err) {
+        setError('Service Worker registration failed.');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    init();
+  }, []);
+
+  // ─── 2. Subscribe ───────────────────────────────────────────────
+const subscribe = async () => {
+  setIsLoading(true);
+  setError(null);
+  try {
+    // Fetch VAPID public key from backend
+    const res = await fetch(`${API_BASE}/vapid-public-key`);
+
+    // ── FIX: catch non-OK responses before parsing ──
+    if (!res.ok) {
+      throw new Error(`Server returned ${res.status} — check that /api/notifications routes are registered in app.js`);
+    }
+
+    const data = await res.json();
+
+    // ── FIX: guard against missing key in response ──
+    if (!data.publicKey) {
+      throw new Error('VAPID public key missing from server response. Check your .env file.');
+    }
+
+    const subscription = await swRegistration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(data.publicKey),
+    });
+
+    await fetch(`${API_BASE}/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subscription,
+        user_id: getUserId(),
+      }),
+    });
+
+    setIsSubscribed(true);
+  } catch (err) {
+    if (err.name === 'NotAllowedError') {
+      setError('Permission denied. Enable notifications in browser settings.');
+    } else {
+      setError(err.message || 'Failed to subscribe. Please try again.');
+    }
+    console.error('[usePushNotification] subscribe error:', err);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  // ─── 3. Unsubscribe ─────────────────────────────────────────────
+  const unsubscribe = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const subscription = await swRegistration.pushManager.getSubscription();
+
+      if (subscription) {
+        await subscription.unsubscribe();
+
+        await fetch(`${API_BASE}/unsubscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        });
+      }
+
+      setIsSubscribed(false);
+    } catch (err) {
+      setError('Failed to unsubscribe. Please try again.');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ─── 4. Toggle ──────────────────────────────────────────────────
+  const toggle = () => {
+    if (isSubscribed) {
+      unsubscribe();
+    } else {
+      subscribe();
+    }
+  };
+
+  return { isSubscribed, isSupported, isLoading, error, toggle };
+};
+
+export default usePushNotification;

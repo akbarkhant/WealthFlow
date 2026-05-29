@@ -6,11 +6,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 @import '../token.css';
 
-/*─ Design Tokens ──────────────────────────────────────── */
+/* ── Design Tokens ──────────────────────────────────────── 
 :root {
-   /*Colors*/
-  --color-primary:                #006c49;
-  --color-on-primary:             #ffffff;
+  /* Colors 
+  --color-primary:                 #006c49;
+  --color-on-primary:              #ffffff;
   --color-on-primary-fixed-variant: #005236;
   --color-background:             #f8f9ff;
   --color-surface:                #f8f9ff;
@@ -24,10 +24,16 @@
   --color-error:                  #ba1a1a;
   --color-tertiary:               #005ac2;
 
-  /* Spacing */
+  /* Spacing 
   --spacing-container-mobile:     16px;
   --spacing-container-desktop:    40px;
 
+  /* Typography Stack Configuration */
+
+:root{
+  --font-display:                'Poppins', sans-serif;
+  --font-body:                   'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:                   SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
 }
 /* ── Base Reset ─────────────────────────────────────────── */
 *,
@@ -40,7 +46,7 @@
 
 /* ── Page Root ──────────────────────────────────────────── */
 .login-page {
-  font-family: var(--font-mono);
+  font-family: var(--font-body); /* Default body text engine */
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;
@@ -93,7 +99,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Poppins';
 }
 
 .login-brand {
@@ -108,12 +113,12 @@
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 32;
 }
 .login-brand__name {
+  font-family: var(--font-display); /* Geometric title signature */
   font-size: 24px;
   line-height: 32px;
   font-weight: 700;
   color: var(--color-primary);
   letter-spacing: -0.01em;
-  font-family: 'Poppins';
 }
 
 /* ── Main Content ───────────────────────────────────────── */
@@ -143,6 +148,7 @@
   margin-bottom: 32px;
 }
 .login-heading__title {
+  font-family: var(--font-display); /* Large high-impact headers */
   font-size: 30px;
   line-height: 38px;
   font-weight: 600;
@@ -151,6 +157,7 @@
   margin-bottom: 8px;
 }
 .login-heading__subtitle {
+  font-family: var(--font-body);
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;
@@ -166,13 +173,14 @@
 
 /* Error Box */
 .login-error {
+  font-family: var(--font-mono); /* Monospace used layout diagnostic codes */
   padding: 12px;
   border-radius: 8px;
   background: rgba(186, 26, 26, 0.10);
   border: 1px solid rgba(186, 26, 26, 0.20);
   color: var(--color-error);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 13px;
+  line-height: 18px;
   text-align: center;
 }
 
@@ -188,6 +196,7 @@
   align-items: center;
 }
 .login-field__label {
+  font-family: var(--font-body);
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
@@ -195,6 +204,7 @@
   color: var(--color-on-surface-variant);
 }
 .login-field__forgot {
+  font-family: var(--font-body);
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
@@ -219,7 +229,7 @@
   pointer-events: none;
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
-.login-input-wrap__icon--left  { left: 16px; }
+.login-input-wrap__icon--left   { left: 16px; }
 .login-input-wrap__icon--right {
   right: 16px;
   pointer-events: auto;
@@ -236,7 +246,7 @@
   border-radius: 8px;
   border: 1px solid var(--color-outline-variant);
   background: var(--color-surface-container-lowest);
-  font-family: var(--font-family);
+  font-family: var(--font-body); /* High readability data inputs */
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;
@@ -272,6 +282,7 @@
   box-shadow: 0 0 0 3px rgba(0, 108, 73, 0.15);
 }
 .login-remember__label {
+  font-family: var(--font-body);
   font-size: 14px;
   line-height: 20px;
   font-weight: 400;
@@ -288,7 +299,7 @@
   border-radius: 8px;
   background: var(--color-primary);
   color: var(--color-on-primary);
-  font-family: var(--font-family);
+  font-family: var(--font-display); /* Poppins for action triggers */
   font-size: 16px;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -334,6 +345,7 @@
   display: inline-block;
   background: var(--color-surface-container-lowest);
   padding: 0 16px;
+  font-family: var(--font-body);
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
@@ -356,7 +368,7 @@
   border: 1px solid rgba(187, 202, 191, 0.50);
   border-radius: 8px;
   background: var(--color-surface-container-lowest);
-  font-family: var(--font-family);
+  font-family: var(--font-body);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -374,6 +386,7 @@
 
 /* ── Register Prompt ────────────────────────────────────── */
 .login-register {
+  font-family: var(--font-body);
   text-align: center;
   margin-top: 32px;
   font-size: 14px;
@@ -402,6 +415,7 @@
   filter: grayscale(1);
 }
 .login-trust__item {
+  font-family: var(--font-body);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -435,6 +449,7 @@
   gap: 32px;
 }
 .login-footer__brand {
+  font-family: var(--font-display);
   font-size: 20px;
   line-height: 28px;
   font-weight: 700;
@@ -448,6 +463,7 @@
   gap: 24px;
 }
 .login-footer__link {
+  font-family: var(--font-body);
   font-size: 11px;
   line-height: 12px;
   font-weight: 600;
@@ -460,6 +476,7 @@
   color: var(--color-primary);
 }
 .login-footer__copy {
+  font-family: var(--font-body);
   font-size: 14px;
   line-height: 20px;
   font-weight: 400;
@@ -482,3 +499,368 @@
   }
 }
 
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #fdeded;
+  color: #5f2120;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.login-input:disabled, .login-social-btn:disabled, .login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── #5 Transitions & Fades ── */
+.page-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── #26 Shake Animation ── */
+.shake-element {
+  animation: shake 0.4s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+/* ── Spinner Utility (#6) ── */
+.animate-spin {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── #2 Password Strength Indicator Elements ── */
+.strength-container {
+  margin-top: 8px;
+}
+
+.strength-bars {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.strength-bar-segment {
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  transition: background-color 0.3s ease;
+}
+
+.strength-text {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ── Inline Field Validation Messages ── */
+.field-helper-error {
+  color: #ef4444;
+  font-size: 13px;
+  margin-top: 4px;
+  display: block;
+}
+
+.input-wrap--error {
+  border-color: #ef4444 !important;
+}
+
+/* ── Input State Mechanics ── */
+.login-input:disabled, 
+.login-social-btn:disabled, 
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── #8 Pointer & Interaction Refinements ── */
+.press-hold-btn {
+  cursor: pointer;
+  user-select: none;
+}
+
+.social-icon {
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.back-to-login-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  color: inherit;
+  padding: 0;
+  font-size: 14px;
+}
+
+.login-caps-warning {
+  color: #f97316;
+  font-size: 12px;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* ============================================================
+   WealthFlow Login Page — Humanized Professional UI
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Inter:wght@400;500&display=swap');
+@import '../token.css';
+
+:root {
+  --font-display: 'Poppins', sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  /* Tightened global spacing */
+  --spacing-tight: 12px;
+  --spacing-base: 20px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+.login-page {
+  font-family: var(--font-body);
+  background-color: var(--color-background);
+  color: var(--color-on-surface);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+/* ── Glass Card (Reduced Padding for Density) ── */
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: white;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 16px; /* Slightly softer corners */
+  padding: 32px 28px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.login-heading {
+  text-align: center;
+  margin-bottom: 24px; /* Tightened from 32px */
+}
+
+.login-heading__title {
+  font-family: var(--font-display);
+  font-size: 24px; /* Reduced from 30px for professional scale */
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.login-heading__subtitle {
+  font-size: 14px;
+  color: var(--color-on-secondary-container);
+}
+
+/* ── Humanized Form Elements ── */
+.login-form { display: flex; flex-direction: column; gap: 16px; } /* Tighter gaps */
+
+.login-field { display: flex; flex-direction: column; gap: 6px; }
+
+.login-field__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+}
+
+.login-input {
+  padding: 10px 14px; /* Compact height */
+  border-radius: 8px;
+  border: 1px solid var(--color-outline-variant);
+  font-size: 14px; /* Slightly smaller for precision */
+  transition: all 0.2s ease;
+}
+
+.login-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 108, 73, 0.08);
+}
+
+/* ── Actions ── */
+.login-btn {
+  padding: 12px;
+  font-size: 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.login-social-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.login-social-btn {
+  padding: 10px;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid var(--color-outline-variant);
+}
+
+/* ── Micro-interactions ── */
+.shake-element { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+/* ── Strength Meter (Subtle) ── */
+.strength-bars { display: flex; gap: 4px; margin-top: 8px; }
+.strength-bar-segment { height: 3px; flex: 1; border-radius: 2px; }
+
+/* ── Utilities ── */
+.login-error {
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.login-caps-warning {
+  font-size: 11px;
+  color: #c2410c;
+  padding-left: 4px;
+}
+
+/* ── Glass Card (Professional Density) ── */
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: white;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 16px;
+  padding: 32px 28px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.login-heading { text-align: center; margin-bottom: 24px; }
+.login-heading h1 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.login-heading p { font-size: 14px; color: var(--color-on-secondary-container); }
+
+/* ── Form Components ── */
+.login-form { display: flex; flex-direction: column; gap: 16px; }
+.login-field { display: flex; flex-direction: column; gap: 6px; }
+.login-field__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+}
+
+.login-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--color-outline-variant);
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.login-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 108, 73, 0.08);
+}
+
+/* ── Action Elements ── */
+.login-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 0.2s;
+}
+
+.login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Micro-interactions ── */
+.shake-element { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+.animate-spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ── Helper Messages ── */
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fdeded;
+  color: var(--color-error);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.login-caps-warning {
+  color: #c2410c;
+  font-size: 11px;
+  margin-top: 4px;
+  padding-left: 4px;
+}
+
+.back-to-login-btn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-size: 13px;
+  margin-top: 16px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+  .login-card { padding: 20px; border-radius: 0; box-shadow: none; border: none; }
+}

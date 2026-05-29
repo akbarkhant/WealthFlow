@@ -1,7 +1,7 @@
 const http = require('http');
 const app = require('./src/app');
 const { config } = require('./src/config/index.config');
-const { connectRedis } = require('./src/config/redis.config');
+const { connectRedis, disconnectRedis } = require('./src/config/redis.config');
 const {pool} = require('./src/config/db.config');
 const { registerProcessHandlers } = require('./src/middleware/errorHandler.middleware');
 

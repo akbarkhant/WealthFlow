@@ -1,0 +1,6 @@
+.legal-page { max-width: 800px; margin: 40px auto; padding: 20px; }
+.legal-article h1 { font-size: 32px; margin-bottom: 8px; color: var(--color-on-surface); }
+.legal-article h2 { font-size: 20px; margin: 32px 0 16px; color: var(--color-primary); }
+.legal-article p { font-size: 16px; line-height: 1.6; color: #4a5568; margin-bottom: 16px; }
+.last-updated { font-size: 14px; color: #718096; margin-bottom: 32px; }
+.legal-nav { margin-bottom: 40px; }

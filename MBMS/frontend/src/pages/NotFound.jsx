@@ -1,6 +1,18 @@
 // NotFound.jsx
+
 import React from 'react';
 import { Link } from 'react-router-dom';
+
+import {
+  Wallet,
+  SearchX,
+  Home,
+  Headset,
+  BarChart3,
+  Network,
+  ShieldCheck,
+} from 'lucide-react';
+
 import '../styles/pages/NotFound.css';
 
 const NotFound = () => {
@@ -37,42 +49,44 @@ const NotFound = () => {
 
             {/* Floating Icons */}
             <div className="floating-icon wallet-icon">
-              <span className="material-symbols-outlined">
-                account_balance_wallet
-              </span>
+              <Wallet size={22} strokeWidth={2.2} />
             </div>
 
             <div className="floating-icon search-icon">
-              <span className="material-symbols-outlined">
-                search_off
-              </span>
+              <SearchX size={22} strokeWidth={2.2} />
             </div>
 
           </div>
 
           {/* Text */}
           <div className="notfound-text">
+
             <h1>Assets Not Found</h1>
 
             <p>
               It looks like this page has been liquidated from our servers.
               Even the best diversified portfolios have missing links sometimes.
             </p>
+
           </div>
 
           {/* Buttons */}
           <div className="button-group">
 
             <Link to="/" className="primary-btn">
-              <span className="material-symbols-outlined">home</span>
-              Back to Home
+
+              <Home size={18} strokeWidth={2.4} />
+
+              <span>Back to Home</span>
+
             </Link>
 
             <button className="secondary-btn">
-              <span className="material-symbols-outlined">
-                support_agent
-              </span>
-              Contact Support
+
+              <Headset size={18} strokeWidth={2.4} />
+
+              <span>Contact Support</span>
+
             </button>
 
           </div>
@@ -83,9 +97,12 @@ const NotFound = () => {
         <div className="info-grid">
 
           <div className="info-card">
-            <span className="material-symbols-outlined icon">
-              monitoring
-            </span>
+
+            <BarChart3
+              size={26}
+              strokeWidth={2.2}
+              className="icon"
+            />
 
             <h3>Check Markets</h3>
 
@@ -93,12 +110,16 @@ const NotFound = () => {
               Keep an eye on your real-time investment performance while we
               find the way.
             </p>
+
           </div>
 
           <div className="info-card">
-            <span className="material-symbols-outlined icon">
-              account_tree
-            </span>
+
+            <Network
+              size={26}
+              strokeWidth={2.2}
+              className="icon"
+            />
 
             <h3>Sitemap</h3>
 
@@ -106,12 +127,16 @@ const NotFound = () => {
               Explore our full organizational structure to find exactly what
               you need.
             </p>
+
           </div>
 
           <div className="info-card">
-            <span className="material-symbols-outlined icon">
-              security
-            </span>
+
+            <ShieldCheck
+              size={26}
+              strokeWidth={2.2}
+              className="icon"
+            />
 
             <h3>Security Hub</h3>
 
@@ -119,6 +144,7 @@ const NotFound = () => {
               Your data remains protected even when you stray off the beaten
               path.
             </p>
+
           </div>
 
         </div>
@@ -132,7 +158,7 @@ const NotFound = () => {
 
       {/* Footer */}
       <footer className="notfound-footer">
-        © 2024 WealthFlow Financial Technologies. All rights reserved.
+        © 2026 WealthFlow Financial Technologies. All rights reserved.
       </footer>
 
     </div>

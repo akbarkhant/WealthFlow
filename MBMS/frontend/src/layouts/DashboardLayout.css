@@ -665,3 +665,35 @@
     gap: 12px;
   }
 }
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+.dashboard-sidebar {
+  width: var(--sidebar-width, 200px);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width var(--transition-base), transform var(--transition-base);
+}
+
+/* Desktop — collapse sidebar by hiding width */
+.dashboard-shell.is-sidebar-closed .dashboard-sidebar {
+  width: 0;
+  border-right: none;
+  overflow: hidden;
+}
+
+/* Always show menu trigger on desktop too */
+.menu-trigger {
+  display: flex;
+}
+
+/* Hide close button on desktop — clicking menu-trigger toggles instead */
+.sidebar-close {
+  display: none;
+}

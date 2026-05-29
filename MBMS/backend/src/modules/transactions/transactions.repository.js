@@ -1,6 +1,7 @@
+// transactions.repository.js
+
 const { query } = require('../../config/db.config');
 const { v4: uuidv4 } = require('uuid');
-
 const { PAGINATION_DEFAULTS } = require('../../shared/constants');
 
 const TRANSACTION_SELECT = `

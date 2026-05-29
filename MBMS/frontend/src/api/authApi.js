@@ -29,3 +29,11 @@ export async function refresh(refreshToken) {
 export function getOAuthUrl(provider) {
   return api.getOAuthUrl(provider);
 }
+
+export async function forgotPassword(email) {
+  return api.post('/auth/forgot-password', { email });
+}
+
+export async function resetPassword(code, newPassword) {
+  return api.post('/auth/reset-password', { code, newPassword });
+}

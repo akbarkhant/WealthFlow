@@ -1,3 +1,5 @@
+// transactions.schema.js
+
 const { z } = require('zod');
 
 // ── Create Transaction Schema ────────────────────────────────────

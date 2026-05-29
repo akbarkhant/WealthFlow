@@ -1,5 +1,6 @@
-const repo = require('./users.repository');
+// users.service.js
 
+const repo = require('./users.repository');
 const {
   NotFoundError,
 } = require('../../shared/AppError');
