@@ -1,14 +1,11 @@
-const { Router } = require('express');
+// categories.routes.js 
 
+const { Router } = require('express');
 const { authenticate } = require('../../middleware/authorize.middleware');
 const { validate } = require('../../middleware/validate.middleware');
-
-const {
-  createCategorySchema,
-  updateCategorySchema,
-} = require('./categories.schema');
-
+const { createCategorySchema, updateCategorySchema } = require('./categories.schema');
 const controller = require('./categories.controller');
+
 
 const router = Router();
 

@@ -8,7 +8,6 @@ import {
   Menu,
   Moon,
   ReceiptText,
-  Search,
   Settings,
   Sun,
   Tags,
@@ -16,6 +15,7 @@ import {
   UserRound,
   WalletCards,
   Banknote,
+  Bot,
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +24,7 @@ import { getMonthlyReport } from '../api/chartsApi';
 import { listBudgets } from '../api/budgetsApi';
 import { mapBudgetForUi, mapBudgetsToNotifications } from '../services/mappers';
 import { getCurrentPeriod, getMonthDateRange } from '../utils/dateRange';
+import { SearchBar } from '../components/SearchBar/SearchBar';
 import './DashboardLayout.css';
 
 const navItems = [
@@ -32,7 +33,8 @@ const navItems = [
   { name: 'Budgets',      path: '/budgets',      icon: Target },
   { name: 'Categories',   path: '/categories',   icon: Tags },
   { name: 'Settings',     path: '/settings',     icon: Settings },
-  { name: 'Bills',     path: '/bills',     icon:  ReceiptText },
+  { name: 'Bills',        path: '/bills',        icon: ReceiptText },
+  { name: 'AI',        path: '/ai',        icon: Bot },
 ];
 
 const { month, year } = getCurrentPeriod();
@@ -45,13 +47,13 @@ const currency = new Intl.NumberFormat('en-US', {
 });
 
 const DashboardLayout = ({ children }) => {
-  const location        = useLocation();
-  const navigate        = useNavigate();
+  const location         = useLocation();
+  const navigate         = useNavigate();
   const { user, logout } = useAuth();
 
   const [theme,               setTheme]               = useState(() => localStorage.getItem('theme') || 'light');
   const [isSidebarOpen,       setIsSidebarOpen]       = useState(() => window.innerWidth > 768);
-  const [searchQuery,         setSearchQuery]         = useState('');
+  // ✂️  searchQuery + handleSearchSubmit removed — SearchBar owns its own state
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen,       setIsProfileOpen]       = useState(false);
 
@@ -115,10 +117,11 @@ const DashboardLayout = ({ children }) => {
   const activePage = navItems.find((item) => location.pathname.startsWith(item.path));
   const ActiveIcon = activePage?.icon || LayoutDashboard;
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    const q = searchQuery.trim();
-    navigate(q ? `/transactions?search=${encodeURIComponent(q)}` : '/transactions');
+  // ── Search result handler ────────────────────────────────────────
+  // Navigate to the transaction detail page when a result is selected.
+  // Swap this for a drawer/modal open if that's your pattern.
+  const handleSearchSelect = (transaction) => {
+    navigate(`/transactions/${transaction.id}`);
   };
 
   const handleLogout = async () => {
@@ -231,16 +234,11 @@ const DashboardLayout = ({ children }) => {
             </div>
           </div>
 
-          {/* Search */}
-          <form className="topbar-search" onSubmit={handleSearchSubmit}>
-            <Search size={13} />
-            <input
-              type="search"
-              placeholder="Search transactions"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </form>
+          {/* ── Search ─────────────────────────────────────────────── */}
+          {/* Replaces the old <form className="topbar-search"> entirely */}
+          <div className="topbar-search">
+            <SearchBar onSelect={handleSearchSelect} />
+          </div>
 
           {/* Actions */}
           <div className="topbar-actions">

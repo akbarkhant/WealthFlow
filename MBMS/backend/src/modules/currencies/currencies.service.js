@@ -1,3 +1,5 @@
+// currencies.service.js
+
 /**
  * MVP currency helper — returns 1:1 rate when modules are not fully wired.
  */

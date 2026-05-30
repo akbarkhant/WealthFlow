@@ -1,9 +1,7 @@
-const repo = require('./categories.repository');
+// categories.service.js
 
-const {
-  NotFoundError,
-  ConflictError,
-} = require('../../shared/AppError');
+const repo = require('./categories.repository');
+const { NotFoundError, ConflictError } = require('../../shared/AppError');
 
 async function list(userId) {
   return repo.findAll(userId);

@@ -1,4 +1,4 @@
-// push-notification.service.js
+// notification.service.js
 
 const pool = require('../../config/db.config');
 const webpush = require('../../config/webpush.config');

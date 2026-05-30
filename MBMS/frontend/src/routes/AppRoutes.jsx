@@ -23,6 +23,7 @@ import Privacy from '../pages/legal/Privacy';
 import Terms from '../pages/legal/Terms';
 import Security from '../pages/legal/Security';
 import Bills from '../pages/Bills';
+import AI from '../pages/AI_Page'; 
 const AppRoutes = () => {
   return (
     <Routes>
@@ -39,6 +40,7 @@ const AppRoutes = () => {
       <Route path="/legal/terms" element={<Terms />} />
       <Route path="/legal/security" element={<Security />} />
       <Route path='/bills' element={<Bills />} />
+      <Route path="/ai" element={<ProtectedRoute><AI /></ProtectedRoute>} />
 
       <Route path="/auth/oauth/callback" element={<OAuthCallback />} />
       <Route path="/session-expired" element={<SessionExpired />} />

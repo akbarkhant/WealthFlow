@@ -19,16 +19,19 @@ const {
 const { apiLimiter } = require('./middleware/rateLimiter.middleware');
 
 // Routes
-const authRoutes = require('./modules/auth/auth.routes');
-const budgetsRouter = require('./modules/budgets/budget.routes');
-const transactionsRouter = require('./modules/transactions/transactions.routes');
-const { usersRouter } = require('./modules/users/users.routes');
-const { categoriesRouter } = require('./modules/categories/categories.routes');
-const { reportsRouter } = require('./modules/reports/reports.routes');
-const notificationRoutes = require('./modules/notifications/notification.routes');
-const billsRouter = require(.)
+const authRoutes             = require('./modules/auth/auth.routes');
+const budgetsRouter          = require('./modules/budgets/budget.routes');
+const transactionsRouter     = require('./modules/transactions/transactions.routes');
+const { usersRouter }        = require('./modules/users/users.routes');
+const { categoriesRouter }   = require('./modules/categories/categories.routes');
+const { reportsRouter }      = require('./modules/reports/reports.routes');
+const   notificationRouter   = require('./modules/notifications/notification.routes');
+const   searchRouter         = require('./modules/search/search.routes');
+const   aiRoutes             = require('./modules/ai/ai.routes')
+const billsRouter = require('./modules/bills/bill.routes');
 
 const app = express();
+
 
 // ─────────────────────────────────────────────
 // Security Middlewares
@@ -102,17 +105,14 @@ app.use(
   transactionsRouter
 );
 
-app.use('/api/users', usersRouter);
-app.use('/api/categories', categoriesRouter);
-app.use('/api/reports', reportsRouter);
+app.use('/api/users', usersRouter);            // user    Routes
+app.use('/api/categories', categoriesRouter); // category Routes
+app.use('/api/reports', reportsRouter);      // report Routes
+//app.use('/api/bills', billsRouter);         // bill   Routes
+app.use('/api/search', searchRouter);      // search  Routes
+app.use('/api/notifications', notificationRouter); //
+app.use('/api/ai', aiRoutes)
 app.use('/api/bills', billsRouter);
-app.use('/api/search', searchRouter);
-
-//==============================================
-// notifications
-//==============================================
-
-app.use('/api/notifications', notificationRoutes);
 
 
 // ─────────────────────────────────────────────

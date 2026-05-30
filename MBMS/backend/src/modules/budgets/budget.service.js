@@ -1,10 +1,8 @@
+// budget.service.js
+
 const { query } = require('../../config/db.config');
 const repo = require('./budget.repository');
-
-const {
-  ConflictError,
-  NotFoundError,
-} = require('../../shared/AppError');
+const { ConflictError, NotFoundError } = require('../../shared/AppError');
 
 async function list(userId, month, year) {
   return repo.findAllForMonth(userId, month, year);

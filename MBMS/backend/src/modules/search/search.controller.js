@@ -1,23 +1,44 @@
-// src/modules/search/search.controller.js
 const searchService = require('./search.service');
+const searchLogger = require('./search.logger');
 
 async function handleSearch(req, res, next) {
-  try {
-    const queryText = req.query.q;
-    const userId = req.user.id; // Populated by your auth middleware
+  const requestId = req.searchRequestId;
+  const userId = req.user?.sub;
+  const { q: queryText } = req.validatedSearchQuery;
 
-    const results = await searchService.executeGlobalSearch(userId, queryText);
-    
+  try {
+    searchLogger.info(
+      { requestId, userId, query: queryText },
+      'request_received',
+    );
+
+    const rawResults = await searchService.executeGlobalSearch(
+      userId,
+      queryText,
+      requestId,
+    );
+
+    console.log('Search results:', rawResults);
+
+    // ✅ Guard: service may return null/undefined on no match
+    const results = rawResults ?? [];
+
     return res.status(200).json({
       success: true,
       count: results.length,
+      requestId,
       results,
     });
   } catch (error) {
-    next(error); // Pass to your global error handling middleware
+    searchLogger.queryFailed({
+      requestId,
+      userId,
+      query: queryText,
+      error,
+    });
+
+    return next(error);
   }
 }
 
-module.exports = {
-  handleSearch,
-};
+module.exports = { handleSearch };

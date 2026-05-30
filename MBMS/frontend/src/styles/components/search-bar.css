@@ -1,0 +1,234 @@
+.sb-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  font-family: inherit;
+}
+
+.sb-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #d8dee8);
+  border-radius: 8px;
+  padding: 0 8px 0 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sb-input-row:focus-within {
+  border-color: var(--color-primary, #006c49);
+  box-shadow: 0 0 0 3px rgba(0, 108, 73, 0.14);
+}
+
+.sb-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--color-text-muted, #667085);
+  flex: 0 0 18px;
+}
+
+.sb-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 10px 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text, #1f2937);
+}
+
+.sb-input::placeholder {
+  color: var(--color-text-muted, #667085);
+}
+
+.sb-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.sb-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted, #667085);
+  cursor: pointer;
+  flex: 0 0 30px;
+}
+
+.sb-clear-btn:hover,
+.sb-clear-btn:focus-visible {
+  color: var(--color-text, #1f2937);
+  background: var(--color-surface-alt, #f2f4f7);
+}
+
+.sb-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border, #d8dee8);
+  border-top-color: var(--color-primary, #006c49);
+  border-radius: 50%;
+  animation: sb-spin 0.7s linear infinite;
+}
+
+@keyframes sb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sb-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #d8dee8);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.14);
+}
+
+.sb-message {
+  margin: 0;
+  padding: 14px 16px;
+  color: var(--color-text-muted, #667085);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.sb-request-id {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-muted, #667085);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.sb-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border, #eef2f6);
+  cursor: pointer;
+  outline: none;
+}
+
+.sb-result-item:last-child {
+  border-bottom: 0;
+}
+
+.sb-result-item:hover,
+.sb-result-item:focus-visible {
+  background: var(--color-surface-alt, #f8fafc);
+}
+
+.sb-result-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sb-description {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text, #1f2937);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-category {
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--color-surface-alt, #eef6f2);
+  color: var(--color-text-muted, #667085);
+  font-size: 11px;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-result-meta {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.sb-amount {
+  color: var(--color-text, #1f2937);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.sb-expense {
+  color: var(--color-danger, #d92d20);
+}
+
+.sb-income {
+  color: var(--color-success, #027a48);
+}
+
+.sb-date {
+  color: var(--color-text-muted, #667085);
+  font-size: 11px;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+.sb-highlight {
+  border-radius: 2px;
+  background: #fff3b0;
+  color: inherit;
+  padding: 0 1px;
+}
+
+.sb-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .sb-wrapper {
+    max-width: none;
+  }
+
+  .sb-panel {
+    max-height: min(360px, 65vh);
+  }
+}

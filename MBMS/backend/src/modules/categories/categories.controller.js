@@ -1,6 +1,8 @@
-const service = require('./categories.service');
+// categories.controller.js
 
+const service = require('./categories.service');
 const { sendSuccess } = require('../../shared/ApiResponse');
+
 
 async function list(req, res, next) {
   try {

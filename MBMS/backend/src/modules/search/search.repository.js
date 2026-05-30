@@ -1,44 +1,36 @@
-// src/modules/search/search.repository.js
-const pool = require('../../config/db.config');
+const { query } = require('../../config/db.config');
 
-/**
- * Searches user transactions by description, notes, or category name.
- * @param {number|string} userId - The authenticated user's ID
- * @param {string} searchTerm - The raw text query from the frontend
- * @returns {Promise<Array>} Array of matching transaction objects
- */
 async function searchTransactions(userId, searchTerm) {
-  const query = `
-    SELECT 
+
+  const sql = `
+    SELECT
       t.id,
-      t.description,
+      t.user_id AS "userId",
+      t.category_id AS "categoryId",
+      c.name AS "categoryName",
+      c.icon AS "categoryIcon",
       t.amount,
-      t.amount_in_base,
       t.currency,
+      t.amount_in_base_currency AS "amountInBaseCurrency",
       t.type,
-      t.date,
-      t.notes,
-      c.name AS category_name
+      t.description,
+      t.note,
+      t.date::text
     FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN categories c ON c.id = t.category_id
     WHERE t.user_id = $1
+      AND t.deleted_at IS NULL
       AND (
-        t.description ILIKE $2 
-        OR t.notes ILIKE $2 
+        t.description ILIKE $2
+        OR t.note ILIKE $2
         OR c.name ILIKE $2
       )
-    ORDER BY t.date DESC
+    ORDER BY t.date DESC, t.created_at DESC
     LIMIT 30;
   `;
 
-  // Wrapping the term in % means "contains this string anywhere"
-  const wildCardTerm = `%${searchTerm}%`;
-  const values = [userId, wildCardTerm];
-
-  const result = await pool.query(query, values);
-  return result.rows;
+  const result = await query(sql, [userId, `%${searchTerm}%`]);
+  return result;
 }
 
-module.exports = {
-  searchTransactions,
-};
+module.exports = { searchTransactions };

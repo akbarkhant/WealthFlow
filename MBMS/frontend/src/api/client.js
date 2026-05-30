@@ -9,6 +9,11 @@ export const setServerErrorHandler = (handler) => {
   onServerError = handler;
 };
 
+export const isAuthenticated = () => {
+  const token = localStorage.getItem('accessToken');
+  return Boolean(token && token !== 'null' && token !== 'undefined');
+};
+
 const clearTokens = () => {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
@@ -38,8 +43,7 @@ const refreshAccessToken = async () => {
         const data = isJson ? await response.json() : null;
 
         if (!response.ok) {
-          const message = (data && data.message) || response.statusText;
-          throw new Error(message);
+          throw new Error((data && data.message) || response.statusText);
         }
 
         const payload =
@@ -76,23 +80,40 @@ function unwrapBody(data) {
   return data;
 }
 
+const getResponseMeta = (response, data) => ({
+  requestId: response.headers.get('x-request-id') || data?.requestId || null,
+  retryAfter: response.headers.get('retry-after') || null,
+});
+
+const attachMeta = (payload, meta) => {
+  if (!meta.requestId || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return payload;
+  }
+
+  return { ...payload, requestId: payload.requestId || meta.requestId };
+};
+
 const handleResponse = async (response) => {
   const isJson = response.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await response.json() : null;
+  const meta = getResponseMeta(response, data);
 
   if (!response.ok) {
     const error = new Error((data && data.message) || response.statusText || 'Request failed');
+
     error.status = response.status;
     error.data = data;
+    error.requestId = meta.requestId;
+    error.retryAfter = meta.retryAfter;
 
     if (response.status >= 500 && onServerError) {
       onServerError(error);
     }
 
-    return Promise.reject(error);
+    throw error;
   }
 
-  return unwrapBody(data);
+  return attachMeta(unwrapBody(data), meta);
 };
 
 const getHeaders = (isFormData = false) => {
@@ -112,29 +133,52 @@ const getHeaders = (isFormData = false) => {
 
 const buildQuery = (params = {}) => {
   const qs = new URLSearchParams();
+
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       qs.set(key, String(value));
     }
   });
+
   const str = qs.toString();
   return str ? `?${str}` : '';
 };
 
-export const request = async (method, endpoint, body = null, options = {}) => {
-  const { isFormData = false, skipAuthRetry = false } = options;
+const buildUrl = (endpoint, params) => {
+  const query = buildQuery(params);
+  if (!query) {
+    return `${API_URL}${endpoint}`;
+  }
 
-  const config = {
+  const separator = endpoint.includes('?') ? '&' : '?';
+  return `${API_URL}${endpoint}${separator}${query.slice(1)}`;
+};
+
+export const request = async (method, endpoint, body = null, options = {}) => {
+  const {
+    headers: customHeaders = {},
+    isFormData = false,
+    params,
+    signal,
+    skipAuthRetry = false,
+  } = options;
+
+  const requestConfig = {
     method,
-    headers: getHeaders(isFormData),
+    headers: {
+      ...getHeaders(isFormData),
+      ...customHeaders,
+    },
+    ...(signal && { signal }),
   };
 
   if (body !== null && body !== undefined) {
-    config.body = isFormData ? body : JSON.stringify(body);
+    requestConfig.body = isFormData ? body : JSON.stringify(body);
   }
 
   const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => endpoint.startsWith(path));
-  const doFetch = () => fetch(`${API_URL}${endpoint}`, config);
+  const url = buildUrl(endpoint, params);
+  const doFetch = () => fetch(url, requestConfig);
 
   try {
     let response = await doFetch();
@@ -147,7 +191,10 @@ export const request = async (method, endpoint, body = null, options = {}) => {
     ) {
       try {
         await refreshAccessToken();
-        config.headers = getHeaders(isFormData);
+        requestConfig.headers = {
+          ...getHeaders(isFormData),
+          ...customHeaders,
+        };
         response = await doFetch();
       } catch (refreshError) {
         redirectToSessionExpired();
@@ -168,15 +215,15 @@ export const request = async (method, endpoint, body = null, options = {}) => {
     if (err instanceof Error && err.message) {
       throw err;
     }
-    throw new Error('Network request failed');
+    throw new Error('Network request failed', { cause: err });
   }
 };
 
 const api = {
-  get: (endpoint) => request('GET', endpoint),
+  get: (endpoint, options = {}) => request('GET', endpoint, null, options),
   post: (endpoint, body, options = {}) => request('POST', endpoint, body, options),
-  patch: (endpoint, body) => request('PATCH', endpoint, body),
-  delete: (endpoint) => request('DELETE', endpoint),
+  patch: (endpoint, body, options = {}) => request('PATCH', endpoint, body, options),
+  delete: (endpoint, options = {}) => request('DELETE', endpoint, null, options),
   buildQuery,
   getBaseUrl: () => API_URL,
   getOAuthUrl: (provider) => {

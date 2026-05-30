@@ -1,5 +1,6 @@
-const { Router } = require('express');
+// reports.routes.js
 
+const { Router } = require('express');
 const { authenticate } = require('../../middleware/authorize.middleware');
 const controller = require('./reports.controller');
 

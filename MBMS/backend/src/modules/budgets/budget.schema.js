@@ -1,3 +1,5 @@
+// budget.schema.js
+
 const { z } = require('zod');
 
 const createBudgetSchema = z.object({
