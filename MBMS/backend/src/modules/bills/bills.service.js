@@ -1,6 +1,6 @@
-const repo = require('./bill.repository');
+const repo = require('./bills.repository');
 const { AppError } = require('../../shared/AppError');
-const { mapBill, mapBills } = require('./bill.mapper');
+const { mapBill, mapBills } = require('./bills.mapper');
 
 // ── Helpers ───────────────────────────────────────────────
 

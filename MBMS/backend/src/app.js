@@ -28,7 +28,7 @@ const { reportsRouter }      = require('./modules/reports/reports.routes');
 const   notificationRouter   = require('./modules/notifications/notification.routes');
 const   searchRouter         = require('./modules/search/search.routes');
 const   aiRoutes             = require('./modules/ai/ai.routes')
-const billsRouter = require('./modules/bills/bill.routes');
+const billsRouter = require('./modules/bills/bills.routes');
 
 const app = express();
 

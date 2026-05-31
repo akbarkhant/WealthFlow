@@ -98,7 +98,7 @@ const Bills = () => {
   const [formData, setFormData] = useState({
     title: '',
     amount: '',
-    due: new Date().toISOString().split('T')[0],
+    due_date: new Date().toISOString().split('T')[0],
     type: 'rent',
     payment_method: 'manual',
     status: 'unpaid',
@@ -141,11 +141,12 @@ const Bills = () => {
     setFormData({
       title: '',
       amount: '',
-      due: new Date().toISOString().split('T')[0],
+      due_date: new Date().toISOString().split('T')[0],
       type: 'rent',
       payment_method: 'manual',
       status: 'unpaid',
     });
+
     setFormError('');
   };
 
@@ -157,23 +158,50 @@ const Bills = () => {
       setFormError('Bill title is required.');
       return;
     }
+
     if (!Number.isFinite(Number(formData.amount)) || Number(formData.amount) <= 0) {
       setFormError('Amount must be greater than zero.');
       return;
     }
-    if (!formData.due) {
+
+    if (!formData.due_date) {
       setFormError('Due date is required.');
       return;
     }
 
+    const payload = {
+      name: formData.title,
+      amount: Number(formData.amount),
+      currency: 'USD', // or PKR
+      due_date: formData.due_date,
+
+      recurrence: 'none',
+
+      status: formData.status,
+
+      notes: '',
+
+      is_autopay: formData.payment_method === 'auto',
+
+      category_id: null,
+    };
+
     try {
-      await api.post('/bills', formData);
+      await api.post('/bills', payload);
+
       resetForm();
       setShowAddForm(false);
+
       await fetchBills();
-      showToast('Bill added to the calendar.');
+
+      showToast('Bill added successfully.');
     } catch (err) {
-      setFormError('Failed to add bill.');
+      console.error(err);
+
+      setFormError(
+        err?.response?.data?.message ||
+        'Failed to add bill.'
+      );
     }
   };
 
@@ -452,7 +480,7 @@ const Bills = () => {
                 <form className="modal-form" onSubmit={handleFormSubmit}>
                   <div className="field">
                     <label htmlFor="bill-title">Bill title</label>
-                    <input className="input" id="bill-title" name="title" type="text" placeholder="Electric Bill" value={formData.title} onChange={handleInputChange} />
+                    <input className="input" id="bill-title" name="title" type="text" placeholder="Electric Bill" value={formData.title } onChange={handleInputChange} />
                   </div>
                   <div className="form-grid">
                     <div className="field">

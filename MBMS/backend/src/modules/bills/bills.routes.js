@@ -2,8 +2,8 @@
 
 const express = require('express');
 const { authenticate } = require('../../middleware/authorize.middleware');
-const controller = require('./bill.controller');
-const { validateBody, validateParams } = require('./bill.schema');
+const controller = require('./bills.controller');
+const { validateBody, validateParams } = require('./bills.schema');
 
 const router = express.Router();
 

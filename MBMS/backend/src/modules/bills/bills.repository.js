@@ -17,7 +17,6 @@ async function findAllByUser(userId) {
       b.status,
       b.notes,
       b.is_autopay     AS "isAutopay",
-      b.paid_at::text  AS "paidAt",
       b.created_at::text AS "createdAt",
       b.updated_at::text AS "updatedAt"
     FROM bills b
@@ -46,7 +45,6 @@ async function findById(billId, userId) {
       b.status,
       b.notes,
       b.is_autopay     AS "isAutopay",
-      b.paid_at::text  AS "paidAt",
       b.created_at::text AS "createdAt",
       b.updated_at::text AS "updatedAt"
     FROM bills b
@@ -76,7 +74,6 @@ async function findOverdue(userId) {
       b.status,
       b.notes,
       b.is_autopay     AS "isAutopay",
-      b.paid_at::text  AS "paidAt",
       b.created_at::text AS "createdAt",
       b.updated_at::text AS "updatedAt"
     FROM bills b
@@ -107,7 +104,6 @@ async function findUpcoming(userId) {
       b.status,
       b.notes,
       b.is_autopay     AS "isAutopay",
-      b.paid_at::text  AS "paidAt",
       b.created_at::text AS "createdAt",
       b.updated_at::text AS "updatedAt"
     FROM bills b
@@ -148,7 +144,6 @@ async function createBill(userId, data) {
       status,
       notes,
       is_autopay     AS "isAutopay",
-      paid_at::text  AS "paidAt",
       created_at::text AS "createdAt",
       updated_at::text AS "updatedAt";
   `;
@@ -205,7 +200,6 @@ async function updateBill(billId, userId, data) {
       status,
       notes,
       is_autopay     AS "isAutopay",
-      paid_at::text  AS "paidAt",
       created_at::text AS "createdAt",
       updated_at::text AS "updatedAt";
   `;
@@ -229,7 +223,6 @@ async function markAsPaid(billId, userId) {
       currency,
       due_date::text AS "dueDate",
       status,
-      paid_at::text  AS "paidAt",
       updated_at::text AS "updatedAt";
   `;
   const rows = await query(sql, [billId, userId]);
@@ -252,7 +245,6 @@ async function markAsUnpaid(billId, userId) {
       currency,
       due_date::text AS "dueDate",
       status,
-      paid_at::text  AS "paidAt",
       updated_at::text AS "updatedAt";
   `;
   const rows = await query(sql, [billId, userId]);

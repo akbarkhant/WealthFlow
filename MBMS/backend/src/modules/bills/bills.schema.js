@@ -48,18 +48,29 @@ const idParamSchema = Joi.object({
 
 // ── Middleware ────────────────────────────────────────────
 function validateBody(req, res, next) {
-  const schema = req.method === 'POST' ? createBillSchema : updateBillSchema;
-  const { error, value } = schema.validate(req.body, { abortEarly: true, stripUnknown: true });
+  console.log('BODY:', req.body);
+
+  const schema =
+    req.method === 'POST'
+      ? createBillSchema
+      : updateBillSchema;
+
+  const { error, value } = schema.validate(req.body, {
+    abortEarly: false,
+    stripUnknown: true,
+  });
 
   if (error) {
+    console.log(error.details);
+
     return res.status(400).json({
       success: false,
-      message: error.details?.[0]?.message || 'Invalid request body.',
+      errors: error.details.map(d => d.message),
     });
   }
 
   req.validatedBody = value;
-  return next();
+  next();
 }
 
 function validateParams(req, res, next) {

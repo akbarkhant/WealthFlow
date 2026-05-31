@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import api from '../api/client';
+import AiResponseDisplay from '../components/AI_Chat'; // Adjust this path if your components folder structure differs
 import '../styles/pages/AI_Page.css';
 
 const TABS = [
@@ -18,6 +19,8 @@ const ICONS = {
     send: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8',
     download: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4',
     close: 'M6 18L18 6M6 6l12 12',
+    menu: 'M4 6h16M4 12h16M4 18h16',
+    search: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
 };
 
 function Icon({ path, size = 20, className = '' }) {
@@ -75,10 +78,15 @@ export default function AI() {
     const [showHistory, setShowHistory] = useState(false);
     const [saveToast, setSaveToast] = useState(false);
     const [activeChatId, setActiveChatId] = useState(null);
+    const [isSidebarClosed, setIsSidebarClosed] = useState(false);
     const messagesEndRef = useRef(null);
 
     useEffect(() => { setMounted(true); }, []);
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+    const toggleSidebar = () => {
+        setIsSidebarClosed(prev => !prev);
+    };
 
     const handleNewChat = () => {
         setMessages([INITIAL_MESSAGE]);
@@ -146,14 +154,11 @@ export default function AI() {
         if (!input.trim() || loading) return;
         const text = input.trim();
         setInput('');
-
         const updated = [...messages, { role: 'user', text }];
-        // Create an empty entry for the AI response that we will stream text into
         setMessages([...updated, { role: 'ai', text: '' }]);
         setLoading(true);
 
         try {
-            // 1. Search real transactions related to the query
             let transactions = [];
             try {
                 const searchData = await api.get('/search', { params: { q: text } });
@@ -162,42 +167,17 @@ export default function AI() {
                     : Array.isArray(searchData?.results)
                         ? searchData.results
                         : [];
-            } catch (e) {
-                // Search failure shouldn't block chat
-            }
+            } catch { /* search failure doesn't block chat */ }
 
-            // 2. Stream response using native fetch
-            const token = localStorage.getItem('token'); // Grab token for auth middleware if needed
-            const response = await fetch('http://localhost:5000/api/ai/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': token ? `Bearer ${token}` : ''
-                },
-                body: JSON.stringify({ message: text, transactions }),
+            let accumulated = '';
+            await readStream('/ai/chat', { message: text, transactions }, (chunk) => {
+                accumulated += chunk;
+                setMessages([...updated, { role: 'ai', text: accumulated }]);
             });
-
-            if (!response.ok) throw new Error('Streaming failed');
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let aiReply = '';
-
-            // Read the stream chunk-by-chunk
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                aiReply += chunk;
-
-                // Continuously update the UI with the text stream
-                setMessages([...updated, { role: 'ai', text: aiReply }]);
-            }
-
-        } catch (err) {
+        } catch {
             setMessages([...updated, { role: 'ai', text: 'Error reaching AI. Is Ollama running?' }]);
         }
+
         setLoading(false);
     };
 
@@ -206,73 +186,57 @@ export default function AI() {
         setAnalysis('');
 
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:5000/api/ai/analyze', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': token ? `Bearer ${token}` : ''
-                },
-                body: JSON.stringify({ expenses: JSON.parse(expenses) }),
+            let accumulated = '';
+            await readStream('/ai/analyze', { expenses: JSON.parse(expenses) }, (chunk) => {
+                accumulated += chunk;
+                setAnalysis(accumulated);
             });
-
-            if (!response.ok) throw new Error('Analysis streaming failed');
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let currentAnalysis = '';
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                currentAnalysis += chunk;
-                setAnalysis(currentAnalysis); // Stream output straight to text area
-            }
-
-        } catch {
-            setAnalysis('Error. Check your JSON format or see if Ollama is running.');
+        } catch (e) {
+            setAnalysis(e.message?.includes('JSON') ? 'Invalid JSON format.' : 'Unable to reach the AI service.');
         }
+
         setLoading(false);
     };
+
+    async function readStream(endpoint, body, onChunk) {
+        const token = localStorage.getItem('accessToken');
+
+        const response = await fetch(`http://localhost:5000/api${endpoint}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(body),
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            onChunk(decoder.decode(value, { stream: true }));
+        }
+    }
 
     const runSuggest = async () => {
         setLoading(true);
         setSuggestions('');
 
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:5000/api/ai/suggest', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': token ? `Bearer ${token}` : ''
-                },
-                body: JSON.stringify({
-                    income: Number(income),
-                    expenses: JSON.parse(suggestExpenses),
-                }),
+            let accumulated = '';
+            await readStream('/ai/suggest', {
+                income: Number(income),
+                expenses: JSON.parse(suggestExpenses),
+            }, (chunk) => {
+                accumulated += chunk;
+                setSuggestions(accumulated);
             });
-
-            if (!response.ok) throw new Error('Suggestions streaming failed');
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let currentSuggestions = '';
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                currentSuggestions += chunk;
-                setSuggestions(currentSuggestions); // Stream layout plan step-by-step
-            }
-
-        } catch {
-            setSuggestions('Error. Check your inputs or see if Ollama is running.');
+        } catch (e) {
+            setSuggestions(e.message?.includes('JSON') ? 'Invalid JSON format.' : 'Unable to reach the AI service.');
         }
+
         setLoading(false);
     };
 
@@ -280,15 +244,42 @@ export default function AI() {
 
     return (
         <div className={`ai-root ${mounted ? 'mounted' : ''}`}>
-
             {saveToast && <div className="save-toast">Chat saved</div>}
 
-            <div className="ai-header">
-                <div className="ai-eyebrow">Wealth Flow</div>
-                <h1 className="ai-title">AI Financial Advisor</h1>
-                <p className="ai-subtitle">Powered by Llama 3.2 — running locally on your machine</p>
-            </div>
+            {/* ── UNIFIED APPLICATION NAVBAR ───────────────────────────────── */}
+            <header className="dashboard-topbar">
+                <div className="topbar-left">
+                    <button className="menu-trigger" onClick={toggleSidebar} aria-label="Toggle Navigation Sidebar">
+                        <Icon path={ICONS.menu} size={16} />
+                    </button>
+                    <div className="topbar-title">
+                        <div className="topbar-title__icon">
+                            <Icon path={TABS.find(t => t.id === tab)?.icon} size={14} />
+                        </div>
+                        <div>
+                            <p>WealthFlow</p>
+                            <strong>AI Terminal</strong>
+                        </div>
+                    </div>
+                </div>
 
+                <div className="topbar-search">
+                    <Icon path={ICONS.search} size={13} />
+                    <input type="text" placeholder="Search insights or transactions..." />
+                </div>
+
+                <div className="topbar-actions">
+                    <button className="icon-button" aria-label="Notifications">
+                        <Icon path="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" size={15} />
+                        <span className="notification-dot" />
+                    </button>
+                    <button className="profile-trigger">
+                        <div className="avatar avatar-sm">WA</div>
+                    </button>
+                </div>
+            </header>
+
+            {/* ── CONTENT AREA ────────────────────────────────────────────── */}
             <div className="ai-layout">
                 <nav className="ai-nav">
                     {TABS.map(t => (
@@ -319,6 +310,13 @@ export default function AI() {
                 </nav>
 
                 <div className="ai-panel">
+                    {/* Embedded Context Context Header Block inside workspace */}
+                    <div className="ai-header">
+                        <span className="ai-eyebrow">Local Instance</span>
+                        <h1 className="ai-title">AI Financial Advisor</h1>
+                        <p className="ai-subtitle">Powered by Llama 3.2 — isolated on your machine</p>
+                    </div>
+
                     <div className="ai-panel-header">
                         <Icon path={TABS.find(t => t.id === tab)?.icon} size={18} />
                         <span className="ai-panel-title">
@@ -364,7 +362,13 @@ export default function AI() {
                                 {messages.map((m, i) => (
                                     <div key={i} className={`msg msg-${m.role}`}>
                                         <div className="msg-bubble">
-                                            {m.text === '__typing__' ? <TypingDots /> : m.text}
+                                            {m.text === '__typing__' ? (
+                                                <TypingDots />
+                                            ) : m.role === 'ai' ? (
+                                                <AiResponseDisplay aiStreamedText={m.text} />
+                                            ) : (
+                                                m.text
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -391,7 +395,14 @@ export default function AI() {
                             <button className="run-btn" onClick={runAnalyze} disabled={loading}>
                                 {loading ? <><TypingDots /> Analyzing...</> : <><Icon path={TABS[1].icon} size={15} /> Run Analysis</>}
                             </button>
-                            {analysis && <div><div className="result-label">Analysis Result</div><div className="result-box">{analysis}</div></div>}
+                            {analysis && (
+                                <div>
+                                    <div className="result-label">Analysis Result</div>
+                                    <div className="result-box">
+                                        <AiResponseDisplay aiStreamedText={analysis} />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -408,7 +419,14 @@ export default function AI() {
                             <button className="run-btn" onClick={runSuggest} disabled={loading || !income}>
                                 {loading ? <><TypingDots /> Planning...</> : <><Icon path={TABS[2].icon} size={15} /> Generate Plan</>}
                             </button>
-                            {suggestions && <div><div className="result-label">Your Savings Plan</div><div className="result-box">{suggestions}</div></div>}
+                            {suggestions && (
+                                <div>
+                                    <div className="result-label">Your Savings Plan</div>
+                                    <div className="result-box">
+                                        <AiResponseDisplay aiStreamedText={suggestions} />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

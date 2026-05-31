@@ -1,0 +1,777 @@
+/* ==========================================================================
+   1. DESIGN SYSTEM VARIABLES & THEMES
+   ========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+:root, [data-theme="light"] {
+  /* Layout Sizing Tokens (From Version 2) */
+  --sidebar-width: 200px;
+  --topbar-height: 48px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 9999px;
+  --font-ui: 'Poppins','DM-Sans',-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, SF Pro Mono, Menlo, Monaco, Consolas, monospace;
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+
+  /* Theme Colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-sidebar: #1e293b; /* Premium slate dark sidebar in light mode */
+  
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-sidebar: #f8fafc;
+  --text-sidebar-muted: #94a3b8;
+  
+  --border-color: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --accent-color: #22c55e; /* WealthFlow Premium Green */
+  --accent-hover: #16a34a;
+  --accent-tint: rgba(34, 197, 94, 0.12);
+  --accent-text: #15803d;
+  --danger-color: #ef4444;
+  --danger-hover: #dc2626;
+  --danger-tint: rgba(239, 68, 68, 0.08);
+  --warning-color: #f59e0b;
+  
+  --sidebar-link-hover: rgba(255, 255, 255, 0.06);
+  --sidebar-link-active: rgba(34, 197, 94, 0.15);
+  --shadow-popover: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0f172a; /* Deep Navy Slate */
+  --bg-secondary: #020617; /* Rich black-slate canvas */
+  --bg-sidebar: #0f172a; /* Unified layout canvas */
+  
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-sidebar: #f8fafc;
+  --text-sidebar-muted: #64748b;
+  
+  --border-color: #1e293b;
+  --border-strong: #334155;
+  --accent-color: #22c55e;
+  --accent-hover: #16a34a;
+  --accent-tint: rgba(34, 197, 94, 0.15);
+  --accent-text: #4ade80;
+  --danger-color: #ef4444;
+  --danger-hover: #dc2626;
+  --danger-tint: rgba(239, 68, 68, 0.12);
+  --warning-color: #fbbf24;
+  
+  --sidebar-link-hover: rgba(255, 255, 255, 0.04);
+  --sidebar-link-active: rgba(34, 197, 94, 0.2);
+  --shadow-popover: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* ==========================================================================
+   2. CORE APPLICATION LAYER
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-secondary);
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+/* ==========================================================================
+   3. SIDEBAR STRUCTURAL LAYOUT
+   ========================================================================== */
+.dashboard-sidebar {
+  width: var(--sidebar-width);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-sidebar);
+  color: var(--text-sidebar);
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: width var(--transition-base), transform var(--transition-base), background-color var(--transition-base);
+}
+
+/* Desktop Collapse Action Triggered via Shell class */
+.dashboard-shell.is-sidebar-closed .dashboard-sidebar {
+  width: 0;
+  border-right: none;
+}
+
+/* Brand Row Header */
+.sidebar-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 14px;
+  margin-top: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .sidebar-brand-row {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.sidebar-brand__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-color);
+}
+
+.sidebar-brand__mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+.sidebar-brand strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-sidebar);
+  line-height: 1.2;
+}
+
+.sidebar-brand small {
+  display: block;
+  font-size: 10px;
+  color: var(--text-sidebar-muted);
+  line-height: 1.2;
+}
+
+.sidebar-close {
+  display: none; /* Controlled contextually in mobile layouts */
+  background: none;
+  border: none;
+  color: var(--text-sidebar-muted);
+  cursor: pointer;
+}
+
+/* Navigation Structure */
+.nav-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-sidebar-muted);
+  padding: 16px 12px 4px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 32px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-sidebar-muted);
+  border-radius: var(--radius-md);
+  margin: 0 4px;
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-link svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.sidebar-link:hover {
+  background-color: var(--sidebar-link-hover);
+  color: var(--text-sidebar);
+}
+
+.sidebar-link.is-active {
+  background-color: var(--sidebar-link-active);
+  color: var(--accent-color);
+  font-weight: 500; /* Flat layout rules specify 500 max over aggressive bolds */
+}
+
+/* High Density Analytics Insight Box */
+.sidebar-insight {
+  margin: 8px;
+  padding: 10px 12px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+}
+
+[data-theme="dark"] .sidebar-insight {
+  background-color: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-color);
+}
+
+.sidebar-insight p {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-sidebar-muted);
+  margin-bottom: 4px;
+}
+
+.sidebar-insight strong {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-sidebar);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.sidebar-insight span {
+  display: block;
+  font-size: 10px;
+  color: var(--text-sidebar-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* Sidebar Footer User Blocks */
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: auto;
+}
+
+[data-theme="dark"] .sidebar-user {
+  border-top: 1px solid var(--border-color);
+}
+
+.sidebar-user strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-sidebar);
+  line-height: 1.2;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-user span {
+  display: block;
+  font-size: 10px;
+  color: var(--text-sidebar-muted);
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* User Profile Circular Avatars */
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-strong);
+  background-color: var(--accent-color);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatar-sm {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+}
+
+/* ==========================================================================
+   4. MAIN VIEWPORT CONTAINER LAYER
+   ========================================================================== */
+.dashboard-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   5. TOPBAR NAVIGATION HEADER
+   ========================================================================== */
+.dashboard-topbar {
+  height: var(--topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px;
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-main);
+}
+
+.topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-title__icon {
+  display: flex;
+  color: var(--text-muted);
+}
+
+.topbar-title__icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.topbar-title p {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.topbar-title strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+/* Compact Fluid Search Input Block */
+.topbar-search {
+  flex: 1;
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.topbar-search:focus-within {
+  border-color: var(--border-strong);
+  background-color: var(--bg-primary);
+}
+
+.topbar-search svg {
+  width: 13px;
+  height: 13px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.topbar-search input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  color: var(--text-main);
+  outline: none;
+}
+
+.topbar-search input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Actions Hub Row */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Utility Action Buttons */
+.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  position: relative;
+}
+
+.icon-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.icon-button:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-main);
+}
+
+/* Real-time Indicator Ring System */
+.notification-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--danger-color);
+  border: 1.5px solid var(--bg-primary);
+}
+
+/* Global Core Button Engine Components */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--transition-fast), transform 80ms ease;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background-color: var(--accent-color);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.btn-primary svg {
+  width: 13px;
+  height: 13px;
+}
+
+.topbar-add {
+  font-size: 12px;
+  height: 30px;
+  padding: 0 10px;
+}
+
+/* Profile Activation Trigger Elements */
+.profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.profile-trigger:hover {
+  background-color: var(--bg-secondary);
+}
+
+.profile-trigger svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ==========================================================================
+   6. INTERACTIVE CONTEXTUAL DROPDOWNS
+   ========================================================================== */
+.dropdown {
+  position: relative;
+}
+
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+  z-index: 100;
+  min-width: 220px;
+  overflow: hidden;
+  animation: dropdownFadeIn var(--transition-fast) ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dropdown-header strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.dropdown-header span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Notification Panel Subsystem */
+.notification-panel {
+  min-width: 280px;
+}
+
+.notification-empty {
+  padding: 16px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--warning-color);
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.notification-item strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.notification-item p {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Profile Specific Summary Layouts */
+.profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.profile-summary strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.profile-summary p {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 36px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-decoration: none;
+  width: 100%;
+  border: none;
+  background: none;
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.dropdown-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.dropdown-action:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-main);
+}
+
+.dropdown-action.danger {
+  color: var(--danger-color);
+}
+
+.dropdown-action.danger:hover {
+  background-color: var(--danger-tint);
+  color: var(--danger-color);
+}
+
+/* ==========================================================================
+   7. CORE COMPONENT MAIN VIEWPORT CANVAS
+   ========================================================================== */
+.dashboard-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Background Blur Scrim for Mobile Sidebars */
+.sidebar-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 95;
+  border: none;
+  cursor: default;
+}
+
+/* ==========================================================================
+   8. RESPONSIVE BREAKPOINTS (MOBILE INTERFACE OVERRIDES)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .dashboard-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform var(--transition-base);
+  }
+
+  /* Handle Sidebar states via open rules */
+  .dashboard-shell.is-sidebar-open .dashboard-sidebar {
+    transform: translateX(0);
+  }
+
+  .dashboard-shell.is-sidebar-open .sidebar-scrim {
+    display: block;
+  }
+
+  .sidebar-close {
+    display: flex;
+  }
+
+  .menu-trigger {
+    display: flex;
+  }
+
+  .topbar-title p {
+    display: none;
+  }
+
+  .topbar-search {
+    max-width: 180px;
+  }
+
+  .topbar-add span {
+    display: none; /* Icon-only view optimization for small sizes */
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar-search {
+    display: none;
+  }
+
+  .dashboard-content {
+    padding: 12px;
+    gap: 12px;
+  }
+}

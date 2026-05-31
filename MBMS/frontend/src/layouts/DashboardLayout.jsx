@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Bell,
   ChevronDown,
   LayoutDashboard,
   LogOut,
@@ -9,32 +8,33 @@ import {
   Moon,
   ReceiptText,
   Settings,
-  Sun,
   Tags,
   Target,
   UserRound,
   WalletCards,
   Banknote,
   Bot,
+  FileChartColumn,
   X,
+  Sun,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApi } from '../hooks/useApi';
 import { getMonthlyReport } from '../api/chartsApi';
-import { listBudgets } from '../api/budgetsApi';
-import { mapBudgetForUi, mapBudgetsToNotifications } from '../services/mappers';
 import { getCurrentPeriod, getMonthDateRange } from '../utils/dateRange';
 import { SearchBar } from '../components/SearchBar/SearchBar';
-import './DashboardLayout.css';
+import NotificationBell from '../components/Notificationbell'; // Cleanly imported
+import './dash.css';
 
 const navItems = [
   { name: 'Dashboard',    path: '/dashboard',    icon: LayoutDashboard },
   { name: 'Transactions', path: '/transactions', icon: Banknote },
   { name: 'Budgets',      path: '/budgets',      icon: Target },
   { name: 'Categories',   path: '/categories',   icon: Tags },
-  { name: 'Settings',     path: '/settings',     icon: Settings },
   { name: 'Bills',        path: '/bills',        icon: ReceiptText },
-  { name: 'AI',        path: '/ai',        icon: Bot },
+  { name: 'AI-Assistant', path: '/ai',           icon: Bot },
+  { name: 'Reports',      path: '/reports',      icon: FileChartColumn },
+  { name: 'Settings',     path: '/settings',     icon: Settings },
 ];
 
 const { month, year } = getCurrentPeriod();
@@ -51,26 +51,14 @@ const DashboardLayout = ({ children }) => {
   const navigate         = useNavigate();
   const { user, logout } = useAuth();
 
-  const [theme,               setTheme]               = useState(() => localStorage.getItem('theme') || 'light');
-  const [isSidebarOpen,       setIsSidebarOpen]       = useState(() => window.innerWidth > 768);
-  // ✂️  searchQuery + handleSearchSubmit removed — SearchBar owns its own state
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [isProfileOpen,       setIsProfileOpen]       = useState(false);
+  const [theme, setTheme]                 = useState(() => localStorage.getItem('theme') || 'light');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth > 768);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const { data: monthlySummary } = useApi(
     () => getMonthlyReport({ month: period.month, year: period.year }),
     [period.month, period.year]
   );
-
-  const { data: budgetsRaw } = useApi(
-    () => listBudgets({ month: period.month, year: period.year }),
-    [period.month, period.year]
-  );
-
-  const notifications = useMemo(() => {
-    const budgets = (Array.isArray(budgetsRaw) ? budgetsRaw : []).map(mapBudgetForUi);
-    return mapBudgetsToNotifications(budgets.filter((b) => b.usedPercent >= 70));
-  }, [budgetsRaw]);
 
   const netCashflow = Number(monthlySummary?.netSavings ?? 0);
 
@@ -80,10 +68,9 @@ const DashboardLayout = ({ children }) => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // ── Close drawers on route change (sidebar only on mobile) ───────
+  // ── Close drawers on route change ────────────────────────────────
   useEffect(() => {
     if (window.innerWidth <= 768) setIsSidebarOpen(false);
-    setIsNotificationsOpen(false);
     setIsProfileOpen(false);
   }, [location.pathname]);
 
@@ -92,7 +79,6 @@ const DashboardLayout = ({ children }) => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
         if (window.innerWidth <= 768) setIsSidebarOpen(false);
-        setIsNotificationsOpen(false);
         setIsProfileOpen(false);
       }
     };
@@ -117,9 +103,6 @@ const DashboardLayout = ({ children }) => {
   const activePage = navItems.find((item) => location.pathname.startsWith(item.path));
   const ActiveIcon = activePage?.icon || LayoutDashboard;
 
-  // ── Search result handler ────────────────────────────────────────
-  // Navigate to the transaction detail page when a result is selected.
-  // Swap this for a drawer/modal open if that's your pattern.
   const handleSearchSelect = (transaction) => {
     navigate(`/transactions/${transaction.id}`);
   };
@@ -142,8 +125,6 @@ const DashboardLayout = ({ children }) => {
 
       {/* ── Sidebar ────────────────────────────────────────────────── */}
       <aside className="dashboard-sidebar" aria-label="Dashboard navigation">
-
-        {/* Brand */}
         <div className="sidebar-brand-row">
           <Link to="/dashboard" className="sidebar-brand" aria-label="WealthFlow">
             <span className="sidebar-brand__mark">
@@ -165,7 +146,6 @@ const DashboardLayout = ({ children }) => {
           </button>
         </div>
 
-        {/* Nav */}
         <nav className="sidebar-nav" aria-label="Main navigation">
           {navItems.map((item) => {
             const Icon     = item.icon;
@@ -184,7 +164,6 @@ const DashboardLayout = ({ children }) => {
           })}
         </nav>
 
-        {/* Monthly insight strip */}
         <div className="sidebar-insight">
           <p>Monthly net</p>
           <strong>{currency.format(netCashflow)}</strong>
@@ -195,7 +174,6 @@ const DashboardLayout = ({ children }) => {
           </span>
         </div>
 
-        {/* User */}
         <div className="sidebar-user">
           <div className="avatar">{initials}</div>
           <div>
@@ -203,16 +181,11 @@ const DashboardLayout = ({ children }) => {
             <span>{displayEmail}</span>
           </div>
         </div>
-
       </aside>
 
       {/* ── Main ───────────────────────────────────────────────────── */}
       <div className="dashboard-main">
-
-        {/* Topbar */}
         <header className="dashboard-topbar">
-
-          {/* Left */}
           <div className="topbar-left">
             <button
               className="icon-button menu-trigger"
@@ -234,15 +207,11 @@ const DashboardLayout = ({ children }) => {
             </div>
           </div>
 
-          {/* ── Search ─────────────────────────────────────────────── */}
-          {/* Replaces the old <form className="topbar-search"> entirely */}
           <div className="topbar-search">
             <SearchBar onSelect={handleSearchSelect} />
           </div>
 
-          {/* Actions */}
           <div className="topbar-actions">
-
             {/* Theme toggle */}
             <button
               className="icon-button"
@@ -253,57 +222,17 @@ const DashboardLayout = ({ children }) => {
               {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
             </button>
 
-            {/* Notifications */}
-            <div className="dropdown">
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Notifications"
-                aria-expanded={isNotificationsOpen}
-                onClick={() => {
-                  setIsNotificationsOpen((o) => !o);
-                  setIsProfileOpen(false);
-                }}
-              >
-                <Bell size={15} />
-                {notifications.length > 0 && <span className="notification-dot" />}
-              </button>
+            {/* Unified Web-Push & History Notification Bell */}
+            <NotificationBell />
 
-              {isNotificationsOpen && (
-                <div className="dropdown-panel notification-panel">
-                  <div className="dropdown-header">
-                    <strong>Alerts</strong>
-                    <span>{notifications.length} active</span>
-                  </div>
-
-                  {notifications.length === 0 ? (
-                    <p className="notification-empty">No budget alerts right now.</p>
-                  ) : (
-                    notifications.map((item) => (
-                      <div className="notification-item" key={item.id}>
-                        <span />
-                        <div>
-                          <strong>{item.title}</strong>
-                          <p>{item.detail}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Profile */}
+            {/* Profile Dropdown */}
             <div className="dropdown">
               <button
                 className="profile-trigger"
                 type="button"
                 aria-label="Open profile menu"
                 aria-expanded={isProfileOpen}
-                onClick={() => {
-                  setIsProfileOpen((o) => !o);
-                  setIsNotificationsOpen(false);
-                }}
+                onClick={() => setIsProfileOpen((o) => !o)}
               >
                 <span className="avatar avatar-sm">{initials}</span>
                 <ChevronDown size={13} />
@@ -337,7 +266,6 @@ const DashboardLayout = ({ children }) => {
           </div>
         </header>
 
-        {/* Page content */}
         <main className="dashboard-content">{children}</main>
       </div>
     </div>

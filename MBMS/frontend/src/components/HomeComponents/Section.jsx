@@ -8,40 +8,40 @@ export default function Sections() {
       <section className="hero-section">
         <div className="hero-glow-1"></div>
         <div className="hero-glow-2"></div>
-        
+
         <div className="sections-container hero-grid">
           <div className="hero-content">
             <div className="hero-badge">
               <Sparkles size={14} className="badge-icon" />
               <span>New: AI-Powered Wealth Insights</span>
             </div>
-            
+
             <h1 className="hero-title">
               Master Your Money with <span className="highlight">Intelligent</span> Flow
             </h1>
-            
+
             <p className="hero-description">
               WealthFlow brings institutional-grade financial tracking to your pocket. Automated budgeting, real-time goal monitoring, and smart bill reminders designed for the modern professional.
             </p>
-            
+
             <div className="hero-cta">
               <button className="btn-hero-primary">
                 <a href="http:/signup">
-                Get Started Free <ArrowRight size={18} />
+                  Get Started Free <ArrowRight size={18} />
                 </a>
               </button>
               <button className="btn-hero-secondary">
                 <PlayCircle size={20} /> Watch Demo
               </button>
             </div>
-            
+
             <div className="hero-proof">
               <p className="proof-text">
                 Built for professionals who want clarity on cashflow, budgets, and goals.
               </p>
             </div>
           </div>
-          
+
           <div className="hero-visual">
             <div className="mockup-card glass-card">
               <div className="mockup-header">
@@ -75,7 +75,7 @@ export default function Sections() {
             <h2 className="section-title">Financial Clarity, Redefined</h2>
             <p className="section-subtitle">Everything you need to manage your personal finances in one high-performance interface.</p>
           </div>
-          
+
           <div className="bento-grid">
             {/* Card 1: Smart Budgeting */}
             <div className="bento-card card-large glass-card">
@@ -155,7 +155,7 @@ export default function Sections() {
             <h2 className="section-title">Trusted by Modern Investors</h2>
             <p className="section-subtitle">See how forward-thinking professionals are optimization-scaling their personal asset tracking paths.</p>
           </div>
-          
+
           <div className="testimonial-grid">
             <div className="testimonial-card glass-card">
               <p className="testimonial-text">"WealthFlow shifted how I visualize dynamic assets. The automated AI budgeting framework accurately forecasts month-end balances down to single-digit variances."</p>
@@ -200,8 +200,16 @@ export default function Sections() {
             <h2 className="cta-heading">Ready to Master Your Financial Flow?</h2>
             <p className="cta-paragraph">Join over 50,000 algorithmic builders managing scalable assets with zero friction. Claim access to tools immediately.</p>
             <div className="cta-buttons">
-              <button className="btn-cta-light">Create Free Account</button>
-              <button className="btn-cta-transparent">Speak to Advisors</button>
+              <button className="btn-cta-light">
+                <a href='/signup'>
+                  Create Free Account
+                </a>
+              </button>
+              <button className="btn-cta-transparent">
+                <a href='/contact_us'>
+                  Speak to Advisors
+                </a>
+              </button>
             </div>
           </div>
         </div>

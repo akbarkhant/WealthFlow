@@ -5,6 +5,7 @@ const { config } = require('./src/config/index.config');
 const { connectRedis, disconnectRedis } = require('./src/config/redis.config');
 const {pool} = require('./src/config/db.config');
 const { registerProcessHandlers } = require('./src/middleware/errorHandler.middleware');
+const { startInsightsCron } = require('./src/modules/ai/ai.cron')
 
 const server = http.createServer(app);
 const PORT = config.PORT || 5000;
@@ -60,3 +61,4 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
+startInsightsCron();

@@ -1,0 +1,36 @@
+/* Style the containers rendered by react-markdown */
+.wealthflow-ai-response {
+  font-family: system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+  color: #333;
+}
+
+.wealthflow-ai-response table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.wealthflow-ai-response th, 
+.wealthflow-ai-response td {
+  border: 1px solid #e0e0e0;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.wealthflow-ai-response th {
+  background-color: #f5f5f7;
+  font-weight: 600;
+}
+
+.wealthflow-ai-response ul {
+  padding-left: 20px;
+  margin-bottom: 1rem;
+}
+
+.wealthflow-ai-response strong {
+  display: block;
+  margin-top: 1.5rem;
+  font-size: 1.1rem;
+  color: #111;
+}

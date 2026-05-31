@@ -1,7 +1,11 @@
 // reports.service.js
 
 const { query } = require('../../config/db.config');
+const { generateMonthlyInsights } = require('../insights/insights.service');
 
+/* ─────────────────────────────────────────────
+   1. MONTHLY SUMMARY (core data only)
+───────────────────────────────────────────── */
 async function getMonthlySummary(userId, month, year) {
   const totalsRows = await query(
     `SELECT
@@ -15,10 +19,11 @@ async function getMonthlySummary(userId, month, year) {
     [userId, month, year]
   );
 
-  const totals = totalsRows[0];
+  const totals = totalsRows[0] || {};
 
   const topCategories = await query(
-    `SELECT c.name AS "categoryName", c.icon AS "categoryIcon",
+    `SELECT c.name AS "categoryName",
+            c.icon AS "categoryIcon",
             SUM(t.amount_in_base_currency)::float AS total
      FROM transactions t
      JOIN categories c ON c.id = t.category_id
@@ -33,8 +38,8 @@ async function getMonthlySummary(userId, month, year) {
     [userId, month, year]
   );
 
-  const totalIncome = parseFloat((totals && totals.income) || '0');
-  const totalExpenses = parseFloat((totals && totals.expenses) || '0');
+  const totalIncome = parseFloat(totals.income || 0);
+  const totalExpenses = parseFloat(totals.expenses || 0);
 
   return {
     month,
@@ -46,17 +51,9 @@ async function getMonthlySummary(userId, month, year) {
   };
 }
 
-async function getYearlySummary(userId, year) {
-  const results = [];
-
-  for (let m = 1; m <= 12; m++) {
-    const summary = await getMonthlySummary(userId, m, year);
-    results.push(summary);
-  }
-
-  return results;
-}
-
+/* ─────────────────────────────────────────────
+   2. CATEGORY BREAKDOWN (expense analysis)
+───────────────────────────────────────────── */
 async function getCategoryBreakdown(userId, month, year) {
   const rows = await query(
     `SELECT c.name AS "categoryName",
@@ -83,8 +80,45 @@ async function getCategoryBreakdown(userId, month, year) {
   }));
 }
 
+/* ─────────────────────────────────────────────
+   3. MONTHLY REPORT (COMBINED + INSIGHTS)
+───────────────────────────────────────────── */
+async function getMonthlyReport(userId, month, year) {
+  // Step 1: fetch raw data
+  const summary = await getMonthlySummary(userId, month, year);
+  const breakdown = await getCategoryBreakdown(userId, month, year);
+
+  // Step 2: generate insights (AI-like layer)
+  const insights = generateMonthlyInsights(summary, breakdown);
+
+  // Step 3: final response
+  return {
+    ...summary,
+    breakdown,
+    insights,
+  };
+}
+
+/* ─────────────────────────────────────────────
+   4. YEARLY REPORT (builds from monthly)
+───────────────────────────────────────────── */
+async function getYearlySummary(userId, year) {
+  const results = [];
+
+  for (let month = 1; month <= 12; month++) {
+    const monthly = await getMonthlyReport(userId, month, year);
+    results.push(monthly);
+  }
+
+  return results;
+}
+
+/* ─────────────────────────────────────────────
+   EXPORTS
+───────────────────────────────────────────── */
 module.exports = {
   getMonthlySummary,
-  getYearlySummary,
   getCategoryBreakdown,
+  getMonthlyReport,
+  getYearlySummary,
 };
