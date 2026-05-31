@@ -19,16 +19,20 @@ const {
 const { apiLimiter } = require('./middleware/rateLimiter.middleware');
 
 // Routes
-const authRoutes             = require('./modules/auth/auth.routes');
-const budgetsRouter          = require('./modules/budgets/budget.routes');
-const transactionsRouter     = require('./modules/transactions/transactions.routes');
+const   authRoutes           = require('./modules/auth/auth.routes');
+const   budgetsRouter        = require('./modules/budgets/budget.routes');
+const   transactionsRouter   = require('./modules/transactions/transactions.routes');
 const { usersRouter }        = require('./modules/users/users.routes');
 const { categoriesRouter }   = require('./modules/categories/categories.routes');
 const { reportsRouter }      = require('./modules/reports/reports.routes');
 const   notificationRouter   = require('./modules/notifications/notification.routes');
 const   searchRouter         = require('./modules/search/search.routes');
 const   aiRoutes             = require('./modules/ai/ai.routes')
-const billsRouter = require('./modules/bills/bills.routes');
+const   billsRouter          = require('./modules/bills/bills.routes');
+const   goalsRoutes          = require('./modules/goals/goals.routes');
+//const   analyticsRoutes      = require('./modules/analytics/analytics.routes');
+const   recurringRoutes      = require('./modules/recurring/recurring.routes');
+
 
 const app = express();
 
@@ -97,22 +101,21 @@ app.get('/health', (req, res) => {
 // ─────────────────────────────────────────────
 
 app.use('/api/auth', authRoutes);
-
 app.use('/api/budgets', budgetsRouter);
-
 app.use(
   '/api/transactions',
   transactionsRouter
 );
-
-app.use('/api/users', usersRouter);            // user    Routes
-app.use('/api/categories', categoriesRouter); // category Routes
-app.use('/api/reports', reportsRouter);      // report Routes
-//app.use('/api/bills', billsRouter);         // bill   Routes
-app.use('/api/search', searchRouter);      // search  Routes
+app.use('/api/users',         usersRouter);            // user    Routes
+app.use('/api/categories',    categoriesRouter); // category Routes
+app.use('/api/reports',       reportsRouter);      // report Routes
+app.use('/api/search',        searchRouter);      // search  Routes
 app.use('/api/notifications', notificationRouter); //
-app.use('/api/ai', aiRoutes)
-app.use('/api/bills', billsRouter);
+app.use('/api/ai',            aiRoutes)
+app.use('/api/bills',         billsRouter);
+app.use('/api/goals',         goalsRoutes);
+//app.use('/api/analytics',     analyticsRoutes);
+app.use('/api/recurring',     recurringRoutes);
 
 
 // ─────────────────────────────────────────────

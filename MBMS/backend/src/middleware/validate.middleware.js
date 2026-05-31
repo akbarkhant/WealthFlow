@@ -30,6 +30,35 @@ function validate(schema, source = 'body') {
   };
 }
 
+function validateSearchQuery(req, res, next) {
+  const { error, value } = searchQuerySchema.validate(req.query, {
+    abortEarly: true,
+    stripUnknown: true,
+  });
+
+  if (error) {
+    const reason = error.details?.[0]?.message || 'Invalid search query.';
+    const requestId = req.searchRequestId || readRequestId(req) || randomUUID();
+
+    res.setHeader('X-Request-Id', requestId);
+    searchLogger.validationFailed({
+      requestId,
+      userId: req.user?.id,
+      reason,
+    });
+
+    return res.status(400).json({
+      success: false,
+      message: reason,
+      requestId,
+    });
+  }
+
+  req.validatedSearchQuery = value;
+  return next();
+}
+
 module.exports = {
   validate,
+  validateSearchQuery,
 };

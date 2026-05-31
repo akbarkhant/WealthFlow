@@ -18,8 +18,7 @@ async function handleSearch(req, res, next) {
       requestId,
     );
 
-    console.log('Search results:', rawResults);
-
+    
     // ✅ Guard: service may return null/undefined on no match
     const results = rawResults ?? [];
 
