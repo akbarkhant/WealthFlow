@@ -1,12 +1,15 @@
 // backend/src/modules/ai/ai.service.js
-require('dotenv').config();
-const { GoogleGenAI, Type } = require('@google/genai');
+const { default: ollama }          = require('ollama');
+const { generateOnce, parseJson }  = require('./ai.engine');
 
-// The SDK automatically discovers process.env.GEMINI_API_KEY
-const ai = new GoogleGenAI({});
-
-// Standard cost-efficient, high-speed model for utility tasks
-const MODEL_NAME = 'gemini-3.5-flash'; 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function safeParseOllama(raw) {
+  let cleaned = raw.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/```json|```/g, '').trim();
+  }
+  return JSON.parse(cleaned);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. AUTOMATIC TRANSACTION CATEGORIZATION
@@ -24,35 +27,27 @@ Allowed Categories:
 ${categoryMapString}
 
 Rules:
-1. "categoryId" MUST match an ID from the list exactly.
-2. "cleanDescription" strips currency symbols and prices — keep just the merchant name.
+1. Reply with valid JSON ONLY: { "categoryId": "<uuid>", "cleanDescription": "<merchant name>" }
+2. "categoryId" MUST match an ID from the list exactly.
+3. "cleanDescription" strips currency symbols and prices — keep just the merchant name.
+4. No markdown, no backticks, no explanation.
 `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: `Raw Input: "${rawInput}"`,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.1,
-        // Enforce rigid structural output
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            categoryId: { type: Type.STRING },
-            cleanDescription: { type: Type.STRING }
-          },
-          required: ['categoryId', 'cleanDescription']
-        }
-      }
+    const response = await ollama.chat({
+      model:    'llama3.2:1b',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: `Raw Input: "${rawInput}"` }
+      ],
+      options:  { temperature: 0.1 }
     });
 
-    return JSON.parse(response.text.trim());
+    return safeParseOllama(response.message.content);
   } catch (error) {
     console.error('Auto-categorization failed:', error.message);
     return {
-      categoryId: availableCategories[0]?.id ?? null,
+      categoryId:       availableCategories[0]?.id ?? null,
       cleanDescription: rawInput,
     };
   }
@@ -61,88 +56,41 @@ Rules:
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. STREAMING AI CHAT ASSISTANT
 // ─────────────────────────────────────────────────────────────────────────────
-async function chatService({
-  message,
-  history = [],
-  financialContext = '',
-  res,
-  next,
-}) {
+async function chatService({ message, history = [], res, next }) {
   try {
-    const formattedContents = [];
+    const formattedMessages = history.map(msg => ({
+      role:    msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.text ?? msg.content ?? '',
+    }));
 
-    const systemPrompt = `
-You are WealthFlow AI, an intelligent personal finance assistant.
+    const systemPrompt = {
+      role:    'system',
+      content: `You are WealthFlow AI, a concise financial analyst assistant.
+Answer questions about the user's finances based on the context provided.
+Keep answers under 3 sentences unless steps or lists are explicitly requested.
+Use PKR (Pakistani Rupees) for monetary references where currency is ambiguous.`,
+    };
 
-Rules:
-- Use ONLY the financial data provided.
-- Never invent balances, budgets, transactions, or goals.
-- If data is unavailable, say so clearly.
-- Give concise answers.
-- Use bullet points when useful.
-- Mention specific spending patterns when present.
-- Provide practical financial advice.
-- Currency values must be displayed exactly as provided.
-
-Financial Context:
-
-${financialContext}
-`;
-
-    formattedContents.push({
-      role: 'user',
-      parts: [{
-        text: `System Context:\n${systemPrompt}`
-      }]
-    });
-
-    if (Array.isArray(history)) {
-      history.slice(-20).forEach(msg => {
-        formattedContents.push({
-          role: msg.role === 'user' ? 'user' : 'model',
-          parts: [{
-            text: msg.text || msg.content || ''
-          }]
-        });
-      });
-    }
-
-    formattedContents.push({
-      role: 'user',
-      parts: [{
-        text: message
-      }]
-    });
-
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Transfer-Encoding', 'chunked');
 
-    const stream = await ai.models.generateContentStream({
-      model: MODEL_NAME,
-      contents: formattedContents,
-      config: {
-        temperature: 0.3,
-        topP: 0.9,
-        maxOutputTokens: 1024,
-      }
+    const responseStream = await ollama.chat({
+      model:    'llama3.2:1b',
+      messages: [systemPrompt, ...formattedMessages, { role: 'user', content: message }],
+      stream:   true,
     });
 
-    for await (const chunk of stream) {
-      const text = chunk.text;
-
-      if (text) {
-        res.write(text);
-      }
+    for await (const chunk of responseStream) {
+      const textChunk = chunk.message.content;
+      if (textChunk) res.write(textChunk);
     }
 
     res.end();
-
   } catch (err) {
-    console.error('AI Chat Error:', err);
-
     if (!res.headersSent) {
       next(err);
     } else {
+      console.error('Chat stream error:', err.message);
       res.end();
     }
   }
@@ -166,6 +114,7 @@ async function analyzeService({ income, expenses, budgets }) {
     if (spent > b.amountLimit) overBudgetCount++;
   });
 
+  // Arithmetic score — AI never touches the number
   let healthScore = 100;
   if (savingsRate < 20) healthScore -= 20;
   if (savingsRate < 0)  healthScore -= 30;
@@ -174,41 +123,28 @@ async function analyzeService({ income, expenses, budgets }) {
 
   const systemPrompt = `
 You are the WealthFlow Insight engine.
-Generate exactly 3 actionable financial insights as a structured JSON array.
+Generate exactly 3 actionable financial insights as a raw JSON array.
 
 Financial Context:
 - Income:          Rs. ${totalIncome}
 - Expenses:        Rs. ${totalExpenses}
 - Savings Rate:    ${savingsRate.toFixed(1)}%
 - Over-Budget Categories: ${overBudgetCount}
+
+Format (raw JSON array, no markdown):
+[{"type": "warning"|"danger"|"success", "text": "insight message", "actionText": "optional button label"}]
 `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: 'Generate financial insights profile data based on context definitions.',
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.2,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              type: { type: Type.STRING, enum: ['warning', 'danger', 'success'] },
-              text: { type: Type.STRING },
-              actionText: { type: Type.STRING }
-            },
-            required: ['type', 'text']
-          }
-        }
-      }
+    const response = await ollama.chat({
+      model:    'llama3.2:1b',
+      messages: [{ role: 'system', content: systemPrompt }],
+      options:  { temperature: 0.2 }
     });
 
     return {
       budgetHealthScore: Math.round(healthScore),
-      insights: JSON.parse(response.text.trim()),
+      insights:          safeParseOllama(response.message.content),
     };
   } catch (error) {
     console.error('Insights engine failed:', error.message);
@@ -240,28 +176,19 @@ Predict next month's expenses based on historical data.
 Data:
 - Monthly totals: [${historicalMonthlyTotals.join(', ')}]
 - Trend: ${trendDirection}
+
+Reply with raw JSON only:
+{ "expectedExpensesNextMonth": <number>, "reasoning": "<under 20 words>" }
 `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: 'Provide the spending forecast estimation criteria profile.',
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.1,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            expectedExpensesNextMonth: { type: Type.NUMBER },
-            reasoning: { type: Type.STRING }
-          },
-          required: ['expectedExpensesNextMonth', 'reasoning']
-        }
-      }
+    const response = await ollama.chat({
+      model:    'llama3.2:1b',
+      messages: [{ role: 'system', content: systemPrompt }],
+      options:  { temperature: 0.1 }
     });
 
-    return JSON.parse(response.text.trim());
+    return safeParseOllama(response.message.content);
   } catch (error) {
     console.error('Forecast failed:', error.message);
     const fallback = historicalMonthlyTotals.at(-1) ?? 0;

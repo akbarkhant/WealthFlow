@@ -1,4 +1,5 @@
 // middlewares/validate.middleware.js
+const { searchQuerySchema } = require('../modules/search/search.schema');
 
 function validate(schema, source = 'body') {
   return (req, res, next) => {

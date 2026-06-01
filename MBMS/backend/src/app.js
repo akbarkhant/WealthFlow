@@ -43,6 +43,8 @@ const app = express();
 
 app.use(helmet());
 
+// Add this right before app.use(cors(...))
+console.log('CORS origin:', config.FRONTEND_URL);
 app.use(
   cors({
     origin: config.FRONTEND_URL,

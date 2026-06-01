@@ -30,6 +30,8 @@ import AI from '../pages/AI_Page';
 import Reports from '../pages/Reports';
 import About from '../pages/About';
 import ContactUs from '../pages/Contact_Us';
+import  HistoryPage from '../pages/HistoryPage';
+import GoalsPage from '../pages/GoalsPage';
 
 // ── Authenticated Notification Wrapper ───────────────────────────
 // This injects the logged-in user's ID cleanly into the provider
@@ -74,6 +76,8 @@ const AppRoutes = () => {
         <Route path='/budgets' element={<Budgets />} />
         <Route path="/categories" element={<Categories />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/history" element={<HistoryPage />} />
+        <Route path="/goals" element={<GoalsPage />} />
       </Route>
 
       {/* Catch-all */}

@@ -1,111 +1,144 @@
 // goals.controller.js
+
 const service = require('./goals.service');
 const { sendSuccess } = require('../../shared/ApiResponse');
 
 /**
- * ── Get All Goals (With Progress Calculations) ───────────────────
+ * ─────────────────────────────────────────────
+ * SAFE PROGRESS & TIME-BASED CALCULATION
+ * ─────────────────────────────────────────────
+ * NOTE:
+ * Core business rules (status changes, completion logic) 
+ * are strictly enforced in the SERVICE/DB layer.
+ * This function derives UI-centric presentation fields dynamically.
+ */
+function calculateProgress(goal) {
+  if (!goal) return null;
+
+  const current = Number(goal.current_amount || 0);
+  const target = Number(goal.target_amount || 0);
+  const allowOverflow = !!goal.allow_overflow;
+
+  // 3. Progress Calculation Logic (Avoid divide-by-zero)
+  let completionPercentage = target > 0 
+    ? Number(((current / target) * 100).toFixed(2)) 
+    : 0;
+
+  // Clamp between 0 - 100% unless overflow is enabled
+  if (!allowOverflow && completionPercentage > 100) {
+    completionPercentage = 100;
+  }
+
+  // 4. Time-Based Smart Logic
+  let daysLeft = null;
+  let requiredDailySavings = 0;
+
+  if (goal.target_date) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetDate = new Date(goal.target_date);
+    targetDate.setHours(0, 0, 0, 0);
+
+    const timeDiff = targetDate.getTime() - today.getTime();
+    daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+
+    // If goal isn't completed and has time remaining, calculate run-rate
+    if (daysLeft > 0 && current < target) {
+      const remainingAmount = target - current;
+      requiredDailySavings = Number((remainingAmount / daysLeft).toFixed(2));
+    }
+  }
+
+  return {
+    ...goal,
+    completionPercentage,
+    daysLeft: daysLeft !== null ? Math.max(0, daysLeft) : null,
+    requiredDailySavings,
+    isCompleted: goal.status === 'COMPLETED' || (current >= target && target > 0),
+    isOverdue: goal.status === 'OVERDUE' || (daysLeft < 0 && current < target)
+  };
+}
+
+/**
+ * ─────────────────────────────────────────────
  * GET /api/goals
+ * Get all goals for logged-in user
+ * ─────────────────────────────────────────────
  */
 async function list(req, res, next) {
   try {
-    const userId = req.user.id;
-    const goals = await service.list(userId, req.query);
+    // 6. Access Control: strictly tied to req.user.id
+    const result = await service.list(req.user.id);
 
-    // Dynamic UX Mapper: Injects computed completion percentage for the frontend progress bars
-    const processedGoals = goals.data.map(goal => {
-      const currentAmount = Number(goal.currentAmount || 0);
-      const targetAmount = Number(goal.targetAmount || 0);
-      
-      // Prevent division by zero and cap progress tightly at 100%
-      const percentage = targetAmount > 0 
-        ? Math.min(100, Math.round((currentAmount / targetAmount) * 100)) 
-        : 0;
+    const processedGoals = (result.data || []).map(calculateProgress);
 
-      return {
-        ...goal,
-        completionPercentage: percentage,
-        isCompleted: percentage >= 100
-      };
+    return sendSuccess(res, processedGoals, 200, {
+      total: result.meta?.total || processedGoals.length,
     });
-
-    sendSuccess(res, processedGoals, 200, goals.meta);
   } catch (err) {
     next(err);
   }
 }
 
 /**
- * ── Get Single Goal ──────────────────────────────────────────────
+ * ─────────────────────────────────────────────
  * GET /api/goals/:id
+ * Get single goal
+ * ─────────────────────────────────────────────
  */
-async function getOne(req, res, next) {
+async function getById(req, res, next) {
   try {
-    const goal = await service.getById(req.params.id, req.user.id);
-    
-    const currentAmount = Number(goal.currentAmount || 0);
-    const targetAmount = Number(goal.targetAmount || 0);
-    const percentage = targetAmount > 0 ? Math.min(100, Math.round((currentAmount / targetAmount) * 100)) : 0;
+    // 6. Access Control handled in service via dual parameters
+    const goal = await service.getById(
+      req.params.id,
+      req.user.id
+    );
 
-    sendSuccess(res, {
-      ...goal,
-      completionPercentage: percentage
-    });
+    return sendSuccess(res, calculateProgress(goal));
   } catch (err) {
     next(err);
   }
 }
-
 /**
- * ── Create Financial Goal ────────────────────────────────────────
+ * ─────────────────────────────────────────────
  * POST /api/goals
- * Body: { title, targetAmount, targetDate, currency }
+ * Create a new goal
+ * ─────────────────────────────────────────────
  */
 async function create(req, res, next) {
   try {
-    const goalData = {
-      ...req.body,
-      currentAmount: 0 // Explicitly initialize progress tracking balances at zero
-    };
+    // FIX: Destructure targetAmount (camelCase) to match the JSON input, 
+    // or fallback to target_amount if your legacy frontend sends snake_case.
+    const { name, icon, target_amount, currency, allowOverflow, deadline } = req.body;
 
-    const newGoal = await service.create(req.user.id, goalData);
-    sendSuccess(res, newGoal, 201);
-  } catch (err) {
-    next(err);
-  }
-}
+    // Consolidate the variable cleanly
+    const finalTarget = target_amount || targetAmount;
 
-/**
- * ── Contribute to Savings Goal ───────────────────────────────────
- * POST /api/goals/:id/contribute
- * Body: { amount }
- * UX Trick: This increments progress and automatically feeds transaction logs
- */
-async function contribute(req, res, next) {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-    const { amount } = req.body;
-
-    if (!amount || amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Contribution amount must be a positive numeric value.'
+    // Validation Guardrail
+    if (!finalTarget || Number(finalTarget) <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Target amount must be greater than 0.' 
       });
     }
 
-    // Process increment via service layer logic
-    const updatedGoal = await service.addContribution(id, userId, amount);
-    
-    const currentAmount = Number(updatedGoal.currentAmount || 0);
-    const targetAmount = Number(updatedGoal.targetAmount || 0);
-    const percentage = targetAmount > 0 ? Math.min(100, Math.round((currentAmount / targetAmount) * 100)) : 0;
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ success: false, message: 'Goal name is required.' });
+    }
 
-    // Send the updated data along with notification sparks for immediate UI confetti triggers
-    sendSuccess(res, {
-      ...updatedGoal,
-      completionPercentage: percentage,
-      justCompleted: percentage >= 100,
-      message: `Successfully contributed Rs. ${amount} toward your ${updatedGoal.title || 'goal'}!`
+    // Forward the sanitized object down to your service layer
+    const newGoal = await service.create(req.user.id, {
+      name,
+      icon: icon || '🎯',
+      target_amount: Number(finalTarget),
+      currency: currency || 'USD',
+      allowOverflow: !!allowOverflow,
+      deadline: deadline || null
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: newGoal
     });
   } catch (err) {
     next(err);
@@ -113,31 +146,86 @@ async function contribute(req, res, next) {
 }
 
 /**
- * ── Update Goal Parameters ───────────────────────────────────────
- * PATCH /api/goals/:id
+ * ─────────────────────────────────────────────
+ * POST /api/goals/:id/contribute
+ * Add money to goal
+ * ─────────────────────────────────────────────
  */
-async function update(req, res, next) {
+async function contribute(req, res, next) {
   try {
-    const updatedGoal = await service.update(
+    const { amount } = req.body;
+
+    // Fast-fail check at controller level
+    if (!amount || Number(amount) <= 0) {
+      return res.status(400).json({ success: false, message: 'Contribution amount must be greater than zero.' });
+    }
+
+    // FIX: Pass the raw number directly as the 3rd argument instead of an object
+    const updatedGoal = await service.contribute(
       req.params.id,
       req.user.id,
-      req.body
+      Number(amount) 
     );
-    sendSuccess(res, updatedGoal);
+
+    const goalWithProgress = calculateProgress(updatedGoal);
+
+    return sendSuccess(res, {
+      ...goalWithProgress,
+      justCompleted:
+        goalWithProgress.isCompleted &&
+        updatedGoal.status === false,
+      message: `Successfully contributed Rs. ${Number(amount).toLocaleString()} toward your goal.`,
+    });
   } catch (err) {
     next(err);
   }
 }
 
 /**
- * ── Remove Financial Goal ────────────────────────────────────────
+ * ─────────────────────────────────────────────
+ * PATCH /api/goals/:id
+ * Update goal details safely
+ * ─────────────────────────────────────────────
+ */
+async function update(req, res, next) {
+  try {
+    const { name, target_amount, target_date, status, allow_overflow } = req.body;
+    
+    // Whitelist acceptable payload parameters to block cross-user or malicious updates (e.g. changing current_amount manually)
+    const updatePayload = {};
+    if (name !== undefined) updatePayload.name = name;
+    if (target_amount !== undefined) updatePayload.target_amount = Number(target_amount);
+    if (target_date !== undefined) updatePayload.target_date = target_date;
+    if (status !== undefined) updatePayload.status = status; // Reopen / Archive / Pause
+    if (allow_overflow !== undefined) updatePayload.allow_overflow = allow_overflow;
+
+    // 5. Validation and safety constraints are checked in the service layer 
+    // (e.g., verifying target_amount hasn't fallen below current_amount)
+    const updatedGoal = await service.update(
+      req.params.id,
+      req.user.id,
+      updatePayload
+    );
+
+    return sendSuccess(res, calculateProgress(updatedGoal));
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * ─────────────────────────────────────────────
  * DELETE /api/goals/:id
+ * Remove or Archive goal
+ * ─────────────────────────────────────────────
  */
 async function remove(req, res, next) {
   try {
+    // Service handles ownership checks and safety logic (e.g. soft-delete/archive)
     await service.remove(req.params.id, req.user.id);
-    sendSuccess(res, {
-      message: 'Financial target track deleted successfully.'
+
+    return sendSuccess(res, {
+      message: 'Financial goal deleted successfully.',
     });
   } catch (err) {
     next(err);
@@ -146,9 +234,9 @@ async function remove(req, res, next) {
 
 module.exports = {
   list,
-  getOne,
+  getById,
   create,
   contribute,
   update,
-  remove
+  remove,
 };

@@ -171,8 +171,19 @@ async function remove(id, userId) {
   await repo.softDelete(id, userId);
 }
 
+// ── List All Transactions Unpaginated (Internal Analysis Use) ────
+async function listAllForAnalysis(userId) {
+  // Checks your repository layer for an unpaginated query fetcher
+  if (typeof repo.findAllUnpaginated === 'function') {
+    return repo.findAllUnpaginated(userId);
+  }
+  // Fallback to basic list query object if your repository structure uses flexible routing args
+  return repo.findAll(userId, { limit: 100000, page: 1 });
+}
+
 module.exports = {
   list,
+  listAllForAnalysis,
   getById,
   create,
   update,

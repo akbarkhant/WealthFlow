@@ -7,6 +7,8 @@ import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext';
 import { setServerErrorHandler } from './api/client';
 
+
+
 import './index.css';
 
 setServerErrorHandler((err) => {

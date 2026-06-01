@@ -15,15 +15,17 @@ import {
   Banknote,
   Bot,
   FileChartColumn,
+  History,
   X,
   Sun,
+  Goal,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApi } from '../hooks/useApi';
 import { getMonthlyReport } from '../api/chartsApi';
 import { getCurrentPeriod, getMonthDateRange } from '../utils/dateRange';
 import { SearchBar } from '../components/SearchBar/SearchBar';
-import NotificationBell from '../components/Notificationbell'; // Cleanly imported
+import NotificationBell from '../components/Notificationbell';
 import './dash.css';
 
 const navItems = [
@@ -35,16 +37,9 @@ const navItems = [
   { name: 'AI-Assistant', path: '/ai',           icon: Bot },
   { name: 'Reports',      path: '/reports',      icon: FileChartColumn },
   { name: 'Settings',     path: '/settings',     icon: Settings },
+  { name: 'History',     path: '/history',     icon: History },
+  { name: 'Goals',     path: '/goals',     icon: Goal },
 ];
-
-const { month, year } = getCurrentPeriod();
-const period = getMonthDateRange(year, month);
-
-const currency = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-});
 
 const DashboardLayout = ({ children }) => {
   const location         = useLocation();
@@ -55,12 +50,27 @@ const DashboardLayout = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth > 768);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
+  // ✅ Moved inside component so it's always current
+  const { month, year } = getCurrentPeriod();
+  const period = getMonthDateRange(year, month);
+
   const { data: monthlySummary } = useApi(
     () => getMonthlyReport({ month: period.month, year: period.year }),
     [period.month, period.year]
   );
 
   const netCashflow = Number(monthlySummary?.netSavings ?? 0);
+
+  // ✅ Currency formatter respects user's currency
+  const currency = useMemo(
+    () =>
+      new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: user?.currency || 'USD',
+        maximumFractionDigits: 0,
+      }),
+    [user?.currency]
+  );
 
   // ── Theme ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -84,6 +94,25 @@ const DashboardLayout = ({ children }) => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // ✅ Close profile dropdown on outside click
+  useEffect(() => {
+    if (!isProfileOpen) return;
+    const handler = (e) => {
+      if (!e.target.closest('.dropdown')) setIsProfileOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isProfileOpen]);
+
+  // ✅ Responsive sidebar on window resize
+  useEffect(() => {
+    const onResize = () => {
+      setIsSidebarOpen(window.innerWidth > 768);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   // ── Derived display values ───────────────────────────────────────
@@ -222,7 +251,7 @@ const DashboardLayout = ({ children }) => {
               {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
             </button>
 
-            {/* Unified Web-Push & History Notification Bell */}
+            {/* Notification Bell */}
             <NotificationBell />
 
             {/* Profile Dropdown */}

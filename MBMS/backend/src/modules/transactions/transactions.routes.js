@@ -15,42 +15,42 @@ const controller = require('./transactions.controller');
 
 const router = Router();
 
-// Protect all routes
+// Protect all transaction endpoints via your authorization session gate
 router.use(authenticate);
 
 // ── Transaction Routes ───────────────────────────────────────────
 
-// Get all transactions
+// Get all authenticated, filtered, and paginated transactions
 router.get(
   '/',
   validate(listTransactionsSchema, 'query'),
-  controller.list
+  controller.getAllTransactions
 );
 
-// Get one transaction
+// Get a single transaction by ID
 router.get(
   '/:id',
-  controller.getOne
+  controller.getTransactionById
 );
 
-// Create transaction
+// Create a transaction (with strict balance verification rules)
 router.post(
   '/',
   validate(createTransactionSchema),
-  controller.create
+  controller.createTransaction
 );
 
-// Update transaction
+// Update a transaction's properties safely
 router.patch(
   '/:id',
   validate(updateTransactionSchema),
-  controller.update
+  controller.updateTransaction
 );
 
-// Delete transaction
+// Soft delete a single transaction record
 router.delete(
   '/:id',
-  controller.remove
+  controller.deleteTransaction
 );
 
 module.exports = router;
