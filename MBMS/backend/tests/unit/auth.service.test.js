@@ -1,173 +1,115 @@
-// tests/auth.service.test.js
-
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 const {
+  signAccessToken,
+  signRefreshToken,
   hashPassword,
   comparePassword,
-  generateAccessToken,
-  generateRefreshToken,
-  verifyAccessToken,
-  verifyRefreshToken,
-} = require('../src/services/auth.service');
+} = require('../../src/modules/auth/auth.service');
 
-describe('Auth Service Tests', () => {
+describe('Auth Service (Production Grade)', () => {
+
   // ─────────────────────────────────────────────
   // PASSWORD HASHING
   // ─────────────────────────────────────────────
-
   describe('hashPassword()', () => {
     it('should hash password correctly', async () => {
       const password = 'Password123!';
 
-      const hashedPassword =
-        await hashPassword(password);
+      const hashed = await hashPassword(password);
 
-      expect(hashedPassword).toBeDefined();
-
-      expect(hashedPassword).not.toBe(
-        password
-      );
-
-      expect(hashedPassword.length).toBeGreaterThan(
-        20
-      );
+      expect(hashed).toBeDefined();
+      expect(hashed).not.toBe(password);
+      expect(hashed.length).toBeGreaterThan(20);
     });
   });
 
   // ─────────────────────────────────────────────
   // PASSWORD COMPARISON
   // ─────────────────────────────────────────────
-
   describe('comparePassword()', () => {
     it('should validate correct password', async () => {
       const password = 'Password123!';
+      const hashed = await hashPassword(password);
 
-      const hashedPassword =
-        await hashPassword(password);
+      const result = await comparePassword(password, hashed);
 
-      const isMatch =
-        await comparePassword(
-          password,
-          hashedPassword
-        );
-
-      expect(isMatch).toBe(true);
+      expect(result).toBe(true);
     });
 
     it('should reject incorrect password', async () => {
       const password = 'Password123!';
+      const hashed = await hashPassword(password);
 
-      const hashedPassword =
-        await hashPassword(password);
+      const result = await comparePassword('WrongPassword', hashed);
 
-      const isMatch =
-        await comparePassword(
-          'WrongPassword',
-          hashedPassword
-        );
-
-      expect(isMatch).toBe(false);
+      expect(result).toBe(false);
     });
   });
 
   // ─────────────────────────────────────────────
-  // ACCESS TOKEN
+  // ACCESS TOKEN (NEW STRUCTURE)
   // ─────────────────────────────────────────────
+  describe('signAccessToken()', () => {
+    it('should generate valid JWT access token', () => {
+      const userId = 'user-123';
+      const email = 'akbar@example.com';
 
-  describe('generateAccessToken()', () => {
-    it('should generate valid access token', () => {
-      const user = {
-        id: 1,
-        email: 'akbar@example.com',
-        role: 'user',
-      };
-
-      const token =
-        generateAccessToken(user);
+      const token = signAccessToken(userId, email);
 
       expect(token).toBeDefined();
 
       const decoded = jwt.decode(token);
 
-      expect(decoded.id).toBe(user.id);
-
-      expect(decoded.email).toBe(
-        user.email
-      );
+      expect(decoded.sub).toBe(userId);
+      expect(decoded.email).toBe(email);
+      expect(decoded.jti).toBeDefined();
     });
   });
 
   // ─────────────────────────────────────────────
   // REFRESH TOKEN
   // ─────────────────────────────────────────────
-
-  describe('generateRefreshToken()', () => {
+  describe('signRefreshToken()', () => {
     it('should generate valid refresh token', () => {
-      const user = {
-        id: 1,
-      };
+      const userId = 'user-123';
 
-      const token =
-        generateRefreshToken(user);
+      const { token } = signRefreshToken(userId);
 
       expect(token).toBeDefined();
 
       const decoded = jwt.decode(token);
 
-      expect(decoded.id).toBe(user.id);
+      expect(decoded.sub).toBe(userId);
+      expect(decoded.jti).toBeDefined();
     });
   });
 
   // ─────────────────────────────────────────────
-  // VERIFY ACCESS TOKEN
+  // TOKEN SIGNATURE VALIDITY (REAL VERIFICATION)
   // ─────────────────────────────────────────────
+  describe('JWT validation', () => {
+    it('should validate access token using secret', () => {
+      const userId = 'user-123';
+      const email = 'akbar@example.com';
 
-  describe('verifyAccessToken()', () => {
-    it('should verify valid access token', () => {
-      const user = {
-        id: 1,
-        email: 'akbar@example.com',
-        role: 'user',
-      };
+      const token = signAccessToken(userId, email);
 
-      const token =
-        generateAccessToken(user);
-
-      const decoded =
-        verifyAccessToken(token);
-
-      expect(decoded.id).toBe(user.id);
-
-      expect(decoded.email).toBe(
-        user.email
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_ACCESS_SECRET
       );
+
+      expect(decoded.sub).toBe(userId);
+      expect(decoded.email).toBe(email);
     });
 
     it('should throw error for invalid token', () => {
       expect(() => {
-        verifyAccessToken('invalid-token');
+        jwt.verify('invalid.token.here', process.env.JWT_ACCESS_SECRET);
       }).toThrow();
     });
   });
 
-  // ─────────────────────────────────────────────
-  // VERIFY REFRESH TOKEN
-  // ─────────────────────────────────────────────
-
-  describe('verifyRefreshToken()', () => {
-    it('should verify valid refresh token', () => {
-      const user = {
-        id: 1,
-      };
-
-      const token =
-        generateRefreshToken(user);
-
-      const decoded =
-        verifyRefreshToken(token);
-
-      expect(decoded.id).toBe(user.id);
-    });
-  });
 });

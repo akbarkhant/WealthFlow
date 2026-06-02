@@ -170,23 +170,33 @@ async function updateBill(billId, userId, data) {
 
   const allowed = ['name', 'amount', 'currency', 'due_date', 'category_id', 'recurrence', 'status', 'notes', 'is_autopay'];
 
+  const updateData = data || {};
+
+  // 1. Build the dynamic body updates
   for (const key of allowed) {
-    if (data[key] !== undefined) {
+    if (updateData[key] !== undefined) {
       fields.push(`${key} = $${idx++}`);
-      values.push(data[key]);
+      values.push(updateData[key]);
     }
   }
 
+  // If nothing was passed to update, exit early safely
   if (fields.length === 0) return null;
 
+  // 2. Add fixed fields
   fields.push(`updated_at = NOW()`);
-  values.push(billId, userId);
+
+  // 3. Map WHERE clause conditions using the correct sequential indexes
+  const billIdIdx = idx++;  // Next available index number
+  const userIdIdx = idx++;  // Following index number
+
+  values.push(billId, userId); // Pushed in identical order to match indexes above
 
   const sql = `
     UPDATE bills
     SET ${fields.join(', ')}
-    WHERE id = $${idx++}
-      AND user_id = $${idx++}
+    WHERE id = $${billIdIdx}
+      AND user_id = $${userIdIdx}
       AND deleted_at IS NULL
     RETURNING
       id,
@@ -203,6 +213,7 @@ async function updateBill(billId, userId, data) {
       created_at::text AS "createdAt",
       updated_at::text AS "updatedAt";
   `;
+
   const rows = await query(sql, values);
   return rows[0] ?? null;
 }

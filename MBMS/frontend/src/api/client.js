@@ -1,5 +1,4 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
 const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/refresh'];
 
 let refreshPromise = null;
@@ -17,19 +16,24 @@ export const isAuthenticated = () => {
 const clearTokens = () => {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
+  localStorage.removeItem('currentUser');
 };
 
 const redirectToSessionExpired = () => {
   clearTokens();
-  if (!window.location.pathname.includes('/session-expired')) {
+  // Prevent infinite loops if an API call triggers on the session-expired page itself
+  if (
+    !window.location.pathname.includes('/session-expired') && 
+    !window.location.pathname.includes('/login')
+  ) {
     window.location.replace('/session-expired');
   }
 };
 
 const refreshAccessToken = async () => {
   const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken) {
-    throw new Error('No refresh token');
+  if (!refreshToken || refreshToken === 'null') {
+    throw new Error('No refresh token available');
   }
 
   if (!refreshPromise) {
@@ -46,11 +50,10 @@ const refreshAccessToken = async () => {
           throw new Error((data && data.message) || response.statusText);
         }
 
-        const payload =
-          data && Object.prototype.hasOwnProperty.call(data, 'data') ? data.data : data;
+        const payload = data && Object.prototype.hasOwnProperty.call(data, 'data') ? data.data : data;
 
         if (!payload?.accessToken) {
-          throw new Error('Invalid refresh response');
+          throw new Error('Invalid refresh response structure');
         }
 
         localStorage.setItem('accessToken', payload.accessToken);
@@ -89,7 +92,6 @@ const attachMeta = (payload, meta) => {
   if (!meta.requestId || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
     return payload;
   }
-
   return { ...payload, requestId: payload.requestId || meta.requestId };
 };
 
@@ -100,7 +102,6 @@ const handleResponse = async (response) => {
 
   if (!response.ok) {
     const error = new Error((data && data.message) || response.statusText || 'Request failed');
-
     error.status = response.status;
     error.data = data;
     error.requestId = meta.requestId;
@@ -109,7 +110,6 @@ const handleResponse = async (response) => {
     if (response.status >= 500 && onServerError) {
       onServerError(error);
     }
-
     throw error;
   }
 
@@ -123,33 +123,26 @@ const getHeaders = (isFormData = false) => {
   if (token && token !== 'undefined' && token !== 'null') {
     headers.Authorization = `Bearer ${token}`;
   }
-
   if (!isFormData) {
     headers['Content-Type'] = 'application/json';
   }
-
   return headers;
 };
 
 const buildQuery = (params = {}) => {
   const qs = new URLSearchParams();
-
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       qs.set(key, String(value));
     }
   });
-
   const str = qs.toString();
   return str ? `?${str}` : '';
 };
 
 const buildUrl = (endpoint, params) => {
   const query = buildQuery(params);
-  if (!query) {
-    return `${API_URL}${endpoint}`;
-  }
-
+  if (!query) return `${API_URL}${endpoint}`;
   const separator = endpoint.includes('?') ? '&' : '?';
   return `${API_URL}${endpoint}${separator}${query.slice(1)}`;
 };
@@ -191,6 +184,7 @@ export const request = async (method, endpoint, body = null, options = {}) => {
     ) {
       try {
         await refreshAccessToken();
+        // Recalculate authentication headers with new token
         requestConfig.headers = {
           ...getHeaders(isFormData),
           ...customHeaders,
@@ -212,10 +206,8 @@ export const request = async (method, endpoint, body = null, options = {}) => {
 
     return await handleResponse(response);
   } catch (err) {
-    if (err instanceof Error && err.message) {
-      throw err;
-    }
-    throw new Error('Network request failed', { cause: err });
+    if (err instanceof Error && err.status) throw err;
+    throw err;
   }
 };
 

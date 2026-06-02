@@ -1,7 +1,7 @@
 // backend/src/modules/ai/ai.service.js
 require('dotenv').config();
 const { GoogleGenAI, Type } = require('@google/genai');
-
+const logger = require('../../config/logger.config').logger;
 // The SDK automatically discovers process.env.GEMINI_API_KEY
 const ai = new GoogleGenAI({});
 
@@ -151,124 +151,133 @@ ${financialContext}
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. SMART INSIGHTS & BUDGET HEALTH SCORE
 // ─────────────────────────────────────────────────────────────────────────────
-async function analyzeService({ income, expenses, budgets }) {
-  const totalIncome   = income.reduce((a, c) => a + Number(c.amount), 0);
-  const totalExpenses = expenses.reduce((a, c) => a + Number(c.amount), 0);
-  const savingsRate   = totalIncome > 0
-    ? ((totalIncome - totalExpenses) / totalIncome) * 100
-    : 0;
-
-  let overBudgetCount = 0;
-  budgets.forEach(b => {
-    const spent = expenses
-      .filter(e => e.categoryId === b.categoryId)
-      .reduce((a, c) => a + Number(c.amount), 0);
-    if (spent > b.amountLimit) overBudgetCount++;
-  });
-
-  let healthScore = 100;
-  if (savingsRate < 20) healthScore -= 20;
-  if (savingsRate < 0)  healthScore -= 30;
-  healthScore -= overBudgetCount * 10;
-  healthScore  = Math.max(10, Math.min(100, healthScore));
-
-  const systemPrompt = `
-You are the WealthFlow Insight engine.
-Generate exactly 3 actionable financial insights as a structured JSON array.
-
-Financial Context:
-- Income:          Rs. ${totalIncome}
-- Expenses:        Rs. ${totalExpenses}
-- Savings Rate:    ${savingsRate.toFixed(1)}%
-- Over-Budget Categories: ${overBudgetCount}
-`;
-
+async function analyzeService(financialContext, customPrompt = '') {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('Missing GEMINI_API_KEY configuration in environment variables.');
+    }
+
+    // ✅ Clean extraction matching exactly what your controller builds
+    const { summary, topCategories, sampleTransactions } = financialContext || {};
+
+    if (!summary) {
+      throw new Error('Financial context summary data is missing or ill-formed.');
+    }
+
+    const systemInstruction = 
+      "You are an expert personal finance AI assistant embedded in a Money Management App (MBMS). " +
+      "Your task is to analyze user transaction summaries, spot structural trends or anomalies, " +
+      "and provide highly actionable, empathetic, concise advice. Never hallucinate metrics.";
+
+    // Build the prompt using the metrics the controller already calculated
+    const userPrompt = `
+      Please analyze my financial data for this period:
+      
+      ### Financial Summary:
+      - Total Income: $${Number(summary.totalIncome || 0).toFixed(2)}
+      - Total Expenses: $${Number(summary.totalExpenses || 0).toFixed(2)}
+      - Net Savings: $${Number(summary.netSavings || 0).toFixed(2)}
+      - Date Range: ${summary.period?.startDate || 'N/A'} to ${summary.period?.endDate || 'N/A'}
+      
+      ### Spending by Category:
+      ${JSON.stringify(topCategories || {}, null, 2)}
+      
+      ### Sample Transactions Analysed:
+      ${JSON.stringify(sampleTransactions || [], null, 2)}
+      
+      ${customPrompt ? `### User Custom Focus Question:\n"${customPrompt}"` : ''}
+      
+      Provide your analytical breakdown using clear Markdown headings. Keep it brief, smart, and direct.
+    `;
+
+    if (logger && typeof logger.info === 'function') {
+      logger.info('Forwarding financial context data to gemini-2.5-flash engine...');
+    }
+
     const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: 'Generate financial insights profile data based on context definitions.',
+      model: 'gemini-2.5-flash',
+      contents: userPrompt,
       config: {
-        systemInstruction: systemPrompt,
+        systemInstruction: systemInstruction,
         temperature: 0.2,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              type: { type: Type.STRING, enum: ['warning', 'danger', 'success'] },
-              text: { type: Type.STRING },
-              actionText: { type: Type.STRING }
-            },
-            required: ['type', 'text']
-          }
-        }
       }
     });
 
-    return {
-      budgetHealthScore: Math.round(healthScore),
-      insights: JSON.parse(response.text.trim()),
-    };
+    if (!response || !response.text) {
+      throw new Error('Received an empty text generation structure from Gemini API.');
+    }
+
+    return response.text;
+
   } catch (error) {
-    console.error('Insights engine failed:', error.message);
-    return {
-      budgetHealthScore: Math.round(healthScore),
-      insights: [
-        { type: 'success', text: 'Your spending data is loaded and being tracked.', actionText: 'View Dashboard' }
-      ],
-    };
+    if (logger && typeof logger.error === 'function') {
+      logger.error(`[AI_ANALYZE_SERVICE_ERROR] Execution failed: ${error.message}`);
+    }
+    throw error;
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. SPENDING FORECAST ENGINE
 // ─────────────────────────────────────────────────────────────────────────────
-async function suggestService({ historicalMonthlyTotals }) {
-  let trendDirection = 'stable';
-  if (historicalMonthlyTotals.length >= 2) {
-    const last = historicalMonthlyTotals[historicalMonthlyTotals.length - 1];
-    const prev = historicalMonthlyTotals[historicalMonthlyTotals.length - 2];
-    if (last > prev * 1.05) trendDirection = 'increasing';
-    if (last < prev * 0.95) trendDirection = 'decreasing';
-  }
-
-  const systemPrompt = `
-You are the WealthFlow Predictive Engine.
-Predict next month's expenses based on historical data.
-
-Data:
-- Monthly totals: [${historicalMonthlyTotals.join(', ')}]
-- Trend: ${trendDirection}
-`;
-
+async function suggestService(optimizationProfile, customPrompt = '') {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('Missing GEMINI_API_KEY configuration in environment variables.');
+    }
+
+    // ✅ FIX: Added explicit empty fallbacks right during destructuring
+    const { 
+      metrics = {}, 
+      spendingPattern = {}, 
+      highValueExpenses = [] // 🌟 Crucial fallback to prevent .length crashes
+    } = optimizationProfile || {};
+
+    const systemInstruction = 
+      "You are a strict, smart, proactive financial coach. Your job is to look at a user's " +
+      "spending patterns and largest transactions, then provide exactly 3 brutal, realistic " +
+      "saving recommendations to optimize their budget and raise their savings rate.";
+
+    // Build the prompt context safely
+    const userPrompt = `
+      Analyze this profile and generate recommendations:
+      - Income: $${Number(metrics.totalIncome || 0).toFixed(2)}
+      - Expenses: $${Number(metrics.totalExpenses || 0).toFixed(2)}
+      - Current Savings Rate: ${Number(metrics.savingsRatePercentage || 0).toFixed(2)}%
+      
+      Top Spending Sectors:
+      ${JSON.stringify(spendingPattern, null, 2)}
+      
+      Largest Individual Transactions (${highValueExpenses.length} items logged):
+      ${JSON.stringify(highValueExpenses, null, 2)}
+      
+      ${customPrompt ? `User request focus: "${customPrompt}"` : ""}
+    `;
+
+    if (logger && typeof logger.info === 'function') {
+      logger.info('Sending account optimization matrices to gemini-2.5-flash context...');
+    }
+
     const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: 'Provide the spending forecast estimation criteria profile.',
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.1,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            expectedExpensesNextMonth: { type: Type.NUMBER },
-            reasoning: { type: Type.STRING }
-          },
-          required: ['expectedExpensesNextMonth', 'reasoning']
-        }
+      model: 'gemini-2.5-flash',
+      contents: userPrompt,
+      config: { 
+        systemInstruction: systemInstruction, 
+        temperature: 0.3 
       }
     });
 
-    return JSON.parse(response.text.trim());
+    if (!response || !response.text) {
+      throw new Error('Received an empty text generation structure from Gemini API.');
+    }
+
+    return response.text;
+
   } catch (error) {
-    console.error('Forecast failed:', error.message);
-    const fallback = historicalMonthlyTotals.at(-1) ?? 0;
-    return {
-      expectedExpensesNextMonth: fallback,
-      reasoning: 'Based on your recent spending history.',
-    };
+    if (logger && typeof logger.error === 'function') {
+      logger.error(`[AI_SUGGEST_SERVICE_ERROR] Execution failed: ${error.message}`);
+    }
+    throw error;
   }
 }
 

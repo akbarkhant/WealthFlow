@@ -3,7 +3,7 @@
 const request = require('supertest');
 const express = require('express');
 
-const transactionsRouter = require('../src/routes/transactions.routes');
+const transactionsRouter = require('../../src/modules/transactions/transactions.routes');
 
 const app = express();
 

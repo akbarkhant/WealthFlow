@@ -106,7 +106,7 @@ async function create(userId, input) {
 
 // ── Update Transaction ───────────────────────────────────────────
 
-async function update(id, userId, input) {
+async function update(id, userId, input, amountInBase) {
   const existing = await repo.findById(id, userId);
   if (!existing) throw new NotFoundError('Transaction');
 
@@ -128,7 +128,8 @@ async function update(id, userId, input) {
   const newType = input.type ?? existing.type;
   const oldType = existing.type;
 
-  const amountInBase = await toBaseAmount(newAmount, newCurrency, user.currency);
+  // ✅ FIX: Removed 'const'. We are reassigning the parameter variable now.
+  amountInBase = await toBaseAmount(newAmount, newCurrency, user.currency);
 
   // Reverse old effect, apply new effect
   const reversal = oldType === 'expense' ? existing.amountInBase : -existing.amountInBase;

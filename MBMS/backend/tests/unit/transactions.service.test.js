@@ -1,13 +1,13 @@
 // tests/transactions.service.test.js
 
-const transactionsService = require('../src/services/transactions.service');
+const transactionsService = require('../../src/modules/transactions/transactions.service');
 
 describe('Transactions Service Tests', () => {
   // ─────────────────────────────────────────────
   // CREATE TRANSACTION
   // ─────────────────────────────────────────────
 
-  describe('createTransaction()', () => {
+  describe('create()', () => {
     it('should create a new transaction', async () => {
       const transactionData = {
         userId: 1,
@@ -20,7 +20,7 @@ describe('Transactions Service Tests', () => {
       };
 
       const transaction =
-        await transactionsService.createTransaction(
+        await transactionsService.create(
           transactionData
         );
 
@@ -44,10 +44,10 @@ describe('Transactions Service Tests', () => {
   // GET USER TRANSACTIONS
   // ─────────────────────────────────────────────
 
-  describe('getUserTransactions()', () => {
+  describe('list()', () => {
     it('should return user transactions', async () => {
       const transactions =
-        await transactionsService.getUserTransactions(
+        await transactionsService.list(
           1
         );
 
@@ -61,7 +61,7 @@ describe('Transactions Service Tests', () => {
   // GET SINGLE TRANSACTION
   // ─────────────────────────────────────────────
 
-  describe('getTransactionById()', () => {
+  describe('getById()', () => {
     it('should return transaction by id', async () => {
       const createdTransaction =
         await transactionsService.createTransaction({
@@ -75,7 +75,7 @@ describe('Transactions Service Tests', () => {
         });
 
       const transaction =
-        await transactionsService.getTransactionById(
+        await transactionsService.getById(
           createdTransaction.id
         );
 

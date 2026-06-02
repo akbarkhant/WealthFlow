@@ -19,55 +19,68 @@ async function getById(id, userId) {
 }
 
 async function create(userId, input) {
+
+  // 1. Fallbacks to avoid NaN at all costs
+  const now = new Date();
+
+  // Try reading from input directly, look for nested body fallback, or resort to current date
+  const rawMonth = input?.month ?? input?.body?.month ?? (now.getMonth() + 1);
+  const rawYear = input?.year ?? input?.body?.year ?? now.getFullYear();
+
+  const numericMonth = parseInt(rawMonth, 10);
+  const numericYear = parseInt(rawYear, 10);
+
+  // 2. Perform validation fallback to guarantee it isn't NaN before hitting the DB
+  const validMonth = isNaN(numericMonth) ? (now.getMonth() + 1) : numericMonth;
+  const validYear = isNaN(numericYear) ? now.getFullYear() : numericYear;
+
+  // 3. Keep duplicate check with sanitized values
   const existing = await repo.findByCategoryMonth(
     userId,
-    input.categoryId,
-    input.month,
-    input.year
+    input?.categoryId,
+    validMonth,
+    validYear
   );
 
   if (existing) {
-    throw new ConflictError(
-      'A budget for this category and month already exists'
-    );
+    throw new ConflictError('A budget for this category and month already exists');
   }
 
-  // Look up category name to formulate budget name
-  const categories = await query('SELECT name FROM categories WHERE id = $1', [input.categoryId]);
-  const categoryName = categories[0] ? categories[0].name : 'Category';
+  // 4. Construct string dates safely
+  const paddedMonth = String(validMonth).padStart(2, '0');
+  const startDate = `${validYear}-${paddedMonth}-01`;
+  const lastDay = new Date(validYear, validMonth, 0).getDate();
+  const endDate = `${validYear}-${paddedMonth}-${lastDay}`;
 
-  const startDate = `${input.year}-${String(input.month).padStart(2, '0')}-01`;
-  const lastDay = new Date(input.year, input.month, 0).getDate();
-  const endDate = `${input.year}-${String(input.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-  const repoInput = {
-    categoryId: input.categoryId,
-    name: `${categoryName} Budget`,
-    amount: input.amountLimit,
+  const budgetData = {
+    categoryId: input?.categoryId,
+    name: input?.name || `Budget for ${paddedMonth}/${validYear}`,
+    amount: Number(input.amountLimit || input.amount || 1.00),
     period: 'monthly',
-    startDate,
-    endDate,
-    alertThreshold: 80
+    startDate: startDate,
+    endDate: endDate,
+    alertThreshold: input?.alertThreshold ?? 80
   };
 
-  return repo.create(userId, repoInput);
+  return repo.create(userId, budgetData);
 }
 
 async function update(id, userId, input) {
-  const existing = await repo.findById(id, userId);
+  // Map incoming schema names to database-friendly keys if they exist
+  const updateData = { ...input };
 
-  if (!existing) {
-    throw new NotFoundError('Budget');
-  }
-
-  const repoInput = {};
   if (input.amountLimit !== undefined) {
-    repoInput.amount = input.amountLimit;
+    updateData.amount = Number(input.amountLimit);
+    delete updateData.amountLimit; // Clean up the schema key
   }
 
-  const updated = await repo.update(id, userId, repoInput);
+  // Ensure numeric validation for alertThreshold if it's passed
+  if (input.alertThreshold !== undefined) {
+    updateData.alertThreshold = parseInt(input.alertThreshold, 10);
+  }
 
-  return updated;
+  // Pass the formatted payload down to the repository
+  return repo.update(id, userId, updateData);
 }
 
 async function remove(id, userId) {

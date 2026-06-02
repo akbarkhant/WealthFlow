@@ -83,9 +83,10 @@ async function storeRefreshToken(client, userId, jti, tokenHash) {
  * @returns {Promise<Object>} Object containing fresh accessToken and refreshToken
  */
 async function register(input) {
-  return withTransaction(async (client) => {
+  // 1. Run database operations inside the transaction
+  const registrationData = await withTransaction(async (client) => {
     
-    // 1. Guard against email reuse
+    // Guard against email reuse
     const existing = await client.query(
       'SELECT id FROM users WHERE email = $1',
       [input.email]
@@ -95,22 +96,22 @@ async function register(input) {
       throw new ConflictError('An account with this email already exists');
     }
 
-    // 2. Hash raw credentials using secure computing rounds
+    // Hash raw credentials using secure computing rounds
     const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
     const userId = uuidv4();
 
-    // 3. Generate verification token
+    // Generate verification token properties
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // 4. Persist structural account properties
+    // Persist structural account properties
     await client.query(
       `INSERT INTO users (id, name, email, password_hash, currency, verification_token, verification_token_expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [userId, input.name, input.email, passwordHash, input.currency, verificationToken, verificationExpiresAt]
     );
 
-    // 5. Seed user profile defaults
+    // Seed user profile defaults
     for (const cat of DEFAULT_CATEGORIES) {
       await client.query(
         `INSERT INTO categories (id, user_id, name, icon, color, type, is_default)
@@ -119,18 +120,33 @@ async function register(input) {
       );
     }
 
-    // 6. Send verification email (outside transaction is fine — token is already saved)
+    // Return only the values needed for tokens and emails out of the transaction
+    return { userId, verificationToken };
+  }); // 🔓 Transaction safely closes and commits here!
+
+  const { userId, verificationToken } = registrationData;
+
+  // 2. Network and Token signing operations run safely outside the transaction block
+  try {
+    // If the SMTP provider is slow, it no longer delays or hangs database rows
     await sendVerificationEmail(input.email, verificationToken);
+  } catch (emailError) {
+    // Log the error but don't crash registration; user can request a resend later
+    console.error(`⚠️ Failed to send verification email to ${input.email}:`, emailError);
+  }
 
-    // 7. Build and log authorization session state
-    const accessToken = signAccessToken(userId, input.email);
-    const { token: refreshToken, jti } = signRefreshToken(userId);
+  // Build and sign authorization session state
+  const accessToken = signAccessToken(userId, input.email);
+  const { token: refreshToken, jti } = signRefreshToken(userId);
 
-    const tokenHash = await bcrypt.hash(refreshToken, 10);
+  const tokenHash = await bcrypt.hash(refreshToken, 10);
+  
+  // Store the refresh token using your standard query connection pool
+  await withTransaction(async (client) => {
     await storeRefreshToken(client, userId, jti, tokenHash);
-
-    return { accessToken, refreshToken };
   });
+
+  return { accessToken, refreshToken };
 }
 
 /**
@@ -468,6 +484,37 @@ async function resetPassword(code, newPassword) {
     [passwordHash, user.id]
   );
 }
+
+
+const hashPassword = async (password) => {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
+};
+
+const comparePassword = async (password, hashed) => {
+  return bcrypt.compare(password, hashed);
+};
+
+const generateAccessToken = (user) => {
+  return jwt.sign(user, process.env.JWT_ACCESS_SECRET, {
+    expiresIn: '15m',
+  });
+};
+
+const generateRefreshToken = (user) => {
+  return jwt.sign(user, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: '7d',
+  });
+};
+
+const verifyAccessToken = (token) => {
+  return jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+};
+
+const verifyRefreshToken = (token) => {
+  return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+};
+
 
 // ── exports ────────────────────────────────────────────────────────────────────
 module.exports = {

@@ -80,6 +80,7 @@ async function createBill(req, res, next) {
 // PATCH /api/bills/:id
 async function updateBill(req, res, next) {
   try {
+    console.log('Body being passed:', req.validatedBody || req.body);
     const bill = await service.updateBill(
       req.params.id,
       req.user.id,

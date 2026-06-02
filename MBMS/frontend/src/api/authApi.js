@@ -1,6 +1,8 @@
 import api from './client';
 
 export async function login(credentials) {
+  // If your api client doesn't automatically return response.data, 
+  // extract it here: const res = await api.post('/auth/login', credentials); return res.data;
   return api.post('/auth/login', credentials);
 }
 
@@ -27,6 +29,7 @@ export async function refresh(refreshToken) {
 }
 
 export function getOAuthUrl(provider) {
+  // Match your exact client helper instance method
   return api.getOAuthUrl(provider);
 }
 

@@ -130,7 +130,7 @@ async function create(userId, input, amountInBase) {
   if (input.type === 'expense') {
     const currentBalance = await getUserBalance(userId);
 
-    if (currentBalance < input.amount) {
+    if (currentBalance < amountInBase) {
       const balanceError = new Error('Insufficient wallet funds for this operation.');
       balanceError.code = 'INSUFFICIENT_FUNDS';
       balanceError.statusCode = 400;

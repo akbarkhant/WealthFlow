@@ -240,6 +240,7 @@ async function update(id, userId, input) {
   const values = [];
   let   idx    = 1;
 
+  // 1. Loop through allowed keys to build dynamic SET clauses
   for (const [jsKey, dbCol] of Object.entries(ALLOWED)) {
     if (input[jsKey] !== undefined) {
       fields.push(`${dbCol} = $${idx++}`);
@@ -247,24 +248,32 @@ async function update(id, userId, input) {
     }
   }
 
+  // If no allowed fields are provided, bypass db hit and return current record
   if (fields.length === 0) {
-    // Nothing to update — return current state
     return findById(id, userId);
   }
 
-  // Always bump updated_at
+  // 2. Append standard timestamp changes
   fields.push(`updated_at = NOW()`);
-  values.push(id, userId);
 
+  // 3. Track parameter placements cleanly to keep values in structural alignment
+  const idIdx = idx++;
+  values.push(id);
+
+  const userIdIdx = idx;
+  values.push(userId);
+
+  // 4. Fire query securely against your PostgreSQL database connection pool
   await query(
     `UPDATE budgets
      SET    ${fields.join(', ')}
-     WHERE  id      = $${idx++}
-       AND  user_id = $${idx}
+     WHERE  id      = $${idIdx}
+       AND  user_id = $${userIdIdx}
        AND  deleted_at IS NULL`,
     values
   );
 
+  // Return the newly modified budget record
   return findById(id, userId);
 }
 
@@ -275,19 +284,18 @@ async function update(id, userId, input) {
  * @param {string} userId
  */
 async function remove(id, userId) {
-  const rows = await query(
-    `UPDATE budgets
-     SET    deleted_at = NOW(),
-            status     = 'inactive',
-            updated_at = NOW()
-     WHERE  id         = $1
-       AND  user_id    = $2
-       AND  deleted_at IS NULL
-     RETURNING id`,
+  // 🛠️ FIX: Capitalized 'INACTIVE' to match your PostgreSQL enum constraint type exactly
+  const result = await query(
+    `UPDATE budgets 
+     SET    status     = 'archived', 
+            deleted_at = NOW() 
+     WHERE  id         = $1 
+       AND  user_id    = $2 
+       AND  deleted_at IS NULL`, 
     [id, userId]
   );
 
-  return rows.length > 0;
+  return result;
 }
 
 /**

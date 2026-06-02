@@ -4,6 +4,7 @@ const transactionService = require('../transactions/transactions.service');
 const budgetService = require('../budgets/budget.service');
 const { query } = require('../../config/db.config');
 const { sendSuccess } = require('../../shared/ApiResponse');
+const { logger } = require('../../config/logger.config');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHAT HISTORY — helpers
@@ -141,50 +142,164 @@ function buildContextSummary(transactions) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function analyze(req, res, next) {
   try {
-    const userId = req.user.id;
-    const allTx = await transactionService.listAllForUser(userId);
-    const userBudgets = await budgetService.listAllForUser(userId);
-    const income = allTx.filter(t => t.type === 'income');
-    const expenses = allTx.filter(t => t.type === 'expense');
+    const userId = req.user.id; // Extracted from your auth middleware
+    const { startDate, endDate, promptContext } = req.body || {};
 
-    const result = await service.analyzeService({ income, expenses, budgets: userBudgets });
+    logger.info(`AI analysis requested for user ${userId} from ${startDate || 'all-time'} to ${endDate || 'now'}`);
 
-    return sendSuccess(res, {
-      budgetHealthScore: result.budgetHealthScore,
-      insights: result.insights,
+    // 1. Fetch data from your transaction layer
+    const rawData = await transactionService.list(userId, { startDate, endDate });
+
+    // 2. DEFENSIVE GUARD: Ensure allTx resolves to a real array
+    // Accounts for: raw PG objects (.rows), structured responses (.transactions), or null variants
+    let allTx = [];
+    if (rawData) {
+      if (Array.isArray(rawData)) {
+        allTx = rawData;
+      } else if (rawData.rows && Array.isArray(rawData.rows)) {
+        allTx = rawData.rows;
+      } else if (rawData.transactions && Array.isArray(rawData.transactions)) {
+        allTx = rawData.transactions;
+      }
+    }
+
+    // 3. Safe filtering (No more "filter is not a function" crashes!)
+    const expenses = allTx.filter(tx => tx.type === 'expense');
+    const income = allTx.filter(tx => tx.type === 'income');
+
+    // 4. Calculate core analytical aggregates to feed the AI context
+    const totalExpenses = expenses.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount), 0);
+    const totalIncome = income.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount), 0);
+    const netSavings = totalIncome - totalExpenses;
+
+    // Grouping spending categories for context brevity
+    const categoryBreakdown = expenses.reduce((acc, tx) => {
+      const category = tx.category_name || tx.categoryId || 'Uncategorized';
+      acc[category] = (acc[category] || 0) + Number(tx.amount);
+      return acc;
+    }, {});
+
+    // 5. Compile the payload context to deliver to your LLM engine
+    const financialContext = {
+      summary: {
+        totalIncome,
+        totalExpenses,
+        netSavings,
+        period: { startDate, endDate }
+      },
+      topCategories: categoryBreakdown,
+      sampleTransactions: expenses.slice(0, 15).map(tx => ({
+        date: tx.date,
+        amount: tx.amount,
+        currency: tx.currency,
+        description: tx.description
+      }))
+    };
+
+    // 6. Invoke your AI engine service layer
+    const aiInsight = await service.analyzeService(financialContext, promptContext);
+
+    // 7. Deliver clean JSON response
+    return res.status(200).json({
+      success: true,
+      data: {
+        insights: aiInsight,
+        metricsProcessed: allTx.length
+      }
     });
-  } catch (err) {
-    next(err);
+
+  } catch (error) {
+    logger.error(`AI Analysis Error: ${error.message}`, { stack: error.stack });
+    
+    // Pass along to global error handling middleware
+    return next(error);
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. POST /api/ai/suggest  → Spending Forecast
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * POST /api/ai/suggest
+ * Generates proactive financial advice and savings recommendations
+ */
 async function suggest(req, res, next) {
   try {
-    const userId = req.user.id;
-    const allTx = await transactionService.listAllForUser(userId);
-    const expenses = allTx.filter(t => t.type === 'expense');
+    const userId = req.user.id; // Extracted from your auth middleware
+    const { promptContext } = req.body || {};
 
-    const monthlyGroups = {};
-    expenses.forEach(e => {
-      const key = String(e.date).substring(0, 7);
-      monthlyGroups[key] = (monthlyGroups[key] || 0) + Number(e.amount);
+    if (logger && typeof logger.info === 'function') {
+      logger.info(`AI savings suggestions requested for user: ${userId}`);
+    }
+
+    // 1. Fetch transaction history from your repository abstraction layer
+    const rawData = await transactionService.list(userId);
+
+    // 2. DEFENSIVE GUARD: Safely extract the array structure
+    let allTx = [];
+    if (rawData) {
+      if (Array.isArray(rawData)) {
+        allTx = rawData;
+      } else if (rawData.rows && Array.isArray(rawData.rows)) {
+        allTx = rawData.rows;
+      } else if (rawData.transactions && Array.isArray(rawData.transactions)) {
+        allTx = rawData.transactions;
+      }
+    }
+
+    // 3. Filter data securely without encountering ".filter is not a function" errors
+    const expenses = allTx.filter(tx => tx.type === 'expense');
+    const income = allTx.filter(tx => tx.type === 'income');
+
+    // 4. Compute financial metrics to build the budget profile context
+    const totalExpenses = expenses.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount), 0);
+    const totalIncome = income.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount), 0);
+    const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
+
+    // Grouping category balances to detect heavy optimization opportunities
+    const spendingPattern = expenses.reduce((acc, tx) => {
+      const category = tx.category_name || tx.categoryId || 'Other';
+      acc[category] = (acc[category] || 0) + Number(tx.amount);
+      return acc;
+    }, {});
+
+    const optimizationProfile = {
+      metrics: {
+        totalIncome,
+        totalExpenses,
+        savingsRatePercentage: Number(savingsRate.toFixed(2))
+      },
+      spendingPattern,
+      // Pass the 10 largest expenses to see where the user can cut back
+      highValueExpenses: expenses
+        .sort((a, b) => Number(b.amount) - Number(a.amount))
+        .slice(0, 10)
+        .map(tx => ({
+          date: tx.date,
+          amount: tx.amount,
+          category: tx.category_name || 'Uncategorized',
+          description: tx.description
+        }))
+    };
+
+    // 5. Fire compiled profile context down to your specialized service layer
+    // NOTE: If your service uses commonJS require, verify 'service.suggestService' mapping match
+    const savingsSuggestions = await service.suggestService(optimizationProfile, promptContext);
+
+    // 6. Return response payload
+    return res.status(200).json({
+      success: true,
+      data: {
+        suggestions: savingsSuggestions,
+        metricsProcessed: allTx.length
+      }
     });
 
-    const sortedMonths = Object.keys(monthlyGroups).sort();
-    const historicalMonthlyTotals = sortedMonths.map(m => monthlyGroups[m]).slice(-6);
-    if (!historicalMonthlyTotals.length) historicalMonthlyTotals.push(0);
-
-    const forecast = await service.suggestService({ historicalMonthlyTotals });
-
-    return sendSuccess(res, {
-      expectedExpensesNextMonth: forecast.expectedExpensesNextMonth,
-      reasoning: forecast.reasoning,
-    });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    if (logger && typeof logger.error === 'function') {
+      logger.error(`AI Suggest Error: ${error.message}`, { stack: error.stack });
+    }
+    return next(error);
   }
 }
 

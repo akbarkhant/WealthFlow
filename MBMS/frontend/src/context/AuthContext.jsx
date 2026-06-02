@@ -7,32 +7,30 @@ const AuthContext = createContext(null);
 const readStoredToken = () => {
   const stored = localStorage.getItem('accessToken');
   if (!stored || stored === 'undefined' || stored === 'null') {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
     return null;
   }
   return stored;
 };
 
-const normalizeTokens = (tokens) => {
-  if (!tokens) return null;
-  if (tokens.accessToken) return tokens;
-  if (tokens.data?.accessToken) return tokens.data;
-  return null;
+const readStoredUser = () => {
+  try {
+    const storedUser = localStorage.getItem('currentUser');
+    return storedUser ? JSON.parse(storedUser) : null;
+  } catch {
+    return null;
+  }
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(readStoredUser);
   const [token, setToken] = useState(readStoredToken);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!readStoredUser && !!readStoredToken);
 
   const clearSession = useCallback(() => {
     setUser(null);
@@ -45,58 +43,63 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(async () => {
     try {
       await apiLogout();
-    } catch {
-      // still clear locally
+    } catch (e) {
+      console.warn('Backend logout request failed, logging out locally', e);
+    } finally {
+      clearSession();
     }
-    clearSession();
   }, [clearSession]);
 
   const login = useCallback((tokens, userObject = null) => {
-    const payload = normalizeTokens(tokens);
-    const accessToken = payload?.accessToken;
-    const refreshToken = payload?.refreshToken || '';
+    if (!tokens?.accessToken) return;
 
-    if (!accessToken) {
-      console.error('login: missing accessToken', tokens);
-      return;
+    localStorage.setItem('accessToken', tokens.accessToken);
+    if (tokens.refreshToken) {
+      localStorage.setItem('refreshToken', tokens.refreshToken);
     }
 
-    localStorage.setItem('accessToken', accessToken);
-    if (refreshToken) {
-      localStorage.setItem('refreshToken', refreshToken);
-    }
+    setToken(tokens.accessToken);
 
     if (userObject) {
       setUser(userObject);
       localStorage.setItem('currentUser', JSON.stringify(userObject));
     }
-
-    setToken(accessToken);
   }, []);
 
+  // Sync / validate user profile against the database background thread
   useEffect(() => {
-    const fetchUser = async () => {
+    let isMounted = true;
+
+    const syncUserSession = async () => {
       if (!token) {
-        setUser(null);
-        setLoading(false);
+        if (isMounted) {
+          setUser(null);
+          setLoading(false);
+        }
         return;
       }
 
       try {
         const userData = await getMe();
-        setUser(userData);
-        localStorage.setItem('currentUser', JSON.stringify(userData));
+        // The data layer unwraps this automatically if structured cleanly
+        const verifiedUser = userData?.user || userData?.data?.user || userData;
+        
+        if (isMounted) {
+          setUser(verifiedUser);
+          localStorage.setItem('currentUser', JSON.stringify(verifiedUser));
+        }
       } catch (error) {
-        console.error('Failed to fetch user:', error);
-        if (error.status === 401) {
+        console.error('Session sync verification failed:', error);
+        if (error.status === 401 && isMounted) {
           clearSession();
         }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    fetchUser();
+    syncUserSession();
+    return () => { isMounted = false; };
   }, [token, clearSession]);
 
   const updateUser = useCallback((userObject) => {
@@ -107,18 +110,15 @@ export const AuthProvider = ({ children }) => {
     });
   }, []);
 
-  const value = useMemo(
-    () => ({
-      user,
-      token,
-      loading,
-      login,
-      logout,
-      updateUser,
-      isAuthenticated: Boolean(token),
-    }),
-    [user, token, loading, login, logout, updateUser]
-  );
+  const value = useMemo(() => ({
+    user,
+    token,
+    loading,
+    login,
+    logout,
+    updateUser,
+    isAuthenticated: Boolean(token),
+  }), [user, token, loading, login, logout, updateUser]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -127,9 +127,7 @@ export const AuthProvider = ({ children }) => {
           <div className="auth-loading-spinner" />
           <p>Loading WealthFlow...</p>
         </div>
-      ) : (
-        children
-      )}
+      ) : children}
     </AuthContext.Provider>
   );
 };

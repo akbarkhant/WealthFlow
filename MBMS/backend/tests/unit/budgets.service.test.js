@@ -1,13 +1,13 @@
 // tests/budgets.service.test.js
 
-const budgetsService = require('../src/services/budgets.service');
+const budgetsService = require('../../src/modules/budgets/budget.service');
 
 describe('Budgets Service Tests', () => {
   // ─────────────────────────────────────────────
   // CREATE BUDGET
   // ─────────────────────────────────────────────
 
-  describe('createBudget()', () => {
+  describe('create()', () => {
     it('should create a new budget', async () => {
       const budgetData = {
         userId: 1,
@@ -18,7 +18,7 @@ describe('Budgets Service Tests', () => {
       };
 
       const result =
-        await budgetsService.createBudget(
+        await budgetsService.create(
           budgetData
         );
 
@@ -38,10 +38,10 @@ describe('Budgets Service Tests', () => {
   // GET USER BUDGETS
   // ─────────────────────────────────────────────
 
-  describe('getUserBudgets()', () => {
+  describe('list()', () => {
     it('should return budgets for a user', async () => {
       const budgets =
-        await budgetsService.getUserBudgets(1);
+        await budgetsService.list(1);
 
       expect(Array.isArray(budgets)).toBe(
         true
@@ -53,10 +53,10 @@ describe('Budgets Service Tests', () => {
   // GET SINGLE BUDGET
   // ─────────────────────────────────────────────
 
-  describe('getBudgetById()', () => {
+  describe('getById()', () => {
     it('should return a budget by id', async () => {
       const createdBudget =
-        await budgetsService.createBudget({
+        await budgetsService.create({
           userId: 1,
           name: 'Transport Budget',
           category: 'Transport',
@@ -65,7 +65,7 @@ describe('Budgets Service Tests', () => {
         });
 
       const budget =
-        await budgetsService.getBudgetById(
+        await budgetsService.getById(
           createdBudget.id
         );
 
@@ -81,10 +81,10 @@ describe('Budgets Service Tests', () => {
   // UPDATE BUDGET
   // ─────────────────────────────────────────────
 
-  describe('updateBudget()', () => {
+  describe('update()', () => {
     it('should update budget details', async () => {
       const createdBudget =
-        await budgetsService.createBudget({
+        await budgetsService.create({
           userId: 1,
           name: 'Shopping Budget',
           category: 'Shopping',
@@ -93,7 +93,7 @@ describe('Budgets Service Tests', () => {
         });
 
       const updatedBudget =
-        await budgetsService.updateBudget(
+        await budgetsService.update(
           createdBudget.id,
           {
             amount: 6000,
@@ -113,7 +113,7 @@ describe('Budgets Service Tests', () => {
   describe('deleteBudget()', () => {
     it('should delete a budget', async () => {
       const createdBudget =
-        await budgetsService.createBudget({
+        await budgetsService.create({
           userId: 1,
           name: 'Entertainment Budget',
           category: 'Entertainment',
@@ -122,7 +122,7 @@ describe('Budgets Service Tests', () => {
         });
 
       const result =
-        await budgetsService.deleteBudget(
+        await budgetsService.remove(
           createdBudget.id
         );
 
