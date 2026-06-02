@@ -1,5 +1,9 @@
 // src/routes/AppRoutes.jsx
 import { Routes, Route, Outlet } from 'react-router-dom';
+import { lazy, Suspense } from "react";
+
+const Dashboard = lazy(() => import("../pages/Dashboard"));
+const Settings = lazy(() => import("../pages/Settings"));
 
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useAuth } from '../context/AuthContext';

@@ -1,12 +1,13 @@
 // backend/src/modules/ai/ai.routes.js
 
-const express  = require('express');
-const multer   = require('multer');
-const path     = require('path');
-const os       = require('os');
-const router   = express.Router();
-const ctrl     = require('./ai.controller');
+const express          = require('express');
+const multer           = require('multer');
+const path             = require('path');
+const os               = require('os');
+const router           = express.Router();
+const ctrl             = require('./ai.controller');
 const { authenticate } = require('../../middleware/authorize.middleware');
+
 
 // ── Multer config — temp disk storage for receipt images ─────────────────────
 const upload = multer({

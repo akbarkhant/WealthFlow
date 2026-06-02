@@ -1,3 +1,5 @@
+// goalsApi.js - API client for goals-related endpoints
+
 const BASE_URL = '/api/goals';
 
 // Helper function to handle global headers and authentication
@@ -32,8 +34,46 @@ export const goalsApi = {
 
     if (response.status === 401) handleUnauthorized();
     return response.json();
-  }
+  },
+
+  create: async (goalData) => {
+    try {
+
+      const token = localStorage.getItem('accessToken');
+
+      const response = await fetch('/api/goals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Include authorization headers if your middleware expects them here
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(goalData),
+      });
+      return await response.json();
+    } catch (error) {
+      return { success: false, message: error.message || 'API Network Error' };
+    }
+  },
+
+  delete: async (goalId) => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const response = await fetch(`/api/goals/${goalId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}` // Mirroring your successful POST fix!
+        }
+      });
+      return await response.json();
+    } catch (error) {
+      return { success: false, message: error.message || 'API Network Error' };
+    }
+  },
 };
+
+// ../api/goalsApi.js (or wherever your API layer lives)
+
 
 // Handle session expiration globally
 const handleUnauthorized = () => {

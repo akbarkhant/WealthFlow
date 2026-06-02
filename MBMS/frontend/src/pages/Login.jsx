@@ -3,7 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { login as loginApi, getOAuthUrl, forgotPassword } from '../api/authApi';
 import {
-  Wallet, Mail, Lock, Eye, ArrowRight, ShieldCheck, ArrowLeft, AlertCircle, Loader2
+  Wallet,
+  Mail,
+  Lock,
+  Eye,
+  ArrowRight,
+  ShieldCheck,
+  ArrowLeft,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import '../styles/pages/Login.css';
 
@@ -13,28 +21,28 @@ const Login = () => {
   const passwordRef = useRef(null);
 
   // ── Core Form States ─────────────────────────────────────────────
-  const [email, setEmail]               = useState(() => localStorage.getItem('wf_remembered_email') || '');
-  const [password, setPassword]         = useState('');
-  const [rememberMe, setRememberMe]     = useState(() => !!localStorage.getItem('wf_remembered_email'));
+  const [email, setEmail] = useState(() => localStorage.getItem('wf_remembered_email') || '');
+  const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('wf_remembered_email'));
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError]               = useState('');
-  const [shakeError, setShakeError]     = useState(false);
-  const [loading, setLoading]           = useState(false);
+  const [error, setError] = useState('');
+  const [shakeError, setShakeError] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState(null); // 'google' | 'github' | null
 
   // ── Advanced Real-time & Visual UX States ───────────────────────
-  const [capsLockOn, setCapsLockOn]     = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
   const [emailValidationError, setEmailValidationError] = useState('');
   const [passwordStrength, setPasswordStrength] = useState({ score: 0, label: '', color: '' });
 
   // ── View States ──────────────────────────────────────────────────
-  const [view, setView]                 = useState('login'); // 'login' | 'forgot' | 'forgot-sent'
-  const [forgotEmail, setForgotEmail]   = useState('');
+  const [view, setView] = useState('login'); // 'login' | 'forgot' | 'forgot-sent'
+  const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
-  const [forgotError, setForgotError]   = useState('');
+  const [forgotError, setForgotError] = useState('');
 
   const { login } = useAuth();
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
 
   // ── #11 Auto-Focus Hook ─────────────────────────────────────────
   useEffect(() => {
@@ -104,17 +112,28 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (emailValidationError) return;
-    
+
     setError('');
     setShakeError(false);
     setLoading(true);
 
     try {
-      const tokens = await loginApi({ email, password, rememberMe });
-      if (!tokens?.accessToken) {
+      const response = await loginApi({ email, password, rememberMe });
+
+      // ── ADVANCED STRATEGY: Handle unverified user payload from API ──
+      if (response?.isUnverified || response?.status === 'UNVERIFIED') {
+        navigate('/verify-email', {
+          replace: true,
+          state: { email: email, fromLogin: true }
+        });
+        return; // Stop execution early
+      }
+
+      // fallback check if tokens are completely missing
+      if (!response?.accessToken) {
         throw new Error('Login succeeded but no access token was returned.');
       }
-      
+
       // ── #12 Remember Last Email Logic ───────────────────────────
       if (rememberMe) {
         localStorage.setItem('wf_remembered_email', email);
@@ -122,37 +141,24 @@ const Login = () => {
         localStorage.removeItem('wf_remembered_email');
       }
 
-      login(tokens);
+      login(response); // Assuming tokens wrapper or direct response object
       navigate('/dashboard', { replace: true });
+
     } catch (err) {
+      // ── ALTERNATIVE STRATEGY: Handle unverified error via catch block ──
+      // Use this if your API throws an error (e.g., 403 Forbidden) for unverified users
+      if (err.status === 403 || err.message?.toLowerCase().includes('verify your email')) {
+        navigate('/verify-email', {
+          replace: true,
+          state: { email: email, fromLogin: true }
+        });
+        return;
+      }
+
       setError(err.message || 'Invalid email or password.');
       setShakeError(true); // ── #26 Trigger shake dynamic response
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleForgotSubmit = async (e) => {
-    e.preventDefault();
-    setForgotError('');
-    setForgotLoading(true);
-    try {
-      await forgotPassword(forgotEmail);
-      setView('forgot-sent');
-    } catch (err) {
-      setForgotError(err.message || 'Failed to send reset code.');
-    } finally {
-      setForgotLoading(false);
-    }
-  };
-
-  const handleSocialLogin = (provider) => {
-    setSocialLoading(provider);
-    try {
-      window.location.href = getOAuthUrl(provider);
-    } catch (err) {
-      setError(`Failed to authenticate via ${provider}.`);
-      setSocialLoading(null);
     }
   };
 
@@ -287,7 +293,7 @@ const Login = () => {
                   disabled={isFormDisabled}
                   required
                 />
-                
+
                 {/* ── #8 Press & Hold Visibility Interaction ── */}
                 <button
                   type="button"
@@ -316,9 +322,9 @@ const Login = () => {
                 <div className="strength-container" aria-live="polite">
                   <div className="strength-bars">
                     {[1, 2, 3, 4].map((index) => (
-                      <div 
-                        key={index} 
-                        className="strength-bar-segment" 
+                      <div
+                        key={index}
+                        className="strength-bar-segment"
                         style={{ backgroundColor: index <= passwordStrength.score ? passwordStrength.color : '#e2e8f0' }}
                       />
                     ))}
@@ -363,7 +369,7 @@ const Login = () => {
                 <Loader2 className="animate-spin" size={18} />
               ) : (
                 <>
-                  <svg className="social-icon" viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+                  <svg className="social-icon" viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" /><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" /><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" /></svg>
                   Google
                 </>
               )}
@@ -373,7 +379,7 @@ const Login = () => {
                 <Loader2 className="animate-spin" size={18} />
               ) : (
                 <>
-                  <svg className="social-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.07 2.91.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/></svg>
+                  <svg className="social-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.07 2.91.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z" /></svg>
                   GitHub
                 </>
               )}

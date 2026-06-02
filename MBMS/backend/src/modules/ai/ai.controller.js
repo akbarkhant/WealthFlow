@@ -253,8 +253,12 @@ async function getMonthlyReport(req, res, next) {
     const userName = userRows[0]?.name ?? 'User';
     const currency = userRows[0]?.currency ?? 'Rs.';
 
+
+    const response = await transactionService.list(userId);
     // Filter transactions for the requested month
-    const allTx = await transactionService.listAllForUser(userId);
+
+    const allTx = response?.data || [];
+
     const monthTx = allTx.filter(t => String(t.date).startsWith(month));
     const income = monthTx.filter(t => t.type === 'income')
       .reduce((a, t) => a + Number(t.amount), 0);
@@ -276,7 +280,7 @@ async function getMonthlyReport(req, res, next) {
       .sort((a, b) => b.total - a.total);
 
     // AI insights for the report
-    const budgets = await budgetService.listAllForUser(userId);
+    const budgets = await budgetService.list(userId);
     const incomeArr = monthTx.filter(t => t.type === 'income');
     const { budgetHealthScore, insights } = await service.analyzeService({
       income: incomeArr,
