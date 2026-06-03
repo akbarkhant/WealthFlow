@@ -1,0 +1,182 @@
+# Implementation Plan - WealthFlow Production Release Audit & Launch Documentation
+
+Perform a comprehensive repository audit and database consistency analysis of the WealthFlow (MBMS) SaaS application. Once approved, generate the final production-ready artifacts `plan3.md` (Roadmap) and `PROJECT_MANIFEST.md` (System Manifest).
+
+## 1. Complete Repository Audit
+
+### Backend Inventory
+
+| Module | Routes | Controllers | Services | Repositories | Schemas | Tests | Status |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **auth** | 1 | 1 | 1 | 0 | 1 | 2 | **Complete with Inconsistencies** (Legacy middlewares and Zod schemas, missing verification rate limits) |
+| **users** | 1 | 1 | 1 | 1 | 1 | 0 | **Complete** (No tests) |
+| **accounts** | 1 | 1 | 1 | 1 | 1 | 0 | **Incomplete** (Joi schemas defined but never imported/used in routes; SQL tables missing in baseline schema) |
+| **transactions**| 1 | 1 | 1 | 1 | 1 | 2 | **Complete** (Contains complex ledger engine, currency converter, queue processor; missing table columns in SQL baseline) |
+| **budgets** | 1 | 1 | 1 | 1 | 1 | 2 | **Complete** (Has database column mapping mismatch) |
+| **goals** | 1 | 1 | 1 | 1 | 0 | 1 | **Incomplete** (Missing schema validation file; tables completely missing from `schema.sql`) |
+| **ai** | 1 | 1 | 1 | 0 | 0 | 1 | **Broken** (Contains ReferenceError on budgets log, hardcoded localhost URLs, lacks schemas, uses local Ollama + cloud Gemini hybrid) |
+| **reports** | 1 | 1 | 1 | 1 | 0 | 0 | **Complete** (PDFKit integration) |
+| **analytics** | 0 | 0 | 1 | 1 | 0 | 0 | **Missing/Incomplete** (Routes and controllers missing; commented out in `app.js`) |
+| **notifications**| 1 | 1 | 1 | 0 | 1 | 0 | **Complete** (Direct SQL in service, uses express-validator; tables missing in `schema.sql`) |
+| **settings** | 0 | 0 | 0 | 0 | 0 | 0 | **Missing** (Not implemented at all) |
+| **bills** | 1 | 1 | 1 | 1 | 1 | 1 | **Complete** (Table missing from `schema.sql`) |
+| **categories** | 1 | 1 | 1 | 1 | 1 | 0 | **Complete** |
+| **recurring** | 1 | 1 | 1 | 1 | 0 | 0 | **Complete** |
+| **search** | 1 | 1 | 1 | 1 | 1 | 0 | **Broken** (Uses legacy `protect` middleware which verifies against `JWT_SECRET` instead of `JWT_ACCESS_SECRET` - always returns 401) |
+
+---
+
+## 2. Database Consistency Audit
+
+### Database Consistency Matrix
+
+| Table | Referenced In | Exists in schema.sql | Migrations (migrate-db.js) | Discrepancy & Severity |
+| :--- | :--- | :---: | :---: | :--- |
+| **users** | `auth.service`, `users.repository` | Yes | No | Baseline lacks `balance`, `avatar_url`, `verification_token`, `verification_token_expires_at` columns. Table queries `is_verified` but schema has `email_verified` (causes runtime errors). **[P0]** |
+| **budgets** | `budget.repository` | Yes | Yes (`deleted_at`) | Mapped columns are completely mismatched: codebase queries `name`, `amount`, `spent`, `period`, `status`, `start_date`, `end_date`, `alert_threshold` but schema has only `amount_limit`, `spent_amount`, `month`, `year`. **[P0]** |
+| **transactions** | `transactions.repository` | Yes | Yes (base changes) | Codebase uses `destination_user_id` for transfers, which is missing in schema.sql and migrations. **[P0]** |
+| **accounts** | `accounts.repository` | ❌ | No | Table completely missing from schema and migrations. **[P0]** |
+| **account_snapshots** | `accounts.repository` | ❌ | No | Table completely missing from schema and migrations. **[P0]** |
+| **goals** | `goals.repository` | ❌ | No | Table completely missing from schema and migrations. **[P0]** |
+| **goal_contributions** | `goals.repository` | ❌ | No | Table completely missing from schema and migrations. **[P0]** |
+| **oauth_accounts** | `auth.service` | ❌ | Yes (`avatar_url`) | Base table is never created in schema.sql; migration alters a non-existent table. **[P0]** |
+| **chat_history** | `ai.controller` | ❌ | No | Table completely missing from schema and migrations. **[P0]** |
+| **push_subscriptions** | `notification.service` | ❌ | No | Table completely missing from schema and migrations. **[P0]** |
+| **notification_history** | `notification.service`| ❌ | No | Table completely missing from schema and migrations. **[P0]** |
+| **notification_preferences**| `notification.service`| ❌ | No | Table completely missing from schema and migrations. **[P0]** |
+| **bills** | `bills.repository` | ❌ | No | Table completely missing from schema and migrations. **[P0]** |
+| **ai_insights** | `ai.controller` | ❌ | Yes (creates table)| Created in migrations, missing in baseline schema. **[P3]** |
+
+---
+
+## 3. Migration Audit
+
+- **Tables only in schema.sql**: None (all tables defined in `schema.sql` are used in the codebase).
+- **Tables only in migrations/codebase**: `accounts`, `account_snapshots`, `goals`, `goal_contributions`, `oauth_accounts`, `chat_history`, `push_subscriptions`, `notification_history`, `notification_preferences`, `bills`.
+- **Migrations that fail on clean install**: `migrate-db.js` fails immediately on clean install because it attempts to alter the non-existent `oauth_accounts` table: `ALTER TABLE oauth_accounts ADD COLUMN IF NOT EXISTS avatar_url TEXT;`
+- **Fresh Clone Readiness**: A fresh clone **cannot** run `npm install`, `docker compose up`, and `npm run migrate` without manual intervention because:
+  1. No `migrate` script is defined in `package.json`.
+  2. Running the migration directly (`node migrate-db.js`) crashes on the missing `oauth_accounts` table.
+  3. `pdfkit` and `tesseract.js` are not listed in `dependencies` inside `package.json`, causing the application server to fail at runtime.
+
+---
+
+## 4. API Coverage Audit
+
+### Endpoint Inventory
+
+*A detailed mapping of all endpoints has been constructed (see table in final section). Major security gaps identified include the search endpoint utilizing the legacy `protect` middleware (verifying against the wrong secret, causing constant 401s), and missing validation schema mounts on the `accounts` and `goals` routes.*
+
+---
+
+## 5. Financial Integrity Audit
+
+- **Income Workflow**: Core operations use pg client `withTransaction` for atomic rollbacks and mutations. However, budget tracking doesn't automatically rollback category transactions when budget constraints fail (only alerts are triggered).
+- **Expense Workflow**: Core balance reduction is atomic. Transaction balances check bounds but have potential concurrency race conditions if not guarded by `FOR UPDATE` lock on the users table.
+- **Transfer Workflow**: In `transactions.service.js`, the transfer process locks both sender and receiver accounts using row-level locking (`FOR UPDATE`) to prevent race conditions and double-spending. Balance conversions are computed by the `currencyConverter.js` core engine.
+
+### Financial Risk Matrix
+
+| Risk | Severity | Mitigation |
+| :--- | :--- | :--- |
+| **Concurrency Double-Spend** | **High** | Ensure all account balance updates (deposits, withdrawals) obtain a `FOR UPDATE` row lock in the transaction. |
+| **Currency Conversion Precision Loss**| **Medium**| Minor units are parsed via BigInt (minor units) rather than floating point numbers. Ensure conversion rate multiplier limits fractional drift to 4 decimals max. |
+| **Orphaned Ledger Entries** | **High** | Verify database triggers rollback user balance updates if a transaction insert fails (enforce tight DB foreign key constraints). |
+
+---
+
+## 6. AI System Audit
+
+### Local AI (Ollama)
+- **Model**: `llama3.2:1b` (configured in `ai.engine.js`).
+- **Pipeline**: Multimodal Tesseract OCR -> Ollama parsing for receipts; prompt narrative summaries for PDF reports.
+- **Failure/Timeout handling**: Direct `catch` block returns standard empty fallbacks to keep execution flowing, but timeout is not strictly configured on the axios requests (may hang if Ollama container is slow).
+
+### Cloud AI (Gemini)
+- **SDK**: `@google/genai` (uses `gemini-3.5-flash` for categorization and chat; `gemini-2.5-flash` for insights and suggestions).
+- **Fallback strategy**: Catches errors, returns empty categories or historical chat history without crashing the routes.
+- **Costs**: Extremely cost-efficient model utilization (`gemini-3.5-flash`).
+
+### AI Security Review
+- **Prompt Injection & Jailbreak**: Weak boundaries. Standard instructions are injected in clear text. Suggest adding system parameters to prevent users from altering underlying rules.
+- **Data Leakage**: System shares the last 15 raw transactions with the cloud model for suggestions. This leaks merchant names and descriptions.
+- **Security Score**: **6/10**
+
+---
+
+## 7. Dependency Audit
+
+| Package | Version | Purpose | Dependency Type | Audit Findings |
+| :--- | :--- | :--- | :--- | :--- |
+| **express** | `^5.2.1` | HTTP routing framework | Required | Stable major version. |
+| **pg** | `^8.21.0` | PostgreSQL client pool | Required | Stable, robust. |
+| **zod** | `^4.4.3` | Input schema validation | Required | Used for auth, transactions, budgets, users validation. |
+| **joi** | `^18.2.1` | Input schema validation | Required | Used exclusively for accounts. Architectural duplication (Zod vs Joi). |
+| **express-validator**| `^7.3.2` | Input schema validation | Required | Used exclusively for notifications. Architectural duplication. |
+| **jsonwebtoken** | `^9.0.3` | Session security tokens | Required | Stable. Used in auth and legacy protect middlewares. |
+| **multer** | (implicit)| Request multipart file uploads| Required | Used in AI receipt scanning. |
+| **axios** | `^1.16.1` | HTTP request client | Required | Used to fetch Ollama API. |
+| **@google/genai**| `^2.7.0` | Google Gemini SDK | Required | Used in ai.service.js. |
+| **pdfkit** | *Missing* | PDF document generation | Required | **Missing from package.json dependencies!** Causes crashes on report requests. **[P0]** |
+| **tesseract.js** | *Missing* | OCR image engine | Required | **Missing from package.json dependencies!** Causes crashes on receipt uploads. **[P0]** |
+
+---
+
+## 8. Environment Configuration Audit
+
+| Environment Variable | Source (Code File) | Required / Optional | Default Value | Hardcoded Usages / Issues |
+| :--- | :--- | :--- | :--- | :--- |
+| **DATABASE_URL** | `index.config.js` | Required | None | None |
+| **REDIS_URL** | `index.config.js` | Required | None | None |
+| **JWT_ACCESS_SECRET** | `index.config.js` | Required | None | Used by the active `authenticate` middleware. |
+| **JWT_REFRESH_SECRET**| `index.config.js` | Required | None | Used for token rotation verification. |
+| **GOOGLE_CLIENT_ID** | `index.config.js` | Required | None | OAuth |
+| **GOOGLE_CLIENT_SECRET**| `index.config.js`| Required | None | OAuth |
+| **GITHUB_CLIENT_ID** | `index.config.js` | Required | None | OAuth |
+| **GITHUB_CLIENT_SECRET**| `index.config.js`| Required | None | OAuth |
+| **SMTP_HOST** | `index.config.js` | Required | None | Email Server Host |
+| **SMTP_USER** | `index.config.js` | Required | None | Email Server User |
+| **SMTP_PASS** | `index.config.js` | Required | None | Email Server Password |
+| **FRONTEND_URL** | `index.config.js` | Required | None | Used for CORS and OAuth redirects. |
+| **PORT** | `index.config.js` | Optional | `5000` | Server listening port |
+| **NODE_ENV** | `index.config.js` | Optional | `development` | Environment environment mapping |
+| **JWT_SECRET** | `auth.middleware.js` | Required | None | **Legacy variable check.** Used by `protect` in the search router. Creates signature verification discrepancy. **[P0]** |
+| **GEMINI_API_KEY** | `ai.service.js` | Required | None | Read directly from `process.env.GEMINI_API_KEY`, missing from `index.config.js` startup validations. **[P1]** |
+| **OLLAMA_URL** | `ai.engine.js` | Required | *None (Hardcoded)*| **Hardcoded to `http://localhost:11434/api/generate`.** Must be extracted to an environment variable. **[P0]** |
+| **OLLAMA_MODEL** | `ai.engine.js` | Required | *None (Hardcoded)*| **Hardcoded to `llama3.2:1b`.** Must be extracted to an environment variable. **[P1]** |
+
+---
+
+## 9. Release Blocker Classifications
+
+### [P0] Launch Blocking (System cannot ship)
+1. **Database Schema Out of Sync**: The baseline `schema.sql` lacks 8 active tables and key columns (`balance` on `users`, `destination_user_id` on `transactions`).
+2. **Chat Controller ReferenceError**: Chat crashes on invocation due to `budgets` reference log error.
+3. **Search Auth Incompatibility**: Search route uses legacy `protect` middleware which verifies tokens using `JWT_SECRET` instead of the active `JWT_ACCESS_SECRET` configuration, rendering search completely unusable (401).
+4. **Router Validation Gap**: Accounts and Goals endpoints lack validation schema mounting at the router level.
+5. **Missing Package Dependencies**: `pdfkit` and `tesseract.js` are not registered in `package.json`, causing direct runtime crashes when PDF reports or receipt scans are requested.
+6. **Failed Clean Migrations**: `migrate-db.js` crashes immediately on clean installs because `oauth_accounts` table is never created.
+
+---
+
+## 10. Dashboard Production Readiness Scores
+
+- **Architecture**: 75/100
+- **Security**: 70/100
+- **Database Consistency**: 35/100
+- **Financial Integrity**: 80/100
+- **AI Safety**: 60/100
+- **Testing**: 50/100
+- **DevOps**: 65/100
+- **Overall Release Score**: **62/100**
+- **Launch Recommendation**: ❌ **NOT READY FOR RELEASE**
+
+---
+
+## 11. Final Deliverable Plan
+
+We will proceed with writing the final production launch assets:
+1. `plan3.md` (Release Roadmap with Executive Dashboard)
+2. `PROJECT_MANIFEST.md` (Unified System Architecture and API Reference)
+
+*Please review and approve this implementation plan.*

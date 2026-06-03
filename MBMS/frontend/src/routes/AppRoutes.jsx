@@ -34,6 +34,7 @@ import About from '../pages/About';
 import ContactUs from '../pages/Contact_Us';
 import  HistoryPage from '../pages/HistoryPage';
 import GoalsPage from '../pages/GoalsPage';
+import AccountsPage from '../pages/AccountsPage';
 
 // ── Authenticated Notification Wrapper ───────────────────────────
 // This injects the logged-in user's ID cleanly into the provider
@@ -80,6 +81,7 @@ const AppRoutes = () => {
         <Route path="/settings" element={<Settings />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/goals" element={<GoalsPage />} />
+        <Route path="/accounts" element={<AccountsPage />} />
       </Route>
 
       {/* Catch-all */}

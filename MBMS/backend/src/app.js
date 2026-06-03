@@ -119,15 +119,15 @@ app.use('/api/bills',         billsRouter);
 app.use('/api/goals',         goalsRoutes);
 //app.use('/api/analytics',     analyticsRoutes);
 app.use('/api/recurring',     recurringRoutes);
-// Global Error Handler in your app.js
-app.use((err, req, res, next) => {
-  const statusCode = err.status || 500;
-  res.status(statusCode).json({
-    success: false,
-    message: err.message || "Internal Server Runtime Exception",
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-  });
-});
+//app.use((err, req, res, next) => {
+  //const statusCode = err.status || 500;
+  //res.status(statusCode).json({
+    //success: false,
+    //message: err.message || "Internal Server Runtime Exception",
+    //stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  ///});
+//});
+app.use('/api/accounts', accountsRouter);
 
 // ─────────────────────────────────────────────
 // Root Route

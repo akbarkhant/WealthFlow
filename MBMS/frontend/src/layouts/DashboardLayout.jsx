@@ -19,6 +19,7 @@ import {
   X,
   Sun,
   Goal,
+  Landmark,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApi } from '../hooks/useApi';
@@ -29,24 +30,25 @@ import NotificationBell from '../components/Notificationbell';
 import './dash.css';
 
 const navItems = [
-  { name: 'Dashboard',    path: '/dashboard',    icon: LayoutDashboard },
+  { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Transactions', path: '/transactions', icon: Banknote },
-  { name: 'Budgets',      path: '/budgets',      icon: Target },
-  { name: 'Categories',   path: '/categories',   icon: Tags },
-  { name: 'Bills',        path: '/bills',        icon: ReceiptText },
-  { name: 'AI-Assistant', path: '/ai',           icon: Bot },
-  { name: 'Reports',      path: '/reports',      icon: FileChartColumn },
-  { name: 'Settings',     path: '/settings',     icon: Settings },
-  { name: 'History',     path: '/history',     icon: History },
-  { name: 'Goals',     path: '/goals',     icon: Goal },
+  { name: 'Budgets', path: '/budgets', icon: Target },
+  { name: 'Categories', path: '/categories', icon: Tags },
+  { name: 'Bills', path: '/bills', icon: ReceiptText },
+  { name: 'AI-Assistant', path: '/ai', icon: Bot },
+  { name: 'Reports', path: '/reports', icon: FileChartColumn },
+  { name: 'History', path: '/history', icon: History },
+  { name: 'Goals', path: '/goals', icon: Goal },
+  { name: 'Accounts', path: '/accounts', icon: Landmark },
+  { name: 'Settings', path: '/settings', icon: Settings },
 ];
 
 const DashboardLayout = ({ children }) => {
-  const location         = useLocation();
-  const navigate         = useNavigate();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const [theme, setTheme]                 = useState(() => localStorage.getItem('theme') || 'light');
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth > 768);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -116,9 +118,9 @@ const DashboardLayout = ({ children }) => {
   }, []);
 
   // ── Derived display values ───────────────────────────────────────
-  const displayName  = user?.name || user?.email?.split('@')[0] || 'User';
+  const displayName = user?.name || user?.email?.split('@')[0] || 'User';
   const displayEmail = user?.email || '';
-  const initials     = useMemo(
+  const initials = useMemo(
     () =>
       displayName
         .split(' ')
@@ -177,7 +179,7 @@ const DashboardLayout = ({ children }) => {
 
         <nav className="sidebar-nav" aria-label="Main navigation">
           {navItems.map((item) => {
-            const Icon     = item.icon;
+            const Icon = item.icon;
             const isActive = location.pathname === item.path;
 
             return (

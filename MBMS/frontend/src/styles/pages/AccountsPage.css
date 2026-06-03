@@ -1,0 +1,1048 @@
+/* src/modules/accounts/styles/accounts.css */
+
+/* ─── Fonts ──────────────────────────────────────────────────────────────────
+   Display:  DM Serif Display  — editorial weight, used for balances & hero
+   Body:     DM Sans           — clean geometric, pairs perfectly
+   Mono:     JetBrains Mono    — numbers, account IDs, masked numbers
+──────────────────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ─── Accounts Namespace Variables ──────────────────────────────────────────*/
+.accounts-module {
+  --acc-font-display:  'DM Serif Display', Georgia, serif;
+  --acc-font-body:     'DM Sans', var(--font-sans, sans-serif);
+  --acc-font-mono:     'JetBrains Mono', var(--font-mono, monospace);
+
+  /* Type scale from badge badge */
+  --acc-type-badge:   10px;
+  --acc-type-xs:      11px;
+  --acc-type-sm:      13px;
+  --acc-type-base:    14px;
+  --acc-type-md:      15px;
+  --acc-type-lg:      17px;
+  --acc-type-xl:      20px;
+  --acc-type-2xl:     26px;
+  --acc-type-3xl:     34px;
+  --acc-type-hero:    52px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LAYOUT — page shell
+───────────────────────────────────────────────────────────────────────────── */
+.accounts-page {
+  font-family: var(--acc-font-body);
+  background: var(--color-background);
+  color: var(--color-on-surface);
+  min-height: 100vh;
+  padding: var(--space-8) var(--space-6);
+}
+
+.accounts-page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: var(--space-8);
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.accounts-page__headline {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.accounts-page__eyebrow {
+  font-size: var(--acc-type-xs);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  opacity: 0.7;
+}
+
+.accounts-page__title {
+  font-family: var(--acc-font-display);
+  font-size: var(--acc-type-3xl);
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.accounts-page__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   NET WORTH HERO STRIP
+───────────────────────────────────────────────────────────────────────────── */
+.networth-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-4);
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  margin-bottom: var(--space-8);
+  position: relative;
+  overflow: hidden;
+}
+
+.networth-strip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-primary) 5%, transparent),
+    transparent 60%);
+  pointer-events: none;
+}
+
+.networth-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  position: relative;
+  z-index: 1;
+}
+
+.networth-stat + .networth-stat {
+  padding-left: var(--space-6);
+  border-left: 1px solid var(--color-outline-variant);
+}
+
+.networth-stat__label {
+  font-size: var(--acc-type-xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-secondary);
+}
+
+.networth-stat__value {
+  font-family: var(--acc-font-display);
+  font-size: var(--acc-type-hero);
+  line-height: 1;
+  color: var(--color-on-surface);
+}
+
+.networth-stat__value--positive { color: var(--color-success); }
+.networth-stat__value--negative { color: var(--color-error); }
+.networth-stat__value--neutral  { color: var(--color-on-surface); }
+
+.networth-stat__sub {
+  font-size: var(--acc-type-sm);
+  color: var(--color-secondary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SUMMARY METRIC CHIPS — active count, credit util
+───────────────────────────────────────────────────────────────────────────── */
+.summary-chips {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.summary-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+  font-size: var(--acc-type-sm);
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.summary-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.summary-chip__dot--green  { background: var(--color-success); }
+.summary-chip__dot--blue   { background: var(--color-tertiary); }
+.summary-chip__dot--amber  { background: var(--color-warning); }
+.summary-chip__dot--red    { background: var(--color-error); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ACCOUNT GRID
+───────────────────────────────────────────────────────────────────────────── */
+.accounts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-5);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ACCOUNT CARD
+───────────────────────────────────────────────────────────────────────────── */
+.account-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  cursor: default;
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+  overflow: hidden;
+  min-height: 220px;
+}
+
+.account-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--acc-card-accent, var(--color-outline-variant));
+  transition: opacity var(--transition-base);
+}
+
+.account-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: color-mix(in srgb, var(--acc-card-accent, var(--color-primary)) 40%, var(--color-outline-variant));
+}
+
+/* Status-based accent bar */
+.account-card[data-type="CASH"]           { --acc-card-accent: var(--color-success); }
+.account-card[data-type="BANK"]           { --acc-card-accent: var(--color-tertiary); }
+.account-card[data-type="SAVINGS"]        { --acc-card-accent: var(--color-primary); }
+.account-card[data-type="CREDIT_CARD"]    { --acc-card-accent: var(--color-error); }
+.account-card[data-type="LOAN"]           { --acc-card-accent: var(--color-warning); }
+.account-card[data-type="INVESTMENT"]     { --acc-card-accent: #8b5cf6; }
+.account-card[data-type="DIGITAL_WALLET"] { --acc-card-accent: var(--color-primary-light); }
+
+.account-card--archived {
+  opacity: 0.55;
+}
+
+.account-card--default::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 25%, transparent);
+}
+
+/* Card top row */
+.account-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.account-card__icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--acc-card-accent, var(--color-primary)) 14%, transparent);
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.account-card__meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-card__name {
+  font-size: var(--acc-type-md);
+  font-weight: 600;
+  color: var(--color-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+
+.account-card__institution {
+  font-size: var(--acc-type-xs);
+  color: var(--color-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-card__menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--color-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.account-card__menu-btn:hover {
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+}
+
+/* Balance area */
+.account-card__balance-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.account-card__balance-label {
+  font-size: var(--acc-type-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.account-card__balance {
+  font-family: var(--acc-font-display);
+  font-size: var(--acc-type-2xl);
+  line-height: 1.1;
+  color: var(--color-on-surface);
+  letter-spacing: -0.01em;
+}
+
+.account-card__balance--debt { color: var(--color-error); }
+
+.account-card__credit-bar-wrap {
+  margin-top: var(--space-3);
+}
+
+.account-card__credit-bar-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--acc-type-xs);
+  color: var(--color-secondary);
+  margin-bottom: 5px;
+}
+
+.account-card__credit-bar-track {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-container-high);
+  overflow: hidden;
+}
+
+.account-card__credit-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-error);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.account-card__credit-bar-fill[style*="width: 0"] { background: var(--color-success); }
+
+/* Card footer badges */
+.account-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-outline-variant);
+  gap: var(--space-2);
+}
+
+.account-card__masked {
+  font-family: var(--acc-font-mono);
+  font-size: var(--acc-type-xs);
+  color: var(--color-secondary);
+  letter-spacing: 0.05em;
+}
+
+.account-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BADGE COMPONENT
+───────────────────────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--acc-type-badge);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badge--active     { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
+.badge--archived   { background: color-mix(in srgb, var(--color-secondary) 12%, transparent); color: var(--color-secondary); }
+.badge--frozen     { background: color-mix(in srgb, var(--color-tertiary) 14%, transparent); color: var(--color-tertiary); }
+.badge--closed     { background: color-mix(in srgb, var(--color-error) 12%, transparent); color: var(--color-error); }
+.badge--default    { background: color-mix(in srgb, var(--color-primary) 14%, transparent); color: var(--color-primary); }
+.badge--type       { background: var(--color-surface-container); color: var(--color-on-surface-variant); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CONTEXT MENU (dropdown)
+───────────────────────────────────────────────────────────────────────────── */
+.ctx-menu {
+  position: absolute;
+  right: var(--space-3);
+  top: calc(var(--space-3) + 36px);
+  z-index: 100;
+  min-width: 185px;
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-2) 0;
+  animation: menuPop 0.12s ease;
+}
+
+@keyframes menuPop {
+  from { opacity: 0; transform: scale(0.95) translateY(-6px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+.ctx-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 9px var(--space-4);
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: var(--acc-font-body);
+  font-size: var(--acc-type-base);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.ctx-menu__item:hover { background: var(--color-surface-container-low); }
+.ctx-menu__item--danger { color: var(--color-error); }
+.ctx-menu__item--danger:hover { background: color-mix(in srgb, var(--color-error) 8%, transparent); }
+
+.ctx-menu__divider {
+  height: 1px;
+  background: var(--color-outline-variant);
+  margin: var(--space-2) 0;
+}
+
+.ctx-menu__icon {
+  font-size: 15px;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MODAL OVERLAY + MODAL
+───────────────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: rgba(11, 28, 48, 0.55);
+  backdrop-filter: blur(6px);
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal {
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-6) var(--space-6) var(--space-4);
+  border-bottom: 1px solid var(--color-outline-variant);
+  position: sticky;
+  top: 0;
+  background: var(--color-surface-container-lowest);
+  z-index: 1;
+}
+
+.modal__title {
+  font-family: var(--acc-font-display);
+  font-size: var(--acc-type-xl);
+  font-weight: 400;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.modal__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-outline-variant);
+  background: none;
+  color: var(--color-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.modal__close:hover {
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+}
+
+.modal__body {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6) var(--space-6);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FORM ELEMENTS
+───────────────────────────────────────────────────────────────────────────── */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.form-label {
+  font-size: var(--acc-type-sm);
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+}
+
+.form-label span {
+  color: var(--color-error);
+  margin-left: 2px;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 10px var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface);
+  font-family: var(--acc-font-body);
+  font-size: var(--acc-type-base);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.form-input::placeholder { color: var(--color-outline); }
+
+.form-select-wrap {
+  position: relative;
+}
+
+.form-select-wrap::after {
+  content: '▾';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--color-secondary);
+  font-size: 12px;
+}
+
+.form-hint {
+  font-size: var(--acc-type-xs);
+  color: var(--color-secondary);
+}
+
+.form-error-msg {
+  font-size: var(--acc-type-xs);
+  color: var(--color-error);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SEGMENTED OPERATION PICKER (deposit / withdraw / transfer)
+───────────────────────────────────────────────────────────────────────────── */
+.op-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+  background: var(--color-surface-container);
+  border-radius: var(--radius-lg);
+  padding: 4px;
+}
+
+.op-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px var(--space-2);
+  border-radius: var(--radius-md);
+  border: none;
+  background: none;
+  font-family: var(--acc-font-body);
+  font-size: var(--acc-type-sm);
+  font-weight: 500;
+  color: var(--color-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.op-tab__icon { font-size: 18px; }
+
+.op-tab--active {
+  background: var(--color-surface-container-lowest);
+  color: var(--color-on-surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.op-tab--active.op-tab--deposit  { color: var(--color-success); }
+.op-tab--active.op-tab--withdraw { color: var(--color-error); }
+.op-tab--active.op-tab--transfer { color: var(--color-tertiary); }
+
+/* Amount input with currency prefix */
+.amount-input-wrap {
+  position: relative;
+}
+
+.amount-currency {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--acc-font-mono);
+  font-size: var(--acc-type-sm);
+  color: var(--color-secondary);
+  pointer-events: none;
+  user-select: none;
+}
+
+.amount-input-wrap .form-input {
+  padding-left: 40px;
+  font-family: var(--acc-font-mono);
+  font-size: var(--acc-type-lg);
+  font-weight: 500;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BUTTONS
+───────────────────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 10px var(--space-5);
+  border-radius: var(--radius-md);
+  border: none;
+  font-family: var(--acc-font-body);
+  font-size: var(--acc-type-base);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
+  line-height: 1;
+}
+
+.btn:active { transform: scale(0.97); }
+
+.btn--primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+.btn--primary:hover {
+  background: var(--color-primary-hover);
+  box-shadow: var(--shadow-primary);
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  border: 1px solid var(--color-outline-variant);
+}
+.btn--ghost:hover {
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+}
+
+.btn--danger {
+  background: var(--color-error);
+  color: #fff;
+}
+.btn--danger:hover {
+  background: color-mix(in srgb, var(--color-error) 85%, black);
+}
+
+.btn--sm {
+  padding: 7px var(--space-4);
+  font-size: var(--acc-type-sm);
+}
+
+.btn--icon {
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container-low);
+  border: 1px solid var(--color-outline-variant);
+  color: var(--color-secondary);
+}
+.btn--icon:hover { background: var(--color-surface-container); color: var(--color-on-surface); }
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn--loading {
+  pointer-events: none;
+}
+
+.btn__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ALERT / TOAST INLINE
+───────────────────────────────────────────────────────────────────────────── */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--acc-type-sm);
+  border: 1px solid;
+}
+
+.alert--error {
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-error) 30%, transparent);
+  color: var(--color-error);
+}
+
+.alert--success {
+  background: color-mix(in srgb, var(--color-success) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-success) 30%, transparent);
+  color: var(--color-success);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   EMPTY STATE
+───────────────────────────────────────────────────────────────────────────── */
+.accounts-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-12) var(--space-8);
+  gap: var(--space-4);
+  background: var(--color-surface-container-lowest);
+  border: 1px dashed var(--color-outline-variant);
+  border-radius: var(--radius-xl);
+}
+
+.accounts-empty__icon {
+  font-size: 48px;
+  opacity: 0.35;
+  filter: grayscale(0.5);
+}
+
+.accounts-empty__title {
+  font-family: var(--acc-font-display);
+  font-size: var(--acc-type-xl);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.accounts-empty__sub {
+  font-size: var(--acc-type-base);
+  color: var(--color-secondary);
+  max-width: 320px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SKELETON LOADERS
+───────────────────────────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.skeleton {
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-container) 25%,
+    var(--color-surface-container-high) 50%,
+    var(--color-surface-container) 75%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.skeleton-card {
+  height: 220px;
+  border-radius: var(--radius-xl);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TOAST NOTIFICATIONS
+───────────────────────────────────────────────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  font-size: var(--acc-type-sm);
+  font-family: var(--acc-font-body);
+  color: var(--color-on-surface);
+  pointer-events: auto;
+  animation: toastIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 260px;
+  max-width: 360px;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.toast--success { border-left: 3px solid var(--color-success); }
+.toast--error   { border-left: 3px solid var(--color-error); }
+.toast--info    { border-left: 3px solid var(--color-tertiary); }
+
+.toast__icon { font-size: 17px; flex-shrink: 0; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CONFIRM DIALOG
+───────────────────────────────────────────────────────────────────────────── */
+.confirm-dialog {
+  max-width: 380px;
+}
+
+.confirm-dialog .modal__body {
+  gap: var(--space-3);
+}
+
+.confirm-dialog__text {
+  font-size: var(--acc-type-base);
+  color: var(--color-on-surface-variant);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.confirm-dialog__detail {
+  font-family: var(--acc-font-mono);
+  font-size: var(--acc-type-sm);
+  color: var(--color-on-surface);
+  background: var(--color-surface-container);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   RESPONSIVE
+───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .networth-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .networth-stat + .networth-stat {
+    padding-left: 0;
+    padding-top: var(--space-4);
+    border-left: none;
+    border-top: 1px solid var(--color-outline-variant);
+  }
+
+  .networth-stat__value {
+    font-size: var(--acc-type-3xl);
+  }
+
+  .accounts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .accounts-page {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .accounts-page__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .accounts-page__title {
+    font-size: var(--acc-type-2xl);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CURRENCY SELECTOR  (header toolbar)
+───────────────────────────────────────────────────────────────────────────── */
+.currency-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px 6px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.currency-selector:focus-within {
+  border-color: var(--color-primary);
+  background: var(--color-surface-container-lowest);
+}
+
+.currency-selector__icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.currency-selector__select {
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface);
+  font-family: var(--acc-font-body);
+  font-size: var(--acc-type-sm);
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 14px;
+  /* chevron */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a9a90' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0 center;
+}
+
+.currency-selector__select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ─── native-currency subtitle on account card balance ─── */
+.account-card__balance-native {
+  font-family: var(--acc-font-mono);
+  font-size: var(--acc-type-xs);
+  color: var(--color-secondary);
+  margin-top: 3px;
+  opacity: 0.75;
+}

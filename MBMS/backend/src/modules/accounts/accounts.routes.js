@@ -1,18 +1,35 @@
 // src/modules/accounts/accounts.routes.js
 const express = require('express');
 const router = express.Router();
-const accountsController = require('./accounts.controller');
+const ctrl = require('./accounts.controller');
+const { authenticate } = require('../../middleware/authorize.middleware');
 
-const { authenticate } = require('../../middleware/authorize.middleware'); 
-const { validateBody } = require('../../middleware/validate.middleware');
-const { createAccountSchema, updateAccountSchema } = require('./accounts.schema');
-
-// Enforce auth across all endpoints
 router.use(authenticate);
 
-// 🛡️ Mount the validateBody middleware right before the controller actions
-router.post('/', validateBody(createAccountSchema), accountsController.create);
-router.put('/:id', validateBody(updateAccountSchema), accountsController.updateAccount); // If you add an update route
-router.get('/', accountsController.list);
+// Main collection endpoints
+router.route('/')
+  .post(ctrl.create)
+  .get(ctrl.list);
+
+// Core analytical aggregates
+router.get('/summary', ctrl.summary);
+router.get('/net-worth', ctrl.netWorth);
+router.get('/ai-context', ctrl.getAIContext);
+
+// Instance specific pathways
+router.route('/:id')
+  .get(ctrl.getById)
+  .put(ctrl.update)
+  .delete(ctrl.remove);
+
+// Modification modifiers
+router.patch('/:id/archive', ctrl.archive);  
+router.patch('/:id/restore', ctrl.restore);
+router.patch('/:id/default', ctrl.setDefault);
+
+// Ledger balance mutation channels
+router.post('/:id/deposit', ctrl.deposit);
+router.post('/:id/withdraw', ctrl.withdraw);
+router.post('/:id/transfer', ctrl.transfer);
 
 module.exports = router;
