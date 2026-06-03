@@ -1,3 +1,5 @@
+// src/modules/ai/ai.cron.js
+
 const cron = require('node-cron');
 const { generateInsightsSummary } = require('./ai.insights');
 const { getWeeklyTransactions, getAllUsersWithEmail } = require('../reports/reports.repository');

@@ -1,7 +1,9 @@
-// backend/src/modules/ai/ai.service.js
+// src/modules/ai/ai.service.js
+
 require('dotenv').config();
 const { GoogleGenAI, Type } = require('@google/genai');
-const logger = require('../../config/logger.config').logger;
+const        logger         = require('../../config/logger.config').logger;
+
 // The SDK automatically discovers process.env.GEMINI_API_KEY
 const ai = new GoogleGenAI({});
 
@@ -157,7 +159,7 @@ async function analyzeService(financialContext, customPrompt = '') {
       throw new Error('Missing GEMINI_API_KEY configuration in environment variables.');
     }
 
-    // ✅ Clean extraction matching exactly what your controller builds
+    // Clean extraction matching exactly what your controller builds
     const { summary, topCategories, sampleTransactions } = financialContext || {};
 
     if (!summary) {
@@ -226,11 +228,11 @@ async function suggestService(optimizationProfile, customPrompt = '') {
       throw new Error('Missing GEMINI_API_KEY configuration in environment variables.');
     }
 
-    // ✅ FIX: Added explicit empty fallbacks right during destructuring
+    // FIX: Added explicit empty fallbacks right during destructuring
     const { 
       metrics = {}, 
       spendingPattern = {}, 
-      highValueExpenses = [] // 🌟 Crucial fallback to prevent .length crashes
+      highValueExpenses = [] // Crucial fallback to prevent .length crashes
     } = optimizationProfile || {};
 
     const systemInstruction = 

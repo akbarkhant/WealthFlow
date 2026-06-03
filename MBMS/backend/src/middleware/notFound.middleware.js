@@ -1,4 +1,4 @@
-// middlewares/notFound.middleware.js
+// notFound.middleware.js
 
 /**
  * 404 Not Found Middleware

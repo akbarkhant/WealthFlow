@@ -1,4 +1,5 @@
-// backend/src/modules/ai/ai.controller.js
+// src/modules/ai/ai.controller.js
+
 const service = require('./ai.service');
 const transactionService = require('../transactions/transactions.service');
 const budgetService = require('../budgets/budget.service');
@@ -52,9 +53,6 @@ async function clearChatHistory(req, res, next) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. POST /api/ai/chat  (streaming)
-// ─────────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. POST /api/ai/chat  (streaming)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -219,10 +217,6 @@ async function analyze(req, res, next) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. POST /api/ai/suggest  → Spending Forecast
 // ─────────────────────────────────────────────────────────────────────────────
-/**
- * POST /api/ai/suggest
- * Generates proactive financial advice and savings recommendations
- */
 async function suggest(req, res, next) {
   try {
     const userId = req.user.id; // Extracted from your auth middleware

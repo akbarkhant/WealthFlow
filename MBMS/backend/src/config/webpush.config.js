@@ -1,3 +1,5 @@
+// webpush.config.js
+
 const webpush = require('web-push');
 require('dotenv').config();
 

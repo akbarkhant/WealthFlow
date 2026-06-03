@@ -1,4 +1,4 @@
-// middlewares/validate.middleware.js
+// validate.middleware.js
 const { searchQuerySchema } = require('../modules/search/search.schema');
 const   searchLogger        = require('../modules/search/search.logger');
 

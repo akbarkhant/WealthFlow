@@ -1,4 +1,4 @@
-// config/index.js
+// index.config.js
 
 require('dotenv').config();
 

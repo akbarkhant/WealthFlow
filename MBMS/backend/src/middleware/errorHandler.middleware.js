@@ -1,4 +1,4 @@
-// middlewares/errorHandler.middleware.js
+// errorHandler.middleware.js
 
 const {logger} = require('../config/logger.config');
 

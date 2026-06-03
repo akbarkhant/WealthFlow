@@ -1,4 +1,5 @@
-// analytics.repository.js
+// src/modules/analytics/analytics.repository.js
+
 // PostgreSQL aggregation queries powering pie charts, monthly trends, and weekly trends.
 
 const { pool } = require('../../config/db.config');

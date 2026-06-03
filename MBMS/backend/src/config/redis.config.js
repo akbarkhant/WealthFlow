@@ -1,3 +1,5 @@
+// redis.config.js
+
 const Redis = require('ioredis');
 
 const { config } = require('./index.config');

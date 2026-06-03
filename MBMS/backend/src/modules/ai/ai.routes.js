@@ -1,4 +1,4 @@
-// backend/src/modules/ai/ai.routes.js
+// src/modules/ai/ai.routes.js
 
 const express          = require('express');
 const multer           = require('multer');

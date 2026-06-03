@@ -1,3 +1,5 @@
+// db.config.js
+
 const { Pool } = require('pg');
 const { config } = require('./index.config');
 

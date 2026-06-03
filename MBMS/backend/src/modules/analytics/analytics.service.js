@@ -1,4 +1,5 @@
-// analytics.service.js
+// src/modules/analytics/analytics.service.js
+
 // Thin service layer. Validates params and delegates to the repository.
 
 const repo = require('./analytics.repository');
@@ -49,4 +50,9 @@ async function getMonthlySummary(userId, month) {
   };
 }
 
-module.exports = { getCategoryBreakdown, getMonthlyTrend, getWeeklyTrend, getMonthlySummary };
+module.exports = { 
+  getCategoryBreakdown, 
+  getMonthlyTrend, 
+  getWeeklyTrend, 
+  getMonthlySummary 
+};

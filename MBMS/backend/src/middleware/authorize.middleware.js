@@ -1,4 +1,4 @@
-// middlewares/authorize.middleware.js
+// authorize.middleware.js
 
 const jwt = require('jsonwebtoken');
 

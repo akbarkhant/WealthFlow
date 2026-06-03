@@ -1,7 +1,8 @@
 // src/modules/accounts/accounts.controller.js
+
 const service = require('./accounts.service');
-const repo = require('./accounts.repository');
-const schema = require('./accounts.schema');
+const repo    = require('./accounts.repository');
+const schema  = require('./accounts.schema');
 
 async function create(req, res, next) {
   try {

@@ -1,4 +1,4 @@
-// middlewares/cache.middleware.js
+// cache.middleware.js
 
 const redisClient = require('../config/redis.config');
 const logger      = require('../config/logger.config');

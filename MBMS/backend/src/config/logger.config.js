@@ -1,3 +1,5 @@
+// logger.config.js
+
 const pino = require('pino');
 
 const { config } = require('./index.config');

@@ -1,4 +1,4 @@
-// backend/src/modules/ai/ai.receipt.js
+// src/modules/ai/ai.receipt.js
 //
 // Feature 11 — Receipt Scanner
 // Pipeline: multer upload → Tesseract OCR → Ollama parse → structured transaction fields

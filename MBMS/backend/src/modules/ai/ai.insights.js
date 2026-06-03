@@ -1,3 +1,5 @@
+// src/modules/ai/ai.insights.js
+
 const axios = require('axios');
 
 const OLLAMA_URL = 'http://localhost:11434/api/generate';

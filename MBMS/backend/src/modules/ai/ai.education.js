@@ -1,4 +1,4 @@
-// backend/src/modules/ai/ai.education.js
+// src/modules/ai/ai.education.js
 //
 // Feature 15 — Financial Education Section
 // Returns AI-generated tips on personal finance topics.
