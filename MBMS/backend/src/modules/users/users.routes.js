@@ -1,23 +1,49 @@
-const { Router } = require('express');
-const { authenticate } = require('../../middleware/authorize.middleware');
-const { validate } = require('../../middleware/validate.middleware');
-const { updateUserSchema } = require('./users.schema');
+const express = require('express');
+const router = express.Router();
+
 const controller = require('./users.controller');
 
-const router = Router();
+// ==========================================
+// 🔹 IDENTITY ROUTES (SELF USER)
+// ==========================================
 
-
-// ── Protected Routes ────────────────────────────────────────────
-router.use(authenticate);
-
-// ── User Routes ─────────────────────────────────────────────────
 router.get('/me', controller.getMe);
+router.put('/me', controller.updateMe);
+router.delete('/me', controller.deleteMe);
 
-router.patch(  '/me',  validate(updateUserSchema),  controller.updateMe);
+// ==========================================
+// 🔹 ADMIN ROUTES
+// ==========================================
 
-router.delete(  '/me',  controller.deleteMe );
+router.get('/:id', controller.getUserById);
+router.put('/:id', controller.updateUserById);
+router.delete('/:id', controller.deleteUserById);
 
- 
-module.exports = {
-  usersRouter: router,
-};
+// ==========================================
+// 🔹 SECURITY ROUTES
+// ==========================================
+
+router.put('/me/password', controller.updatePassword);
+router.put('/me/email', controller.updateEmail);
+
+// ==========================================
+// 🔹 MEDIA ROUTES
+// ==========================================
+
+//router.put('/me/avatar', controller.updateAvatar);
+
+// ==========================================
+// 🔹 ANALYTICS ROUTES
+// ==========================================
+
+router.get('/me/activity', controller.getMyActivity);
+router.get('/me/stats', controller.getMyStats);
+
+// ==========================================
+// 🔹 PREFERENCES ROUTES
+// ==========================================
+
+//router.get('/me/preferences', controller.getPreferences);
+//router.put('/me/preferences', controller.updatePreferences);
+
+module.exports = router;
