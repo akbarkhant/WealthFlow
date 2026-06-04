@@ -26,18 +26,24 @@ class ApiResponse {
   }
 }
 
-function sendSuccess(res, data, statusCode = 200, meta = null) {
-  const body = { success: true, data };
+function sendSuccess(res, data, message = 'Success', statusCode = 200, meta = null) {
+  const body = { 
+    success: true, 
+    message, // 💡 Include the message string in the JSON payload
+    data 
+  };
+  
   if (meta) {
     body.meta = meta;
   }
+  
+  // Ensure statusCode remains an integer passed directly to Express
   return res.status(statusCode).json(body);
 }
 
-function sendCreated(res, data) {
-  return sendSuccess(res, data, 201);
+function sendCreated(res, data, message = 'Created successfully') {
+  return sendSuccess(res, data, message, 201);
 }
-
 module.exports = ApiResponse;
 module.exports.sendSuccess = sendSuccess;
 module.exports.sendCreated = sendCreated;

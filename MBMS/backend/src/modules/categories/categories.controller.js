@@ -29,26 +29,17 @@ async function getOne(req, res, next) {
 
 async function create(req, res, next) {
   try {
-    const category = await service.create(
-      req.user.id,
-      req.body
-    );
-
+    const category = await service.create(req.user.id, req.body);
     sendSuccess(res, category, 201);
   } catch (err) {
-    next(err);
+    next(err); // Automatically handles ConflictError via your global middleware
   }
 }
 
 async function update(req, res, next) {
   try {
-    const category = await service.update(
-      req.params.id,
-      req.user.id,
-      req.body
-    );
-
-    sendSuccess(res, category);
+    const category = await service.update(req.params.id, req.user.id, req.body);
+    sendSuccess(res, category, 200);
   } catch (err) {
     next(err);
   }

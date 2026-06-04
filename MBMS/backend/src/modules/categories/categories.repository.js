@@ -1,4 +1,4 @@
-// categories.repository.js
+// src/modules/categories/categories.repository.js
 
 const { query } = require('../../config/db.config');
 const { v4: uuidv4 } = require('uuid');
@@ -16,29 +16,20 @@ const CATEGORY_SELECT = `
 `;
 
 async function findAll(userId) {
-  return query(
+  // 🟢 FIXED: Await the response and safely back up to an empty array
+  const result = await query(
     `SELECT ${CATEGORY_SELECT}
      FROM categories
      WHERE user_id = $1
      ORDER BY is_default DESC, name ASC`,
     [userId]
   );
-}
-
-async function findById(id, userId) {
-  const rows = await query(
-    `SELECT ${CATEGORY_SELECT}
-     FROM categories
-     WHERE id = $1
-       AND user_id = $2`,
-    [id, userId]
-  );
-
-  return rows[0] || null;
+  return result.rows ?? [];
 }
 
 async function findByName(userId, name) {
-  const rows = await query(
+  // 🟢 FIXED: Extract data from result.rows array safely
+  const result = await query(
     `SELECT ${CATEGORY_SELECT}
      FROM categories
      WHERE user_id = $1
@@ -46,85 +37,70 @@ async function findByName(userId, name) {
     [userId, name]
   );
 
-  return rows[0] || null;
+  return result.rows?.[0] || null;
+}
+
+async function findById(id, userId) {
+  const result = await query(
+    `SELECT id, user_id AS "userId", name, icon, color, type, is_default AS "isDefault"
+     FROM categories WHERE id = $1 AND user_id = $2`,
+    [id, userId]
+  );
+  return result.rows?.[0] || null;
 }
 
 async function create(userId, input) {
   const id = uuidv4();
 
-  await query(
-    `INSERT INTO categories
-      (
-        id,
-        user_id,
-        name,
-        icon,
-        color,
-        type,
-        is_default
-      )
-     VALUES
-      ($1,$2,$3,$4,$5,$6,false)`,
-    [
-      id,
-      userId,
-      input.name,
-      input.icon,
-      input.color,
-      input.type,
-    ]
+  const result = await query(
+    `INSERT INTO categories (id, user_id, name, icon, color, type, is_default)
+     VALUES ($1, $2, $3, $4, $5, $6, false)
+     ON CONFLICT (user_id, name) DO NOTHING
+     RETURNING id`, 
+    [id, userId, input.name, input.icon, input.color, input.type]
   );
+
+  const rowCount = result.rowCount !== undefined ? result.rowCount : (result.rows ? result.rows.length : 0);
+
+  if (rowCount === 0) {
+    return null; // Signals a duplicate conflict to the service layer
+  }
 
   return findById(id, userId);
 }
 
 async function update(id, userId, input) {
-  const fields = [];
-  const values = [];
+  const fields = Object.keys(input);
+  if (fields.length === 0) return findById(id, userId);
 
-  let idx = 1;
+  const setClause = fields
+    .map((field, index) => `"${field}" = $${index + 3}`)
+    .join(', ');
 
-  if (input.name !== undefined) {
-    fields.push(`name = $${idx++}`);
-    values.push(input.name);
-  }
+  const values = fields.map(field => input[field]);
 
-  if (input.icon !== undefined) {
-    fields.push(`icon = $${idx++}`);
-    values.push(input.icon);
-  }
+  try {
+    const result = await query(
+      `UPDATE categories 
+       SET ${setClause}, updated_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING id`,
+      [id, userId, ...values]
+    );
 
-  if (input.color !== undefined) {
-    fields.push(`color = $${idx++}`);
-    values.push(input.color);
-  }
-
-  if (input.type !== undefined) {
-    fields.push(`type = $${idx++}`);
-    values.push(input.type);
-  }
-
-  if (fields.length === 0) {
+    if ((result.rowCount ?? result.rows?.length) === 0) return null;
     return findById(id, userId);
+  } catch (err) {
+    if (err.code === '23505') {
+      return 'DUPLICATE';
+    }
+    throw err;
   }
-
-  fields.push('updated_at = NOW()');
-
-  values.push(id, userId);
-
-  await query(
-    `UPDATE categories
-     SET ${fields.join(', ')}
-     WHERE id = $${idx++}
-       AND user_id = $${idx}`,
-    values
-  );
-
-  return findById(id, userId);
 }
 
 async function remove(id, userId) {
-  const rows = await query(
+  // 🟢 FIXED: Extract array values from wrapper to check length accurately
+  const result = await query(
     `DELETE FROM categories
      WHERE id = $1
        AND user_id = $2
@@ -133,7 +109,7 @@ async function remove(id, userId) {
     [id, userId]
   );
 
-  return rows.length > 0;
+  return (result.rowCount ?? result.rows?.length) > 0;
 }
 
 module.exports = {

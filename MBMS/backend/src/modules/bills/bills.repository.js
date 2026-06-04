@@ -25,7 +25,8 @@ async function findAllByUser(userId) {
       AND b.deleted_at IS NULL
     ORDER BY b.due_date ASC;
   `;
-  return query(sql, [userId]);
+  const result = await query(sql, [userId]);
+  return result.rows ?? [];
 }
 
 // ── Get single bill ───────────────────────────────────────

@@ -67,14 +67,20 @@ function calculateProgress(goal) {
  */
 async function list(req, res, next) {
   try {
-    // 6. Access Control: strictly tied to req.user.id
+    // Access Control: strictly tied to req.user.id
     const result = await service.list(req.user.id);
 
     const processedGoals = (result.data || []).map(calculateProgress);
 
-    return sendSuccess(res, processedGoals, 200, {
-      total: result.meta?.total || processedGoals.length,
-    });
+    // FIXED: Combine data and metadata into one wrapper object in the 2nd argument
+    return sendSuccess(
+      res, 
+      {
+        items: processedGoals,
+        total: result.meta?.total || processedGoals.length,
+      }, 
+      200
+    );
   } catch (err) {
     next(err);
   }

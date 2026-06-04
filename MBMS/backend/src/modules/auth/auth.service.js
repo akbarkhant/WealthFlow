@@ -83,6 +83,9 @@ async function storeRefreshToken(client, userId, jti, tokenHash) {
  * @returns {Promise<Object>} Object containing fresh accessToken and refreshToken
  */
 async function register(input) {
+
+  console.log('--- REGISTER SERVICE TRACE ---');
+  console.log('Plaintext password to be hashed:', input.password);
   // 1. Run database operations inside the transaction
   const registrationData = await withTransaction(async (client) => {
     
@@ -168,16 +171,23 @@ async function getMe(userId) {
  * @returns {Promise<Object>} Fresh token pair
  */
 async function login(input) {
+  console.log('--- [DEBUG] 1. Incoming Login Payload ---');
+  console.log('Email:', input.email);
+  console.log('Password exists:', !!input.password);
+
   const result = await query(
     'SELECT id, email, password_hash FROM users WHERE email = $1',
     [input.email]
   );
 
   console.log('Query result:', JSON.stringify(result));
-  const user = result[0];
+  
+  // ✅ FIX: Extract from result.rows[0] instead of result[0]
+  const user = result.rows ? result.rows[0] : result[0]; 
 
   // Protect account enumeration vectors by masking exact verification failures
   if (!user) {
+    console.log(`--- [DEBUG] 2. Login Failed: No user found for email ${input.email} ---`);
     throw new UnauthorizedError('Invalid email or password');
   }
 
@@ -186,8 +196,15 @@ async function login(input) {
     input.password,
     user.password_hash
   );
+  
+  
+  // 3. Log the precise outcome of the bcrypt operation
+  console.log('--- [DEBUG] 3. Bcrypt Comparison Result ---');
+  console.log('Stored Hash from DB:', user.password_hash);
+  console.log('Does password match hash?:', valid);
 
   if (!valid) {
+    console.log(`--- [DEBUG] Login Failed: Incorrect password for ${input.email} ---`);
     throw new UnauthorizedError('Invalid email or password');
   }
 
@@ -198,6 +215,10 @@ async function login(input) {
 
     const tokenHash = await bcrypt.hash(refreshToken, 10);
     await storeRefreshToken(client, user.id, jti, tokenHash);
+
+    // 4. Log successful token creation
+    console.log('--- [DEBUG] 4. Login Successful, Tokens Generated ---');
+    console.log('JTI Reference ID:', jti);
 
     return { accessToken, refreshToken };
   });

@@ -20,36 +20,33 @@ async function getById(id, userId) {
   return category;
 }
 
-async function create(userId, input) {
-  const existing = await repo.findByName(
-    userId,
-    input.name
-  );
+// Import your custom errors here (e.g., import { ConflictError, NotFoundError } from '../../errors';)
 
-  if (existing) {
-    throw new ConflictError(
-      'Category already exists'
-    );
+async function create(userId, input) {
+  const newCategory = await repo.create(userId, input);
+
+  if (!newCategory) {
+    throw new ConflictError('Category already exists');
   }
 
-  return repo.create(userId, input);
+  return newCategory;
 }
 
 async function update(id, userId, input) {
-  const existing = await repo.findById(
-    id,
-    userId
-  );
-
+  // 1. Verify existence
+  const existing = await repo.findById(id, userId);
   if (!existing) {
     throw new NotFoundError('Category');
   }
 
-  return repo.update(
-    id,
-    userId,
-    input
-  );
+  // 2. Execute update
+  const updatedCategory = await repo.update(id, userId, input);
+
+  if (updatedCategory === 'DUPLICATE') {
+    throw new ConflictError('A category with this name already exists.');
+  }
+
+  return updatedCategory;
 }
 
 async function remove(id, userId) {

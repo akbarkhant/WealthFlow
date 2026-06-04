@@ -332,7 +332,7 @@ async function syncSpent(budgetId, userId) {
  * Get all budgets for a user for a specific month and year.
  */
 async function findAllForMonth(userId, month, year) {
-  const rows = await query(
+  const { rows } = await query(
     `SELECT ${BUDGET_SELECT}
      FROM   budgets b
      JOIN   categories c ON c.id = b.category_id

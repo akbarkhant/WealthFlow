@@ -1,7 +1,6 @@
 const { query } = require('../../config/db.config');
 
 async function searchTransactions(userId, searchTerm) {
-
   const sql = `
     SELECT
       t.id,
@@ -30,7 +29,9 @@ async function searchTransactions(userId, searchTerm) {
   `;
 
   const result = await query(sql, [userId, `%${searchTerm}%`]);
-  return result;
+  
+  //  FIXED: Extract and return only the rows array instead of the raw pg wrapper object
+  return result.rows ?? [];
 }
 
 module.exports = { searchTransactions };
