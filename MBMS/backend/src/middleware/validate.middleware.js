@@ -6,8 +6,6 @@ const   searchLogger        = require('../modules/search/search.logger');
 function validate(schema, source = 'body') {
   return (req, res, next) => {
     try {
-      // 1. Log what is coming into the middleware
-      console.log(`🔍 [Validation Input] Inspecting req.${source}:`, req[source]);
 
       // 2. Add a safety check in case the schema itself is missing/undefined
       if (!schema || typeof schema.safeParse !== 'function') {
@@ -35,8 +33,8 @@ function validate(schema, source = 'body') {
 
       next();
     } catch (err) {
-      // 🔥 THE CRITICAL LOG: This reveals exactly what went wrong internally
-      console.error("❌ [Validation Critical Error]:", {
+      // THE CRITICAL LOG: This reveals exactly what went wrong internally
+      console.error(" [Validation Critical Error]:", {
         message: err.message,
         stack: err.stack,
         sourceType: source

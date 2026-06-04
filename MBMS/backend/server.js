@@ -3,7 +3,7 @@ const http = require('http');
 const app = require('./src/app');
 const { config } = require('./src/config/index.config');
 const { connectRedis, disconnectRedis } = require('./src/config/redis.config');
-const {pool} = require('./src/config/db.config');
+const { query } = require('./src/config/db.config');
 const { registerProcessHandlers } = require('./src/middleware/errorHandler.middleware');
 const { startInsightsCron } = require('./src/modules/ai/ai.cron')
 
@@ -13,10 +13,11 @@ const PORT = config.PORT || 5000;
 async function start() {
   try {
     // ── Connect Database ──────────────────────
-    await pool.connect().then(client => {
+    // ── Connect Database ──────────────────────
+    await (async () => {
+      await query('SELECT 1');
       console.log('✅ Database connected');
-      client.release();
-    });
+    })();
 
     // ── Connect Redis ─────────────────────────
     await connectRedis();

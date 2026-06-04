@@ -119,23 +119,24 @@ async function findAllForUser(userId, filters = {}) {
  *
  * @param {string} userId
  */
-async function findActive(userId) {
-  const rows = await query(
+async function findAllForMonth(userId, month, year) {
+  // 💡 FIX: Destructure { rows } out of the database response object
+  const { rows } = await query(
     `SELECT ${BUDGET_SELECT}
      FROM   budgets b
      JOIN   categories c ON c.id = b.category_id
      LEFT   JOIN transactions t ON t.category_id = b.category_id
                                 AND t.user_id     = b.user_id
      WHERE  b.user_id    = $1
-       AND  b.status     = 'active'
-       AND  b.start_date <= CURRENT_DATE
-       AND  (b.end_date IS NULL OR b.end_date >= CURRENT_DATE)
+       AND  EXTRACT(MONTH FROM b.start_date) = $2
+       AND  EXTRACT(YEAR FROM b.start_date)  = $3
        AND  b.deleted_at IS NULL
      ${GROUP_BY}
      ORDER BY b.created_at DESC`,
-    [userId]
+    [userId, month, year]
   );
 
+  // Now 'rows' is a true array, and .map() will execute smoothly!
   return rows.map(enrichBudget);
 }
 
@@ -284,7 +285,7 @@ async function update(id, userId, input) {
  * @param {string} userId
  */
 async function remove(id, userId) {
-  // 🛠️ FIX: Capitalized 'INACTIVE' to match your PostgreSQL enum constraint type exactly
+  //  FIX: Capitalized 'INACTIVE' to match your PostgreSQL enum constraint type exactly
   const result = await query(
     `UPDATE budgets 
      SET    status     = 'archived', 
@@ -376,7 +377,6 @@ async function findByCategoryMonth(userId, categoryId, month, year) {
 
 module.exports = {
   findAllForUser,
-  findActive,
   findById,
   findByCategory,
   findByCategoryMonth,

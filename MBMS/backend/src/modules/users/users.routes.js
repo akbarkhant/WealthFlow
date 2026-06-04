@@ -2,14 +2,15 @@ const express = require('express');
 const router = express.Router();
 
 const controller = require('./users.controller');
+const { authenticate } = require('../../middleware/authorize.middleware');
 
 // ==========================================
 // 🔹 IDENTITY ROUTES (SELF USER)
 // ==========================================
 
-router.get('/me', controller.getMe);
-router.put('/me', controller.updateMe);
-router.delete('/me', controller.deleteMe);
+router.get('/me', authenticate, controller.getMe);
+router.put('/me', authenticate, controller.updateMe);
+router.delete('/me', authenticate, controller.deleteMe);
 
 // ==========================================
 // 🔹 ADMIN ROUTES

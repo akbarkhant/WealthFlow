@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Menu, X, ChevronDown, ArrowRight } from 'lucide-react';
 import '../../styles/components/Navbar.css';
 
-/* ── Icon components (inline SVG for crisp rendering) ── */
+/* ── Icon components ── */
 
 const IconWallet = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
@@ -64,64 +64,24 @@ const IconBank = () => (
 /* ── Data ── */
 
 const featuresItems = [
-  {
-    icon: <IconWallet />,
-    title: 'Budget Management',
-    sub: 'Track income, expenses & goals',
-    href: '/features/budget-managment',
-  },
-  {
-    icon: <IconShield />,
-    title: 'Advanced Security',
-    sub: 'Bank-grade encryption & 2FA',
-    href: '/features/security',
-  },
-  {
-    icon: <IconChart />,
-    title: 'Smart Analytics',
-    sub: 'AI-powered financial insights',
-    href: '/features/analytics',
-  },
-  {
-    icon: <IconCard />,
-    title: 'Payment Tracking',
-    sub: 'Manage bills & subscriptions',
-    href: '/features/payments',
-  },
+  { icon: <IconWallet />, title: 'Budget Management', sub: 'Track income, expenses & goals',     href: '/features/budget-management' },
+  { icon: <IconShield />, title: 'Advanced Security',  sub: 'Bank-grade encryption & 2FA',        href: '/features/security'          },
+  { icon: <IconChart  />, title: 'Smart Analytics',    sub: 'AI-powered financial insights',      href: '/features/analytics'         },
+  { icon: <IconCard   />, title: 'Payment Tracking',   sub: 'Manage bills & subscriptions',       href: '/features/payments'          },
 ];
 
 const solutionsItems = [
-  {
-    icon: <IconPie />,
-    title: 'Personal Finance',
-    sub: 'Budgets, savings & net worth',
-    href: '/solutions/personal',
-  },
-  {
-    icon: <IconBuilding />,
-    title: 'Business Finance',
-    sub: 'Cash flow & expense reports',
-    href: '/solutions/business',
-  },
-  {
-    icon: <IconTrend />,
-    title: 'Investment Planning',
-    sub: 'Portfolio tracking & projections',
-    href: '/solutions/investments',
-  },
-  {
-    icon: <IconBank />,
-    title: 'Banking Solutions',
-    sub: 'Sync accounts & transfers',
-    href: '/solutions/banking',
-  },
+  { icon: <IconPie      />, title: 'Personal Finance',    sub: 'Budgets, savings & net worth',     href: '/solutions/personal'     },
+  { icon: <IconBuilding />, title: 'Business Finance',    sub: 'Cash flow & expense reports',      href: '/solutions/business'     },
+  { icon: <IconTrend    />, title: 'Investment Planning', sub: 'Portfolio tracking & projections', href: '/solutions/investments'  },
+  { icon: <IconBank     />, title: 'Banking Solutions',   sub: 'Sync accounts & transfers',        href: '/solutions/banking'      },
 ];
 
-/* ── Sub-components ── */
+/* ── DropdownItem ── */
 
-function DropdownItem({ icon, title, sub, href }) {
+function DropdownItem({ icon, title, sub, href, onClick }) {
   return (
-    <a href={href} className="dropdown-item">
+    <a href={href} className="dropdown-item" onClick={onClick} role="menuitem">
       <span className="dropdown-item-icon">{icon}</span>
       <span className="dropdown-item-label">
         <span className="dropdown-item-title">{title}</span>
@@ -131,7 +91,9 @@ function DropdownItem({ icon, title, sub, href }) {
   );
 }
 
-function Dropdown({ label, sectionLabel, items, isOpen, onToggle, onMouseEnter, onMouseLeave }) {
+/* ── Dropdown ── */
+
+function Dropdown({ label, sectionLabel, items, isOpen, onToggle, onMouseEnter, onMouseLeave, onItemClick }) {
   return (
     <li
       className="dropdown"
@@ -139,7 +101,7 @@ function Dropdown({ label, sectionLabel, items, isOpen, onToggle, onMouseEnter, 
       onMouseLeave={onMouseLeave}
     >
       <button
-        className={`dropdown-btn ${isOpen ? 'open' : ''}`}
+        className={`dropdown-btn${isOpen ? ' open' : ''}`}
         onClick={onToggle}
         aria-expanded={isOpen}
         aria-haspopup="true"
@@ -148,91 +110,134 @@ function Dropdown({ label, sectionLabel, items, isOpen, onToggle, onMouseEnter, 
         <ChevronDown className="chevron" size={16} strokeWidth={2} />
       </button>
 
-      <div className={`dropdown-menu ${isOpen ? 'show' : ''}`} role="menu">
-        {sectionLabel && (
-          <div className="dropdown-section-label">{sectionLabel}</div>
-        )}
+      <div className={`dropdown-menu${isOpen ? ' show' : ''}`} role="menu">
+        {sectionLabel && <div className="dropdown-section-label">{sectionLabel}</div>}
         {items.map((item) => (
-          <DropdownItem key={item.href} {...item} />
+          <DropdownItem key={item.href} {...item} onClick={onItemClick} />
         ))}
       </div>
     </li>
   );
 }
 
-/* ── Main component ── */
+/* ── Main Navbar ── */
 
 export default function Navbar() {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [featuresOpen, setFeaturesOpen] = useState(false);
+  const [mobileOpen,    setMobileOpen]    = useState(false);
+  const [featuresOpen,  setFeaturesOpen]  = useState(false);
   const [solutionsOpen, setSolutionsOpen] = useState(false);
 
-  const closeAll = () => {
+  const navRef = useRef(null);
+
+  /* Close all dropdowns */
+  const closeDropdowns = useCallback(() => {
     setFeaturesOpen(false);
     setSolutionsOpen(false);
-  };
+  }, []);
+
+  /* Close mobile panel + dropdowns */
+  const closeMobile = useCallback(() => {
+    setMobileOpen(false);
+    closeDropdowns();
+  }, [closeDropdowns]);
+
+  /* Keyboard: Escape closes everything */
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        closeMobile();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [closeMobile]);
+
+  /* Click outside: close dropdowns on desktop */
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (navRef.current && !navRef.current.contains(e.target)) {
+        closeDropdowns();
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [closeDropdowns]);
+
+  /* Lock body scroll while mobile menu is open */
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
 
   return (
-    <nav className="navbar-sticky">
+    <nav className="navbar-sticky" ref={navRef}>
       <div className="navbar-container">
 
         {/* Logo */}
         <a href="/" className="brand-logo">WealthFlow</a>
 
-        {/* Navigation Links */}
-        <ul className={`navbar-links ${mobileOpen ? 'active' : ''}`}>
+        {/*
+          Single unified panel — both nav links and action buttons live here.
+          The CSS toggles this one element on mobile (.active),
+          avoiding the old fragile dual-panel + hardcoded offset approach.
+        */}
+        <div className={`navbar-mobile-panel${mobileOpen ? ' active' : ''}`}>
 
-          <Dropdown
-            label="Features"
-            sectionLabel="Tools"
-            items={featuresItems}
-            isOpen={featuresOpen}
-            onToggle={() => {
-              setSolutionsOpen(false);
-              setFeaturesOpen((prev) => !prev);
-            }}
-            onMouseEnter={() => { setSolutionsOpen(false); setFeaturesOpen(true); }}
-            onMouseLeave={() => setFeaturesOpen(false)}
-          />
+          {/* Nav Links */}
+          <ul className="navbar-links">
 
-          <Dropdown
-            label="Solutions"
-            sectionLabel="By need"
-            items={solutionsItems}
-            isOpen={solutionsOpen}
-            onToggle={() => {
-              setFeaturesOpen(false);
-              setSolutionsOpen((prev) => !prev);
-            }}
-            onMouseEnter={() => { setFeaturesOpen(false); setSolutionsOpen(true); }}
-            onMouseLeave={() => setSolutionsOpen(false)}
-          />
+            <Dropdown
+              label="Features"
+              sectionLabel="Tools"
+              items={featuresItems}
+              isOpen={featuresOpen}
+              onToggle={() => { setSolutionsOpen(false); setFeaturesOpen((p) => !p); }}
+              onMouseEnter={() => { setSolutionsOpen(false); setFeaturesOpen(true);  }}
+              onMouseLeave={() => setFeaturesOpen(false)}
+              onItemClick={closeMobile}
+            />
 
-          <li>
-            <a href="#pricing" onClick={() => setMobileOpen(false)}>Pricing</a>
-          </li>
+            <Dropdown
+              label="Solutions"
+              sectionLabel="By need"
+              items={solutionsItems}
+              isOpen={solutionsOpen}
+              onToggle={() => { setFeaturesOpen(false); setSolutionsOpen((p) => !p); }}
+              onMouseEnter={() => { setFeaturesOpen(false); setSolutionsOpen(true);  }}
+              onMouseLeave={() => setSolutionsOpen(false)}
+              onItemClick={closeMobile}
+            />
 
-          <li>
-            <a href="/about" onClick={() => setMobileOpen(false)}>About</a>
-          </li>
-        </ul>
+            <li>
+              <a href="#pricing" onClick={closeMobile}>Pricing</a>
+            </li>
 
-        {/* Action Buttons */}
-        <div className={`navbar-actions ${mobileOpen ? 'active' : ''}`}>
-          <a href="/login" className="btn-login">Log in</a>
-          <a href="/signup" className="btn-primary">
-            Get started
-            <span className="btn-primary-arrow">
-              <ArrowRight size={13} strokeWidth={2.5} />
-            </span>
-          </a>
-        </div>
+            <li>
+              <a href="/about" onClick={closeMobile}>About</a>
+            </li>
 
-        {/* Mobile Toggle */}
+          </ul>
+
+          {/* Action Buttons */}
+          <div className="navbar-actions">
+            <a href="/login"  className="btn-login"   onClick={closeMobile}>Log in</a>
+            <a href="/signup" className="btn-primary" onClick={closeMobile}>
+              Get started
+              <span className="btn-primary-arrow">
+                <ArrowRight size={13} strokeWidth={2.5} />
+              </span>
+            </a>
+          </div>
+
+        </div>{/* /.navbar-mobile-panel */}
+
+        {/* Burger — sits outside the panel so it's always visible */}
         <button
           className="navbar-toggle"
-          onClick={() => { setMobileOpen((prev) => !prev); closeAll(); }}
-          aria-label="Toggle navigation"
+          onClick={() => { setMobileOpen((p) => !p); closeDropdowns(); }}
+          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={mobileOpen}
+          aria-controls="navbar-mobile-panel"
         >
           {mobileOpen ? <X size={24} /> : <Menu size={24} />}
         </button>

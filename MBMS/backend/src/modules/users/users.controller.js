@@ -18,6 +18,7 @@ function validate(schema, data) {
 const getMe = async (req, res, next) => {
   try {
     const data = await service.getMe(req.user.id);
+    // 💡 FIXED: Removed the hardcoded 200 to match your standard (res, data, message) signature
     return sendSuccess(res, data, 'User fetched successfully');
   } catch (err) {
     next(err);
@@ -174,32 +175,17 @@ const updateMyPreferences = async (req, res, next) => {
   }
 };
 
-/**
- * ─────────────────────────────────────────────
- * EXPORTS
- * ─────────────────────────────────────────────
- */
-
 module.exports = {
-  // Identity
   getMe,
   updateMe,
   deleteMe,
-
-  // Admin
   getUserById,
   updateUserById,
   deleteUserById,
-
-  // Security
   updatePassword,
   updateEmail,
   uploadAvatar,
-
-  // Analytics
   getMyActivity,
   getMyStats,
-
-  // Preferences
   updateMyPreferences,
 };
