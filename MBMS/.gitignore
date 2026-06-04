@@ -36,3 +36,5 @@ infra/nginx/certs/
 
 # TypeScript build info
 *.tsbuildinfo
+
+appsettings.json
