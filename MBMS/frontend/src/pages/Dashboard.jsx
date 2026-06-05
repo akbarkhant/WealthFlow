@@ -147,7 +147,7 @@ const DashboardContent = () => {
   }, [chartData]);
 
   const spendingBreakdownData = useMemo(() => {
-    return breakdown?.categories ?? [];
+    return Array.isArray(breakdown) ? breakdown : [];
   }, [breakdown]);
 
   const recentTransactionsData = useMemo(() => {
@@ -374,17 +374,18 @@ const DashboardContent = () => {
                         {spendingBreakdownData.map((item, index, list) => {
                           const offset = list
                             .slice(0, index)
-                            .reduce((total, current) => total + current.percent, 0);
+                            .reduce((total, current) => total + current.percentage, 0);
+
                           return (
                             <circle
-                              key={item.category}
+                              key={item.categoryName}
                               cx="21"
                               cy="21"
                               r="15.915"
                               fill="transparent"
-                              stroke={item.color}
+                              stroke={item.categoryColor}
                               strokeWidth="5"
-                              strokeDasharray={`${item.percent} ${100 - item.percent}`}
+                              strokeDasharray={`${item.percentage} ${100 - item.percentage}`}
                               strokeDashoffset={25 - offset}
                             />
                           );
@@ -393,12 +394,12 @@ const DashboardContent = () => {
                     </div>
                     <div className="breakdown-list">
                       {spendingBreakdownData.map((item) => (
-                        <div className="breakdown-item" key={item.category}>
+                        <div className="breakdown-item" key={item.categoryName}>
                           <span>
-                            <i style={{ backgroundColor: item.color }} />
-                            {item.category}
+                            <i style={{ backgroundColor: item.categoryColor }} />
+                            {item.categoryName}
                           </span>
-                          <strong>{item.percent}%</strong>
+                          <strong>{item.percentage}%</strong>
                         </div>
                       ))}
                     </div>

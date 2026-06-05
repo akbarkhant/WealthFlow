@@ -185,11 +185,6 @@ async function findUserById(userId, client) {
     [userId]
   );
 
-  console.log('\n========== USER QUERY RESULT ==========');
-  console.log('ROW COUNT:', result.rowCount);
-  console.log('ROWS:', result.rows);
-  console.log('=======================================\n');
-
   return result.rows[0] || null;
 }
 
@@ -804,6 +799,19 @@ async function getRecentDashboardTransactions(userId, limit = 5, client) {
   );
 }
 
+async function findByMonth(userId, month, year) {
+  const sql = `
+    SELECT *
+    FROM transactions
+    WHERE user_id = $1
+      AND EXTRACT(MONTH FROM created_at) = $2
+      AND EXTRACT(YEAR FROM created_at) = $3
+  `;
+
+  const result = await query(sql, [userId, month, year]);
+  return result.rows ?? [];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // EXPORTS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -829,4 +837,5 @@ module.exports = {
   getCategoryBreakdown,
   getYearlyTrajectory,
   getRecentDashboardTransactions,
+  findByMonth
 };

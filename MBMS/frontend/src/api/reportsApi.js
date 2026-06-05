@@ -1,7 +1,6 @@
 // reportsApi.js
 
 import api from './client';
-
 /**
  * Reports API Module
  * Interacts with the analytical and goal reporting backend infrastructure.

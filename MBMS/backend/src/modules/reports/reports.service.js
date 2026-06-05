@@ -2,6 +2,33 @@
 
 const { query } = require('../../config/db.config');
 const { generateMonthlyInsights } = require('../insights/insights.service');
+const transactionRepo = require('../transactions/transactions.repository');
+
+
+function sumByType(transactions, type) {
+  return transactions
+    .filter(t => t.type === type)
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+}
+
+function groupByCategory(transactions) {
+  const map = {};
+
+  for (const t of transactions) {
+    const key = t.category_name || 'uncategorized';
+
+    if (!map[key]) {
+      map[key] = 0;
+    }
+
+    map[key] += Number(t.amount);
+  }
+
+  return Object.entries(map).map(([category, total]) => ({
+    category,
+    total,
+  }));
+}
 
 /* ─────────────────────────────────────────────
    1. MONTHLY SUMMARY (core data only)
@@ -209,6 +236,25 @@ async function getYearlySummary(userId, year) {
   return results;
 }
 
+async function getMonthlyReport(userId, month, year) {
+  const transactions = await transactionRepo.findByMonth(
+    userId,
+    month,
+    year
+  );
+
+  const income = sumByType(transactions, 'income');
+  const expense = sumByType(transactions, 'expense');
+
+  return {
+    income,
+    expense,
+    balance: income - expense,
+    byCategory: groupByCategory(transactions),
+    transactions,
+  };
+}
+
 /* ─────────────────────────────────────────────
    EXPORTS
 ───────────────────────────────────────────── */
@@ -217,4 +263,5 @@ module.exports = {
   getCategoryBreakdown,
   getMonthlyReport,
   getYearlySummary,
+  getMonthlyReport
 };
