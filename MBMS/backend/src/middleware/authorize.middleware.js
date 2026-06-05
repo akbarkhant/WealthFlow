@@ -13,7 +13,6 @@ function authenticate(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
 
-    // Check authorization header
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
@@ -21,7 +20,6 @@ function authenticate(req, res, next) {
       });
     }
 
-    // Extract token
     const parts = authHeader.split(' ');
 
     if (parts.length !== 2 || parts[0] !== 'Bearer') {
@@ -40,33 +38,28 @@ function authenticate(req, res, next) {
       });
     }
 
-    //console.log("AUTH HEADER:", req.headers.authorization);
-    //console.log("TOKEN:", token);
-    // Verify token
     const decoded = jwt.verify(
       token,
       config.JWT_ACCESS_SECRET
     );
 
-    // Clean up the string to ensure perfect compatibility with Postgres UUID types
     let rawUserId = decoded.sub ?? decoded.id;
+
     if (typeof rawUserId === 'string') {
       rawUserId = rawUserId.trim().toLowerCase();
     }
 
-    // Attach user data to request
     req.user = {
       id: rawUserId,
       email: decoded.email,
       role: decoded.role,
       jti: decoded.jti,
     };
+
+
     next();
   } catch (err) {
-    logger.error(
-      { err },
-      'Authentication error'
-    );
+    logger.error({ err }, 'Authentication error');
 
     return res.status(401).json({
       success: false,

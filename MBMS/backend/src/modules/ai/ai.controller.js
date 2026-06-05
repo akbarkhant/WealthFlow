@@ -1,53 +1,92 @@
-const service = require('./ai.service');
+'use strict';
+
+/**
+ * @module ai/ai.controller
+ * @description HTTP adapter for all AI endpoints.
+ *
+ * Architecture change (from previous version)
+ * ────────────────────────────────────────────
+ * BEFORE: every AI call was synchronous — controller called service, service
+ *         called Gemini, user waited 5-30 s, occasional 503 timeouts crashed requests.
+ *
+ * NOW (per architecture plan §7, Decision 3):
+ *   - POST /chat       → still streaming (real-time UX requirement)
+ *   - POST /analyze    → enqueues job  → returns jobId (async)
+ *   - POST /suggest    → enqueues job  → returns jobId (async)
+ *   - GET  /jobs/:id   → poll job status + result
+ *   - POST /insights/:month/:year → enqueues insights job
+ *   - GET  /insights/history      → read from ai_insights table
+ *   - GET  /circuit-status        → exposes circuit-breaker health
+ *
+ * Chat is kept synchronous/streaming because users expect real-time responses.
+ * All other AI operations are fire-and-forget with polling.
+ */
+
+const aiService  = require('./ai.service');
+const aiQueue    = require('./ai.queue');
+const gateway    = require('./ai.gateway');
 const transactionService = require('../transactions/transactions.service');
-const budgetService = require('../budgets/budget.service');
-const { query } = require('../../config/db.config');
-const { sendSuccess } = require('../../shared/ApiResponse');
-const { logger } = require('../../config/logger.config');
-const { StringDecoder } = require('string_decoder');
+const budgetService      = require('../budgets/budget.service');
+const { query }          = require('../../config/db.config');
+const { sendSuccess }    = require('../../shared/ApiResponse');
+const { logger }         = require('../../config/logger.config');
+const { AppError }       = require('../../shared/AppError');
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CHAT HISTORY — Helpers
+// HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
-async function saveChatMessage(userId, role, content) {
-  if (!content || !content.trim()) return;
-  await query(
-    `INSERT INTO chat_history (user_id, role, content, created_at)
-     VALUES ($1, $2, $3, NOW())`,
-    [userId, role, content.trim()]
-  );
+
+/** Safely extracts a flat transaction array from various service response shapes. */
+function extractTransactions(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw))                 return raw;
+  if (Array.isArray(raw.data))            return raw.data;
+  if (Array.isArray(raw.rows))            return raw.rows;
+  if (Array.isArray(raw.transactions))    return raw.transactions;
+  return [];
 }
 
-async function loadChatHistory(userId, limit = 50) {
-  const result = await query(
-    `SELECT id, role, content, created_at
-     FROM   chat_history
-     WHERE  user_id = $1
-     ORDER  BY created_at ASC
-     LIMIT  $2`,
-    [userId, limit]
-  );
-  return result.rows || result || [];
+/** Builds the financial context string for the chat system prompt. */
+function buildChatContext(transactions, budgets) {
+  const income   = transactions.filter(t => t.type === 'income')
+    .reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
+  const expenses = transactions.filter(t => t.type === 'expense')
+    .reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
+
+  const recentLines = transactions.slice(0, 8)
+    .map(t => `- ${t.description ?? 'Transaction'} (${t.type}): ${t.amount || t.amount_in_base_currency || 0}`)
+    .join('\n');
+
+  const budgetLines = budgets
+    .map(b => `- ${b.name ?? b.category}: Limit ${b.amountLimit || b.amount || 0}`)
+    .join('\n');
+
+  return `User's recent financial context:
+Income this period:   ${income}
+Expenses this period: ${expenses}
+Recent transactions:
+${recentLines}
+
+Active Budgets:
+${budgetLines || 'No active budgets.'}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. GET /api/ai/chat/history
+// 1. CHAT HISTORY
 // ─────────────────────────────────────────────────────────────────────────────
+
 async function getChatHistory(req, res, next) {
   try {
-    const history = await loadChatHistory(req.user.id);
+    const history = await aiService.loadChatHistory(req.user.id);
     return sendSuccess(res, history);
   } catch (err) {
     next(err);
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. DELETE /api/ai/chat/history
-// ─────────────────────────────────────────────────────────────────────────────
-async function clearChatHistory(req, res, next) {
+async function clearChatHistoryHandler(req, res, next) {
   try {
-    await query('DELETE FROM chat_history WHERE user_id = $1', [req.user.id]);
+    await aiService.clearChatHistory(req.user.id);
     return sendSuccess(res, { cleared: true });
   } catch (err) {
     next(err);
@@ -55,70 +94,38 @@ async function clearChatHistory(req, res, next) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. POST /api/ai/chat  (Streaming)
+// 2. STREAMING CHAT (kept synchronous — real-time UX requirement)
 // ─────────────────────────────────────────────────────────────────────────────
+
 async function chat(req, res, next) {
   try {
     const { message, history } = req.body;
     const userId = req.user.id;
 
-    // Persist user message first
-    await saveChatMessage(userId, 'user', message);
-
-    // Fetch transaction data safely
-    const transactionResult = await transactionService.list(userId, {});
-    
-    // DEFENSIVE ARRAY GUARD (Applied)
-    let userTransactions = [];
-    if (transactionResult) {
-      if (Array.isArray(transactionResult)) {
-        userTransactions = transactionResult;
-      } else if (transactionResult.data && Array.isArray(transactionResult.data)) {
-        userTransactions = transactionResult.data;
-      } else if (transactionResult.rows && Array.isArray(transactionResult.rows)) {
-        userTransactions = transactionResult.rows;
-      } else if (transactionResult.transactions && Array.isArray(transactionResult.transactions)) {
-        userTransactions = transactionResult.transactions;
-      }
+    if (!message?.trim()) {
+      return res.status(400).json({ success: false, message: 'message is required.' });
     }
 
-    const recentTransactions = userTransactions.slice(0, 26);
-    const contextSummary = buildContextSummary(recentTransactions);
+    const [txResult, budgetResult] = await Promise.allSettled([
+      transactionService.list(userId, {}),
+      budgetService.list(userId),
+    ]);
 
-    const budgetResult = await budgetService.list(userId);
-    const userBudgets = budgetResult?.data || budgetResult || [];
+    const transactions = txResult.status === 'fulfilled'
+      ? extractTransactions(txResult.value).slice(0, 26)
+      : [];
 
-    const financialContext = `
-${contextSummary}
+    const budgets = budgetResult.status === 'fulfilled'
+      ? (budgetResult.value?.data ?? budgetResult.value ?? [])
+      : [];
 
-Active Budgets:
-${userBudgets.map(b => `- ${b.name}: Limit Rs. ${b.amountLimit || b.amount || 0}`).join('\n')}
-`;
+    const financialContext = buildChatContext(transactions, budgets);
+    const chatHistory      = Array.isArray(history) ? history : await aiService.loadChatHistory(userId);
 
-    // Intercept res.write to safely capture streamed chunks for the DB history logs
-    let aiReply = '';
-    const decoder = new StringDecoder('utf-8');
-    const originalWrite = res.write.bind(res);
-    const originalEnd = res.end.bind(res);
-
-    res.write = (chunk, encoding, callback) => {
-      aiReply += typeof chunk === 'string' ? chunk : decoder.write(chunk);
-      return originalWrite(chunk, encoding, callback);
-    };
-
-    res.end = async (...args) => {
-      try {
-        aiReply += decoder.end();
-        await saveChatMessage(userId, 'assistant', aiReply);
-      } catch (err) {
-        logger.error(`Failed to background-save chat history: ${err.message}`);
-      }
-      return originalEnd(...args);
-    };
-
-    await service.chatService({
+    await aiService.chatService({
+      userId,
       message,
-      history,
+      history:         chatHistory,
       financialContext,
       res,
       next,
@@ -128,179 +135,162 @@ ${userBudgets.map(b => `- ${b.name}: Limit Rs. ${b.amountLimit || b.amount || 0}
   }
 }
 
-function buildContextSummary(transactions) {
-  if (!transactions || !transactions.length) return "User's recent financial context: No recent transactions found.";
-
-  const income = transactions
-    .filter(t => t.type === 'income')
-    .reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
-    
-  const expenses = transactions
-    .filter(t => t.type === 'expense')
-    .reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
-
-  const lines = transactions.slice(0, 8).map(t =>
-    `- ${t.description ?? 'Transaction'} (${t.type}): Rs. ${t.amount || t.amount_in_base_currency || 0}`
-  );
-
-  return `User's recent financial context:
-  Income this period:  Rs. ${income}
-  Expenses this period: Rs. ${expenses}
-  Recent transaction log entries:
-  ${lines.join('\n')}`;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. POST /api/ai/analyze  → Insights + Budget Health Score
+// 3. ASYNC ANALYZE (enqueue → return jobId)
 // ─────────────────────────────────────────────────────────────────────────────
+
 async function analyze(req, res, next) {
   try {
     const userId = req.user.id;
-    const { startDate, endDate, promptContext } = req.body || {};
+    const { startDate, endDate, promptContext } = req.body ?? {};
 
-    logger.info(`AI analysis requested for user ${userId} from ${startDate || 'all-time'} to ${endDate || 'now'}`);
+    logger.info({ userId, startDate, endDate }, '[AIController] Analyze requested.');
 
-    const rawData = await transactionService.list(userId, { startDate, endDate });
-    
-    // DEFENSIVE ARRAY GUARD (Applied)
-    let allTx = [];
-    if (rawData) {
-      if (Array.isArray(rawData)) {
-        allTx = rawData;
-      } else if (rawData.data && Array.isArray(rawData.data)) {
-        allTx = rawData.data;
-      } else if (rawData.rows && Array.isArray(rawData.rows)) {
-        allTx = rawData.rows;
-      } else if (rawData.transactions && Array.isArray(rawData.transactions)) {
-        allTx = rawData.transactions;
-      }
-    }
+    const { jobId } = await aiQueue.enqueueAnalyze(userId, { startDate, endDate, promptContext });
 
-    const expenses = allTx.filter(tx => tx.type === 'expense');
-    const income = allTx.filter(tx => tx.type === 'income');
-
-    const totalExpenses = expenses.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount || 0), 0);
-    const totalIncome = income.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount || 0), 0);
-    const netSavings = totalIncome - totalExpenses;
-
-    const categoryBreakdown = expenses.reduce((acc, tx) => {
-      const category = tx.category_name || tx.categoryName || 'Uncategorized';
-      acc[category] = (acc[category] || 0) + Number(tx.amount || tx.amount_in_base_currency || 0);
-      return acc;
-    }, {});
-
-    const financialContext = {
-      summary: {
-        totalIncome,
-        totalExpenses,
-        netSavings,
-        period: { startDate: startDate || 'N/A', endDate: endDate || 'Now' }
-      },
-      topCategories: categoryBreakdown,
-      sampleTransactions: expenses.slice(0, 15).map(tx => ({
-        date: tx.date,
-        amount: tx.amount || tx.amount_in_base_currency,
-        currency: tx.currency || 'Rs.',
-        description: tx.description
-      }))
-    };
-
-    const aiInsight = await service.analyzeService(financialContext, promptContext);
-
-    return res.status(200).json({
+    return res.status(202).json({
       success: true,
       data: {
-        insights: aiInsight,
-        metricsProcessed: allTx.length
-      }
+        jobId,
+        message: 'Analysis queued. Poll GET /api/ai/jobs/:jobId for results.',
+        estimatedSeconds: 15,
+      },
     });
-  } catch (error) {
-    logger.error(`AI Analysis Error: ${error.message}`, { stack: error.stack });
-    return next(error);
+  } catch (err) {
+    logger.error({ err: err.message }, '[AIController] Analyze enqueue failed.');
+    next(err);
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. POST /api/ai/suggest  → Spending Forecast Optimization
+// 4. ASYNC SUGGEST (enqueue → return jobId)
 // ─────────────────────────────────────────────────────────────────────────────
+
 async function suggest(req, res, next) {
   try {
     const userId = req.user.id;
-    const { promptContext } = req.body || {};
+    const { promptContext } = req.body ?? {};
 
-    logger.info(`AI savings suggestions requested for user: ${userId}`);
+    logger.info({ userId }, '[AIController] Suggest requested.');
 
-    const rawData = await transactionService.list(userId);
-    
-    // DEFENSIVE ARRAY GUARD (Applied)
-    let allTx = [];
-    if (rawData) {
-      if (Array.isArray(rawData)) {
-        allTx = rawData;
-      } else if (rawData.data && Array.isArray(rawData.data)) {
-        allTx = rawData.data;
-      } else if (rawData.rows && Array.isArray(rawData.rows)) {
-        allTx = rawData.rows;
-      } else if (rawData.transactions && Array.isArray(rawData.transactions)) {
-        allTx = rawData.transactions;
-      }
-    }
+    const { jobId } = await aiQueue.enqueueSuggest(userId, { promptContext });
 
-    const expenses = allTx.filter(tx => tx.type === 'expense');
-    const income = allTx.filter(tx => tx.type === 'income');
-
-    const totalExpenses = expenses.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount || 0), 0);
-    const totalIncome = income.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount || 0), 0);
-    const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
-
-    const spendingPattern = expenses.reduce((acc, tx) => {
-      const category = tx.category_name || tx.categoryName || 'Other';
-      acc[category] = (acc[category] || 0) + Number(tx.amount || tx.amount_in_base_currency || 0);
-      return acc;
-    }, {});
-
-    const optimizationProfile = {
-      metrics: {
-        totalIncome,
-        totalExpenses,
-        savingsRatePercentage: Number(savingsRate.toFixed(2))
-      },
-      spendingPattern,
-      highValueExpenses: expenses
-        .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
-        .slice(0, 10)
-        .map(tx => ({
-          date: tx.date,
-          amount: tx.amount || tx.amount_in_base_currency,
-          category: tx.category_name || 'Uncategorized',
-          description: tx.description
-        }))
-    };
-
-    const savingsSuggestions = await service.suggestService(optimizationProfile, promptContext);
-
-    return res.status(200).json({
+    return res.status(202).json({
       success: true,
       data: {
-        suggestions: savingsSuggestions,
-        metricsProcessed: allTx.length
-      }
+        jobId,
+        message: 'Suggestions queued. Poll GET /api/ai/jobs/:jobId for results.',
+        estimatedSeconds: 15,
+      },
     });
-  } catch (error) {
-    logger.error(`AI Suggest Error: ${error.message}`, { stack: error.stack });
-    return next(error);
+  } catch (err) {
+    next(err);
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. POST /api/ai/receipt  → Receipt Scanner
+// 5. ASYNC INSIGHTS (per month — enqueue → return jobId)
 // ─────────────────────────────────────────────────────────────────────────────
+
+async function requestInsights(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const month  = parseInt(req.params.month, 10);
+    const year   = parseInt(req.params.year,  10);
+
+    if (!month || !year || month < 1 || month > 12) {
+      return res.status(400).json({ success: false, message: 'Valid month (1-12) and year are required.' });
+    }
+
+    const { jobId } = await aiQueue.enqueueInsights(userId, month, year);
+
+    return res.status(202).json({
+      success: true,
+      data: {
+        jobId,
+        message: `Insights for ${year}-${month} queued. Poll GET /api/ai/jobs/:jobId for results.`,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/ai/insights — returns persisted insights from ai_insights table.
+ */
+async function getInsightsHistory(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const { month, year, limit = 10 } = req.query;
+
+    let sql    = 'SELECT * FROM ai_insights WHERE user_id = $1';
+    const vals = [userId];
+    let idx    = 2;
+
+    if (month) { sql += ` AND target_month = $${idx++}`; vals.push(Number(month)); }
+    if (year)  { sql += ` AND target_year  = $${idx++}`; vals.push(Number(year));  }
+
+    sql += ` ORDER BY created_at DESC LIMIT $${idx}`;
+    vals.push(Number(limit));
+
+    const result = await query(sql, vals);
+    return sendSuccess(res, result.rows ?? result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /api/ai/insights/:id/apply — marks an insight as applied.
+ */
+async function markInsightApplied(req, res, next) {
+  try {
+    const { id }    = req.params;
+    const userId    = req.user.id;
+    const { isApplied = true } = req.body;
+
+    const result = await query(
+      `UPDATE ai_insights
+       SET is_applied = $1, updated_at = NOW()
+       WHERE id = $2 AND user_id = $3
+       RETURNING *`,
+      [isApplied, id, userId],
+    );
+
+    const row = result.rows?.[0] ?? result[0];
+    if (!row) throw new AppError('Insight not found.', 404);
+
+    return sendSuccess(res, row);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. JOB STATUS POLLING
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function getJobStatus(req, res, next) {
+  try {
+    const { jobId } = req.params;
+    const status    = await aiQueue.getJobStatus(jobId);
+    return sendSuccess(res, status);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. RECEIPT SCANNER (synchronous — small file, fast)
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function scanReceipt(req, res, next) {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No image file uploaded.' });
     }
-    const result = await service.receiptService(req.file.path);
+    const result = await aiService.receiptService(req.file.path);
     return sendSuccess(res, result);
   } catch (err) {
     next(err);
@@ -308,140 +298,83 @@ async function scanReceipt(req, res, next) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 7. FINANCIAL LITERACY EDUCATION
+// 8. FINANCIAL LITERACY EDUCATION
 // ─────────────────────────────────────────────────────────────────────────────
+
 async function getEducationTopics(req, res, next) {
   try {
-    const result = await service.educationService('all');
+    const result = await aiService.educationService('all');
     return sendSuccess(res, result);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 }
 
 async function getEducationTip(req, res, next) {
   try {
-    const index = parseInt(req.params.index ?? '0', 10);
-    const result = await service.educationService(index);
+    const index  = parseInt(req.params.index ?? '0', 10);
+    const result = await aiService.educationService(index);
     return sendSuccess(res, result);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 }
 
 async function getEducationTipByTopic(req, res, next) {
   try {
-    const topic = decodeURIComponent(req.params.name ?? '');
-    const result = await service.educationService(topic);
+    const topic  = decodeURIComponent(req.params.name ?? '');
+    const result = await aiService.educationService(topic);
     return sendSuccess(res, result);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 8. GET /api/ai/report/:month  → Monthly PDF Report Context Delivery
+// 9. MONTHLY PDF REPORT (async-queued)
 // ─────────────────────────────────────────────────────────────────────────────
+
 async function getMonthlyReport(req, res, next) {
   try {
     const userId = req.user.id;
-    const month = req.params.month; // 'YYYY-MM'
+    const month  = req.params.month; // 'YYYY-MM'
 
-    const userRows = await query('SELECT name, currency FROM users WHERE id = $1', [userId]);
-    const userName = userRows.rows?.[0]?.name ?? userRows[0]?.name ?? 'User';
-    const currency = userRows.rows?.[0]?.currency ?? userRows[0]?.currency ?? 'Rs.';
-
-    const response = await transactionService.list(userId);
-    
-    // DEFENSIVE ARRAY GUARD (Applied)
-    let allTx = [];
-    if (response) {
-      if (Array.isArray(response)) {
-        allTx = response;
-      } else if (response.data && Array.isArray(response.data)) {
-        allTx = response.data;
-      } else if (response.rows && Array.isArray(response.rows)) {
-        allTx = response.rows;
-      } else if (response.transactions && Array.isArray(response.transactions)) {
-        allTx = response.transactions;
-      }
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ success: false, message: 'month must be YYYY-MM format.' });
     }
 
-    const monthTx = allTx.filter(t => String(t.date).startsWith(month));
-    const incomeArr = monthTx.filter(t => t.type === 'income');
-    const expenses = monthTx.filter(t => t.type === 'expense');
+    const { jobId } = await aiQueue.enqueueReport(userId, month);
 
-    const incomeSum = incomeArr.reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
-    const totalExp = expenses.reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
-
-    const catMap = {};
-    expenses.forEach(t => {
-      const k = t.category_name ?? t.categoryName ?? 'Uncategorized';
-      catMap[k] = (catMap[k] || 0) + Number(t.amount || t.amount_in_base_currency || 0);
-    });
-
-    const categoryBreakdown = Object.entries(catMap)
-      .map(([name, total]) => ({
-        name,
-        total,
-        percentage: totalExp > 0 ? (total / totalExp) * 100 : 0,
-      }))
-      .sort((a, b) => b.total - a.total);
-
-    // Map custom structure strictly matching expectations of analyzeService
-    const reportDataEnvelope = {
-      summary: {
-        totalIncome: incomeSum,
-        totalExpenses: totalExp,
-        netSavings: incomeSum - totalExp,
-        period: { startDate: `${month}-01`, endDate: `${month}-31` }
+    return res.status(202).json({
+      success: true,
+      data: {
+        jobId,
+        message: `Report for ${month} queued. Poll GET /api/ai/jobs/:jobId for status.`,
+        estimatedSeconds: 30,
       },
-      topCategories: catMap,
-      sampleTransactions: expenses.slice(0, 10).map(e => ({ date: e.date, amount: e.amount, description: e.description }))
-    };
-
-    const aiInsightsMarkdown = await service.analyzeService(reportDataEnvelope, 'Focus layout recommendations specifically tailored for end-of-month financial statements.');
-
-    // Calculate baseline budget health score manually
-    let budgetHealthScore = 100;
-    if (incomeSum > 0) {
-      const burnRate = (totalExp / incomeSum) * 100;
-      budgetHealthScore = Math.max(0, Math.min(100, Math.round(100 - (burnRate * 0.5))));
-    } else if (totalExp > 0) {
-      budgetHealthScore = 20; 
-    }
-
-    const pdfBuffer = await service.reportService({
-      month,
-      income: incomeSum,
-      expenses: totalExp,
-      categoryBreakdown,
-      insights: aiInsightsMarkdown,
-      budgetHealthScore,
-      currency,
-      userName,
     });
-
-    const filename = `WealthFlow_Report_${month}.pdf`;
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', pdfBuffer.length);
-    return res.end(pdfBuffer);
-
   } catch (err) {
     next(err);
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. CIRCUIT BREAKER STATUS (ops / health check)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function getCircuitStatus(req, res) {
+  return sendSuccess(res, gateway.getCircuitStatus());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 module.exports = {
   getChatHistory,
-  clearChatHistory,
+  clearChatHistory: clearChatHistoryHandler,
   chat,
   analyze,
   suggest,
+  requestInsights,
+  getInsightsHistory,
+  markInsightApplied,
+  getJobStatus,
   scanReceipt,
   getEducationTopics,
   getEducationTip,
   getEducationTipByTopic,
   getMonthlyReport,
+  getCircuitStatus,
 };

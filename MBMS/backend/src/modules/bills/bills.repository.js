@@ -54,8 +54,8 @@ async function findById(billId, userId) {
       AND b.user_id = $2
       AND b.deleted_at IS NULL;
   `;
-  const rows = await query(sql, [billId, userId]);
-  return rows[0] ?? null;
+  const result = await query(sql, [billId, userId]);
+  return result.rows[0] ?? null;
 }
 
 // ── Get overdue bills ─────────────────────────────────────
@@ -85,7 +85,8 @@ async function findOverdue(userId) {
       AND b.due_date < CURRENT_DATE
     ORDER BY b.due_date ASC;
   `;
-  return query(sql, [userId]);
+  const result = await query(sql, [userId]);
+  return result.rows ?? [];
 }
 
 // ── Get upcoming bills (next 30 days) ─────────────────────
@@ -115,7 +116,8 @@ async function findUpcoming(userId) {
       AND b.due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
     ORDER BY b.due_date ASC;
   `;
-  return query(sql, [userId]);
+  const result = await query(sql, [userId]);
+  return result.rows ?? [];
 }
 
 // ── Create bill ───────────────────────────────────────────
@@ -148,7 +150,7 @@ async function createBill(userId, data) {
       created_at::text AS "createdAt",
       updated_at::text AS "updatedAt";
   `;
-  const rows = await query(sql, [
+  const result = await query(sql, [
     userId,
     data.category_id ?? null,
     data.name,
@@ -160,7 +162,8 @@ async function createBill(userId, data) {
     data.notes ?? null,
     data.is_autopay,
   ]);
-  return rows[0];
+
+  return result.rows[0];
 }
 
 // ── Update bill ───────────────────────────────────────────
@@ -215,8 +218,8 @@ async function updateBill(billId, userId, data) {
       updated_at::text AS "updatedAt";
   `;
 
-  const rows = await query(sql, values);
-  return rows[0] ?? null;
+  const result = await query(sql, values);
+  return result.rows[0] ?? null;
 }
 
 // ── Mark as paid ──────────────────────────────────────────
@@ -237,8 +240,8 @@ async function markAsPaid(billId, userId) {
       status,
       updated_at::text AS "updatedAt";
   `;
-  const rows = await query(sql, [billId, userId]);
-  return rows[0] ?? null;
+  const result = await query(sql, [billId, userId]);
+  return result.rows[0] ?? null;
 }
 
 // ── Mark as unpaid ────────────────────────────────────────
@@ -259,8 +262,8 @@ async function markAsUnpaid(billId, userId) {
       status,
       updated_at::text AS "updatedAt";
   `;
-  const rows = await query(sql, [billId, userId]);
-  return rows[0] ?? null;
+  const result = await query(sql, [billId, userId]);
+  return result.rows[0] ?? null;
 }
 
 // ── Soft delete ───────────────────────────────────────────
@@ -273,8 +276,8 @@ async function deleteBill(billId, userId) {
       AND deleted_at IS NULL
     RETURNING id;
   `;
-  const rows = await query(sql, [billId, userId]);
-  return rows[0] ?? null;
+  const result = await query(sql, [billId, userId]);
+  return result.rows[0] ?? null;
 }
 
 module.exports = {

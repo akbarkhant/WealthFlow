@@ -13,6 +13,7 @@ const notificationService = require('../notifications/notification.service');
 const { AppError, ForbiddenError, NotFoundError } = require('../../shared/AppError');
 const { logger } = require('../../config/logger.config');
 const moneyUtil = require('../../utils/money.utils');
+const { calculateNetAmount } = require('../../utils/netAmount.utils');
 ``
 if (!dbConfig || typeof dbConfig.withTransaction !== 'function') {
   throw new Error('Database Infrastructure Failure: withTransaction helper not found.');
@@ -41,7 +42,7 @@ function assertSufficientFunds(balanceStr, requiredMinorUnits, message = 'Insuff
 function extractYearMonth(dateInput, timezone = 'UTC') {
   if (!dateInput) return null;
   const targetDate = dateInput instanceof Date ? dateInput : new Date(dateInput);
-  
+
   if (Number.isNaN(targetDate.getTime())) return null;
 
   try {
@@ -113,6 +114,7 @@ async function create(userId, input, contextOptions = {}) {
 
   // 2. Perform safe read-only target validation outside transaction locks
   const sourceUserCheck = await transactionRepository.findUserById(userId);
+
   if (!sourceUserCheck) throw new NotFoundError('User');
 
   const inputCurrency = moneyUtil.normalizeCurrency(input.currency || sourceUserCheck.currency);
@@ -137,8 +139,8 @@ async function create(userId, input, contextOptions = {}) {
   }
 
   const sourceAmountMinorUnits = moneyUtil.parseDecimalToMinorUnits(input.amount, 'amount');
-  const sourceAmountInBaseMinor = inputCurrency === userBaseCurrency 
-    ? sourceAmountMinorUnits 
+  const sourceAmountInBaseMinor = inputCurrency === userBaseCurrency
+    ? sourceAmountMinorUnits
     : moneyUtil.multiplyMinorUnitsByRate(sourceAmountMinorUnits, computedExchangeRate);
 
   let destinationAmountInBaseMinor = sourceAmountInBaseMinor;
@@ -152,7 +154,7 @@ async function create(userId, input, contextOptions = {}) {
   const transaction = await withTransaction(async (client) => {
     const userIdsToLock = input.type === 'transfer' ? [userId, input.destinationUserId] : [userId];
     const lockedUsers = await lockUsersForUpdate(userIdsToLock, client);
-    
+
     const sourceUser = lockedUsers.get(userId);
     if (!sourceUser) throw new NotFoundError('User');
 
@@ -169,9 +171,9 @@ async function create(userId, input, contextOptions = {}) {
     };
 
     const created = await transactionRepository.create(
-      userId, 
-      enrichedInput, 
-      moneyUtil.formatMinorUnits(sourceAmountInBaseMinor), 
+      userId,
+      enrichedInput,
+      moneyUtil.formatMinorUnits(sourceAmountInBaseMinor),
       client
     );
 
@@ -434,7 +436,7 @@ async function fetchDashboardData(userId, timezone = 'UTC') {
 
   const startOfMonth = `${year}-${month}-01`;
   const endOfMonth = new Date(parseInt(year, 10), parseInt(month, 10), 0).toISOString().split('T')[0];
-  
+
   const startOfYear = `${year}-01-01`;
   const endOfYear = `${year}-12-31`;
 
@@ -449,6 +451,8 @@ async function fetchDashboardData(userId, timezone = 'UTC') {
   const [balance, monthlySummary, breakdown, trajectory, recent] = results.map(r =>
     r.status === 'fulfilled' ? r.value : null
   );
+
+  const netIncome = calculateNetAmount(recent ?? []);
 
   return {
     balance: balance ?? '0.00',

@@ -67,7 +67,7 @@ const Transactions = () => {
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || '');
   const [typeFilter, setTypeFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  // FIX #4: sortBy state is kept for UI but note backend always sorts date DESC.
+
   // Wire up backend support in findAll when sort control is needed server-side.
   const [sortBy, setSortBy] = useState('date-desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -149,10 +149,9 @@ const Transactions = () => {
       setBudgets((Array.isArray(bgs) ? bgs : []).map(mapBudgetForUi));
 
       // Strict Normalization: Sanitizes backend responses stringifying data or changing casings
-      const extractedIncome =
-        monthly?.totalIncome ?? monthly?.income ?? monthly?.total_income ?? 0;
-      const extractedExpenses =
-        monthly?.totalExpenses ?? monthly?.expenses ?? monthly?.total_expenses ?? 0;
+      const extractedIncome   = monthly?.totalIncome ?? monthly?.income ?? monthly?.total_income ?? 0;
+
+      const extractedExpenses = monthly?.totalExpenses ?? monthly?.expenses ?? monthly?.total_expenses ?? 0;
 
       setSummary({
         totalIncome: Number(extractedIncome),

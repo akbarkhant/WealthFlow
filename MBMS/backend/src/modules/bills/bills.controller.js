@@ -67,6 +67,8 @@ async function createBill(req, res, next) {
       req.validatedBody
     );
 
+    console.log('CONTROLLER CREATE BILL:', bill);
+
     res.status(201).json({
       success: true,
       message: 'Bill created successfully',

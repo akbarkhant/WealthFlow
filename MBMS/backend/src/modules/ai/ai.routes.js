@@ -1,56 +1,101 @@
-// src/modules/ai/ai.routes.js
+'use strict';
 
-const express          = require('express');
-const multer           = require('multer');
-const path             = require('path');
-const os               = require('os');
-const router           = express.Router();
-const ctrl             = require('./ai.controller');
-const { authenticate } = require('../../middleware/authorize.middleware');
+/**
+ * @module ai/ai.router
+ * @description Express router for all AI endpoints.
+ *
+ * Route summary:
+ *
+ *  Chat
+ *    GET    /chat/history                  → chat history from DB
+ *    DELETE /chat/history                  → clear user's chat history
+ *    POST   /chat                          → streaming SSE chat (sync)
+ *
+ *  Async AI jobs (returns jobId immediately)
+ *    POST   /analyze                       → enqueue analysis job
+ *    POST   /suggest                       → enqueue suggestions job
+ *    POST   /insights/:year/:month         → enqueue monthly insights job
+ *
+ *  Job polling
+ *    GET    /jobs/:jobId                   → poll job status + result
+ *
+ *  Insights history (from ai_insights table)
+ *    GET    /insights                      → list persisted insights
+ *    PATCH  /insights/:id/apply            → mark insight as applied
+ *
+ *  Reports
+ *    POST   /report/:month                 → enqueue PDF report (YYYY-MM)
+ *
+ *  Receipt
+ *    POST   /receipt                       → synchronous receipt scan
+ *
+ *  Education
+ *    GET    /education/topics
+ *    GET    /education/tip/:index
+ *    GET    /education/topic/:name
+ *
+ *  Ops
+ *    GET    /circuit-status                → circuit-breaker health
+ */
 
+const { Router }     = require('express');
+const   multer       = require('multer');
+const controller     = require('./ai.controller');
 
-// ── Multer config — temp disk storage for receipt images ─────────────────────
+// Multer: receipt uploads (memory, 10 MB limit)
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, os.tmpdir()),
-    filename:    (_req, file, cb) => {
-      const ext  = path.extname(file.originalname);
-      const name = `receipt_${Date.now()}${ext}`;
-      cb(null, name);
-    },
-  }),
-  limits:       { fileSize: 10 * 1024 * 1024 }, // 10MB max
-  fileFilter:   (_req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp|bmp|tiff/i;
-    if (allowed.test(path.extname(file.originalname)) && allowed.test(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed for receipt scanning.'));
-    }
+  storage: multer.memoryStorage(),
+  limits:  { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    cb(null, allowed.includes(file.mimetype));
   },
 });
 
-// ── All routes require authentication ────────────────────────────────────────
+// Middleware placeholders — replace with your actual auth + rate-limit middleware
+const { authenticate } = require('../../middleware/authorize.middleware');
+// Import your AI-specific rate limiter (20 req/hour per plan)
+let aiRateLimiter;
+try {
+  aiRateLimiter = require('../../shared/middleware/rateLimiter').aiRateLimiter;
+} catch {
+  aiRateLimiter = (req, res, next) => next(); // fallback: no-op
+}
+
+const router = Router();
+
+// Apply auth to all AI routes
 router.use(authenticate);
 
-// ── Chat (Feature 1) ─────────────────────────────────────────────────────────
-router.get   ('/chat/history',          ctrl.getChatHistory);
-router.delete('/chat/history',          ctrl.clearChatHistory);
-router.post  ('/chat',                  ctrl.chat);
+// ─── Chat ────────────────────────────────────────────────────────────────────
+router.get   ('/chat/history',        controller.getChatHistory);
+router.delete('/chat/history',        controller.clearChatHistory);
+router.post  ('/chat',     aiRateLimiter, controller.chat);
 
-// ── Analysis & Forecast (Features 3, 6, 14) ──────────────────────────────────
-router.post  ('/analyze',               ctrl.analyze);
-router.post  ('/suggest',               ctrl.suggest);
+// ─── Async AI jobs ────────────────────────────────────────────────────────────
+router.post('/analyze',              aiRateLimiter, controller.analyze);
+router.post('/suggest',              aiRateLimiter, controller.suggest);
+router.post('/insights/:year/:month', aiRateLimiter, controller.requestInsights);
 
-// ── Receipt Scanner (Feature 11) ─────────────────────────────────────────────
-router.post  ('/receipt',  upload.single('receipt'), ctrl.scanReceipt);
+// ─── Job polling ──────────────────────────────────────────────────────────────
+router.get('/jobs/:jobId', controller.getJobStatus);
 
-// ── Financial Education (Feature 15) ─────────────────────────────────────────
-router.get   ('/education',                    ctrl.getEducationTopics);
-router.get   ('/education/:index',             ctrl.getEducationTip);
-router.get   ('/education/topic/:name',        ctrl.getEducationTipByTopic);
+// ─── Insights history ─────────────────────────────────────────────────────────
+router.get  ('/insights',           controller.getInsightsHistory);
+router.patch('/insights/:id/apply', controller.markInsightApplied);
 
-// ── Monthly PDF Report (Feature 13) ──────────────────────────────────────────
-router.get   ('/report/:month',                ctrl.getMonthlyReport);
+// ─── Reports ─────────────────────────────────────────────────────────────────
+router.post('/report/:month', aiRateLimiter, controller.getMonthlyReport);
+
+// ─── Receipt ─────────────────────────────────────────────────────────────────
+router.post('/receipt', upload.single('receipt'), controller.scanReceipt);
+
+// ─── Education ───────────────────────────────────────────────────────────────
+router.get('/education/topics',        controller.getEducationTopics);
+router.get('/education/tip/:index',    controller.getEducationTip);
+router.get('/education/topic/:name',   controller.getEducationTipByTopic);
+
+// ─── Ops ─────────────────────────────────────────────────────────────────────
+router.get('/circuit-status', controller.getCircuitStatus);
 
 module.exports = router;

@@ -293,10 +293,7 @@ const Bills = () => {
               Plan recurring obligations, track payment status, and keep every due date visible.
             </p>
           </div>
-          <button className="btn btn-primary" type="button" onClick={() => setShowAddForm(true)}>
-            <Plus size={18} />
-            Add Bill
-          </button>
+
         </div>
 
         {loading && (
@@ -397,6 +394,10 @@ const Bills = () => {
                     <h2>Upcoming Bills</h2>
                   </div>
                   <span className="status-pill status-muted">{filteredBills.length} found</span>
+                  <button className="btn btn-primary" type="button" onClick={() => setShowAddForm(true)}>
+                    <Plus size={18} />
+                    Add Bill
+                  </button>
                 </div>
 
                 <div className="input-shell bills-search">
@@ -425,7 +426,7 @@ const Bills = () => {
                           <div className="bill-item__left">
                             <span className="bill-item__icon"><Icon size={20} /></span>
                             <div>
-                              <h3>{bill.title || bill.name}</h3>
+                              <h3>{bill.title || bill.name }</h3>
                               <p>{isOverdue ? `Overdue ${bill.overdue_days || ''} days` : `Due ${bill.due}`}</p>
                             </div>
                           </div>
@@ -480,7 +481,7 @@ const Bills = () => {
                 <form className="modal-form" onSubmit={handleFormSubmit}>
                   <div className="field">
                     <label htmlFor="bill-title">Bill title</label>
-                    <input className="input" id="bill-title" name="title" type="text" placeholder="Electric Bill" value={formData.title } onChange={handleInputChange} />
+                    <input className="input" id="bill-title" name="title" type="text" placeholder="Electric Bill" value={formData.title || ''} onChange={handleInputChange} />
                   </div>
                   <div className="form-grid">
                     <div className="field">

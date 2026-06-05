@@ -176,14 +176,21 @@ async function withBalanceLock(outerClient, userId, delta, mutationFn) {
  */
 async function findUserById(userId, client) {
   assertValidUUID(userId, 'userId');
-  const rows = await runQuery(
+
+  const result = await runQuery(
     client,
     `SELECT id, currency, balance::text AS balance
      FROM users
      WHERE id = $1`,
-    [userId],
+    [userId]
   );
-  return rows[0] || null;
+
+  console.log('\n========== USER QUERY RESULT ==========');
+  console.log('ROW COUNT:', result.rowCount);
+  console.log('ROWS:', result.rows);
+  console.log('=======================================\n');
+
+  return result.rows[0] || null;
 }
 
 /**

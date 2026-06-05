@@ -30,11 +30,17 @@ async function getOne(req, res, next) {
 
 async function create(req, res, next) {
   try {
-    // 👇 ADD THIS LINE HERE TO INSPECT THE DATA
-    console.log("💎 WHAT ZOD PASSED TO CONTROLLER:", req.body);
+    const budget = await service.create(
+      req.user.id,
+      req.body
+    );
 
-    const budget = await service.create(req.user.id, req.body);
-    sendSuccess(res, budget, 201);
+    return sendSuccess(
+      res,
+      budget,
+      'Budget created successfully',
+      201
+    );
   } catch (err) {
     next(err);
   }
@@ -45,10 +51,18 @@ async function update(req, res, next) {
     const { id } = req.params;
     const userId = req.user.id;
 
-    // Send the sanitized body over to the service layer
-    const updatedBudget = await service.update(id, userId, req.body);
-    
-    sendSuccess(res, updatedBudget, 200, 'Budget updated successfully');
+    const updatedBudget = await service.update(
+      id,
+      userId,
+      req.body
+    );
+
+    return sendSuccess(
+      res,
+      updatedBudget,
+      'Budget updated successfully',
+      200
+    );
   } catch (err) {
     next(err);
   }
@@ -61,12 +75,17 @@ async function remove(req, res, next) {
 
     await service.remove(id, userId);
 
-    // Send a clean 200 OK success indicator back to Postman
-    sendSuccess(res, null, 200, 'Budget deleted successfully');
+    return sendSuccess(
+      res,
+      null,
+      'Budget deleted successfully',
+      200
+    );
   } catch (err) {
     next(err);
   }
 }
+
 module.exports = {
   list,
   getOne,
