@@ -1,5 +1,5 @@
 // app.js
-
+const Sentry = require('./config/sentry.config');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -19,23 +19,33 @@ const {
 const { apiLimiter } = require('./middleware/rateLimiter.middleware');
 
 // Routes
-const   authRoutes           = require('./modules/auth/auth.routes');
-const   budgetsRouter        = require('./modules/budgets/budget.routes');
-const   transactionsRouter   = require('./modules/transactions/transactions.routes');
-const   usersRouter        = require('./modules/users/users.routes');
-const { categoriesRouter }   = require('./modules/categories/categories.routes');
-const { reportsRouter }      = require('./modules/reports/reports.routes');
-const   notificationRouter   = require('./modules/notifications/notification.routes');
-const   searchRouter         = require('./modules/search/search.routes');
-const   aiRoutes             = require('./modules/ai/ai.routes')
-const   billsRouter          = require('./modules/bills/bills.routes');
-const   goalsRoutes          = require('./modules/goals/goals.routes');
+const   authRoutes            = require('./modules/auth/auth.routes');
+const   budgetsRouter         = require('./modules/budgets/budget.routes');
+const   transactionsRouter    = require('./modules/transactions/transactions.routes');
+const   usersRouter           = require('./modules/users/users.routes');
+const { categoriesRouter }    = require('./modules/categories/categories.routes');
+const { reportsRouter }       = require('./modules/reports/reports.routes');
+const   notificationRouter    = require('./modules/notifications/notification.routes');
+const   searchRouter          = require('./modules/search/search.routes');
+const   aiRoutes              = require('./modules/ai/ai.routes')
+const   billsRouter           = require('./modules/bills/bills.routes');
+const   goalsRoutes           = require('./modules/goals/goals.routes');
 //const   analyticsRoutes      = require('./modules/analytics/analytics.routes');
-const   recurringRoutes      = require('./modules/recurring/recurring.routes');
+const   recurringRoutes       = require('./modules/recurring/recurring.routes');
 const   accountsRouter        = require('./modules/accounts/accounts.routes');
 
 
 const app = express();
+
+app.use((err, req, res, next) => {
+
+  Sentry.captureException(err);
+
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message
+  });
+});
 
 
 // ─────────────────────────────────────────────

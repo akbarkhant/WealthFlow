@@ -3,33 +3,36 @@ import api, { buildQuery } from './client';
 export async function listTransactions(params = {}) {
   const result = await api.get(`/transactions${buildQuery(params)}`);
 
-  // Fix: Target result.data.rows since the backend response uses the pg driver format
+  // Target result.data directly since it's already an array from your normalized API payload
   if (
     result &&
     typeof result === 'object' && 
-    result.data && 
-    Array.isArray(result.data.rows) && 
+    Array.isArray(result.data) && 
     result.meta
   ) {
+    const total = Number(result.meta.total || 0);
+    const limit = Number(result.meta.limit || 7);
+    const calculatedTotalPages = limit > 0 ? Math.ceil(total / limit) : 1;
+
     return {
-      data: result.data.rows, // Pull the array out of the nested rows property
+      data: result.data, // Accessing the array directly
       meta: {
-        ...result.meta,
-        // Calculate total pages based on meta values
-        totalPages: result.meta.limit > 0 ? Math.ceil(result.meta.total / result.meta.limit) : 0,
-        hasMore: result.meta.page < result.meta.totalPages,
+        total,
+        page: Number(result.meta.page || 1),
+        limit,
+        totalPages: calculatedTotalPages,
+        hasMore: Number(result.meta.page || 1) < calculatedTotalPages,
       },
     };
   }
 
-  // Fallback fallback logic safety check
-  const list = Array.isArray(result) ? result : [];
+  // Pure fallback protection
   return {
-    data: list,
+    data: [],
     meta: {
-      total: list.length,
+      total: 0,
       page: params.page ?? 1,
-      limit: params.limit ?? list.length,
+      limit: params.limit ?? 7,
       totalPages: 1,
       hasMore: false,
     },

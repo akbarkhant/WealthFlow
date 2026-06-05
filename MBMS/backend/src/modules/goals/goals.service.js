@@ -244,8 +244,11 @@ class GoalsService {
    *      allow_overflow is false.
    *   5. Automatically transitions goal to COMPLETED when target is reached.
    *   6. Writes an immutable audit record to goal_contributions.
+   *
+   * FIX #8: Parameter order corrected to (goalId, userId, contributionPayload)
+   * to match the controller call-site and repository conventions.
    */
-  async recordContribution(userId, goalId, contributionPayload) {
+  async contribute(goalId, userId, contributionPayload) {
     const { source = 'manual', note = null } = contributionPayload ?? {};
     const amount = Math.floor(Number(contributionPayload?.amount));
 

@@ -284,7 +284,7 @@ export default function AI() {
                     <div className="ai-header">
                         <span className="ai-eyebrow">Local Instance</span>
                         <h1 className="ai-title">AI Financial Advisor</h1>
-                        <p className="ai-subtitle">Powered by Llama 3.2 — isolated on your machine</p>
+                        <p className="ai-subtitle">Powered by Gemini — Google</p>
                     </div>
 
                     <div className="ai-panel-header">

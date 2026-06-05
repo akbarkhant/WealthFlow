@@ -141,9 +141,9 @@ async function create({
 }
 
 /**
- * ─────────────────────────────────────────────────────────────────
- * REPOSITORY LAYER: PROCESS GOAL CONTRIBUTION (LEDGER TRANSATION)
- * ─────────────────────────────────────────────────────────────────
+ * ─────────────────────────────────────────────────────────────────────────────
+ * REPOSITORY LAYER: PROCESS GOAL CONTRIBUTION (LEDGER TRANSACTION)
+ * ─────────────────────────────────────────────────────────────────────────────
  * Handled inside an atomic database transaction using FOR UPDATE
  * locking to prevent financial race conditions in concurrent requests.
  */
@@ -153,7 +153,7 @@ async function contribute({ goalId, userId, amount, source = 'manual', note = nu
     throw new Error('Contribution amount must be greater than 0');
   }
 
-  return withTransaction('goal-contribution', async (tx) => {
+  return withTransaction(async (tx) => {
     // 1. Fetch current goal state with an exclusive lock
     const goalRes = await tx.query(
       `SELECT
@@ -213,6 +213,9 @@ async function contribute({ goalId, userId, amount, source = 'manual', note = nu
     );
 
     // 5. Record contribution event
+    // NOTE: user_id is intentionally omitted — the column does not exist on
+    // goal_contributions yet. Once the ALTER TABLE migration has been applied,
+    // add user_id back to both the column list and the values array.
     await tx.query(
       `INSERT INTO goal_contributions (
           goal_id,
@@ -242,15 +245,20 @@ async function contribute({ goalId, userId, amount, source = 'manual', note = nu
  * ─────────────────────────────────────────────────────────────────────────────
  */
 async function update(goalId, userId, fields) {
+  // FIX #9: `status` was never destructured from `fields`, so explicit status
+  // changes passed from the service (PAUSED, ARCHIVED, FAILED, ACTIVE, COMPLETED)
+  // were silently ignored. Added `status` to the destructure and the UPDATE query.
   const {
     name,
     icon,
     target_amount,
     deadline,
-    allowOverflow
+    allowOverflow,
+    status,
+    current_amount,
   } = fields;
 
-  return withTransaction('goal-update', async (tx) => {
+  return withTransaction(async (tx) => {
     // Lock current goal row
     const goalRes = await tx.query(
       `SELECT
@@ -282,29 +290,32 @@ async function update(goalId, userId, fields) {
     const result = await tx.query(
       `UPDATE goals
        SET
-         name = COALESCE($1, name),
-         icon = COALESCE($2, icon),
-         target_amount = COALESCE($3, target_amount),
-         deadline = COALESCE($4, deadline),
-         allow_overflow = COALESCE($5, allow_overflow),
+         name           = COALESCE($1, name),
+         icon           = COALESCE($2, icon),
+         target_amount  = COALESCE($3, target_amount),
+         deadline       = COALESCE($4, deadline),
+         allow_overflow = COALESCE($5::BOOLEAN, allow_overflow),
+         current_amount = COALESCE($6::NUMERIC, current_amount),
 
          status = CASE
-           WHEN COALESCE($3, target_amount) <= current_amount
-             THEN 'COMPLETED'
+           WHEN $7::TEXT IS NOT NULL THEN $7::TEXT
+           WHEN COALESCE($3, target_amount) <= current_amount THEN 'COMPLETED'
            ELSE status
          END,
 
          updated_at = NOW()
-       WHERE id = $6
-         AND user_id = $7
+       WHERE id = $8
+         AND user_id = $9
        RETURNING *,
          ${STATUS_EXPRESSION}`,
       [
-        name,
-        icon,
-        target_amount,
-        deadline,
-        allowOverflow,
+        name          ?? null,
+        icon          ?? null,
+        target_amount ?? null,
+        deadline      ?? null,
+        allowOverflow ?? null,
+        current_amount ?? null,
+        status        ?? null,
         goalId,
         userId
       ]

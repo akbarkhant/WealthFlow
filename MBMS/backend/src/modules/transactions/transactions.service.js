@@ -387,6 +387,8 @@ async function getById(id, userId) {
  * analyticsEngine.process(transaction);
  * }
  */
+// 📂 services/transactions.service.js
+
 async function* listAllForAnalysis(userId) {
   if (typeof transactionRepository.streamAllByUserId === 'function') {
     yield* transactionRepository.streamAllByUserId(userId);
@@ -398,10 +400,11 @@ async function* listAllForAnalysis(userId) {
   let processingSafetyGuard = 0;
 
   while (hasNext) {
+    // Correct parameter assignment sequence matching your repository signature
     const pageResult = await transactionRepository.findPaginated(userId, {
       limit: 250,
       nextCursor: currentCursor
-    });
+    }, null);
 
     if (!pageResult.transactions || pageResult.transactions.length === 0) {
       break;

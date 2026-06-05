@@ -81,7 +81,7 @@ const Transactions = () => {
     const period = getCurrentPeriod(); // { month, year }
     const range = getMonthDateRange(...Object.values(period).reverse());
     return {
-      ...range,          
+      ...range,
       month: period.month,
       year: period.year,
     };
@@ -124,7 +124,7 @@ const Transactions = () => {
           limit: PAGE_SIZE,
           search: searchQuery.trim() || undefined,
           type: typeFilter === 'all' ? undefined : typeFilter,
-          categoryId: categoryIdFilter,
+          categoryId: categoryIdFilter || undefined, // Ensures clean param omission
           sortBy,
           startDate: currentPeriodValues.startDate,
           endDate: currentPeriodValues.endDate,
@@ -149,7 +149,7 @@ const Transactions = () => {
       setBudgets((Array.isArray(bgs) ? bgs : []).map(mapBudgetForUi));
 
       // Strict Normalization: Sanitizes backend responses stringifying data or changing casings
-      const extractedIncome   = monthly?.totalIncome ?? monthly?.income ?? monthly?.total_income ?? 0;
+      const extractedIncome = monthly?.totalIncome ?? monthly?.income ?? monthly?.total_income ?? 0;
 
       const extractedExpenses = monthly?.totalExpenses ?? monthly?.expenses ?? monthly?.total_expenses ?? 0;
 
@@ -227,21 +227,74 @@ const Transactions = () => {
     setFormError('');
 
     const amount = Number(formData.amount);
+
+    // Validation
     if (!formData.description.trim()) {
       setFormError('Description is required.');
       return;
     }
+
     if (!Number.isFinite(amount) || amount <= 0) {
       setFormError('Amount must be greater than zero.');
       return;
     }
+
     if (!formData.date) {
       setFormError('Date is required.');
       return;
     }
+
     if (!formData.categoryId) {
       setFormError('Select a category.');
       return;
+    }
+
+    // Expense validations
+    if (formData.type === 'expense') {
+      const currentBalance =
+        Number(summary?.totalIncome || 0) -
+        Number(summary?.totalExpenses || 0);
+
+      // Hard prevention: block if overall balance is insufficient
+      if (amount > currentBalance) {
+        setFormError(
+          `Insufficient funds. Available balance: ${money.format(currentBalance)}`
+        );
+        return;
+      }
+
+      // Soft warning: category budget exceeded
+      const selectedCategory = categories.find(
+        (c) => c.id === formData.categoryId
+      );
+
+      const matchingBudget = budgets.find(
+        (b) =>
+          b.categoryId === formData.categoryId ||
+          b.category === selectedCategory?.name
+      );
+
+      if (matchingBudget) {
+        const remainingBudget =
+          Number(matchingBudget.limit || 0) -
+          Number(matchingBudget.used || 0);
+
+        if (amount > remainingBudget) {
+          console.warn(
+            `This transaction will exceed the category budget by ${money.format(
+              amount - remainingBudget
+            )}`
+          );
+
+          // If you want to BLOCK overspending instead:
+          // setFormError(
+          //   `This transaction exceeds the category budget by ${money.format(
+          //     amount - remainingBudget
+          //   )}`
+          // );
+          // return;
+        }
+      }
     }
 
     try {
@@ -258,19 +311,21 @@ const Transactions = () => {
       resetForm();
       setShowAddForm(false);
 
-      // FIX #2: Don't manually call loadData() here. Setting currentPage to 1
-      // triggers the useEffect → loadData dependency chain automatically,
-      // avoiding the double-fetch race condition. If already on page 1, force
-      // a reload by calling loadData once explicitly.
+      // Avoid double-fetches and race conditions
       if (currentPage === 1) {
-        loadData();
+        await loadData();
       } else {
         setCurrentPage(1);
       }
 
       showToast('Transaction added successfully.');
     } catch (err) {
-      setFormError(err.response?.data?.error || err.message || 'Failed to add transaction.');
+      setFormError(
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        'Failed to add transaction.'
+      );
     }
   };
 
@@ -437,7 +492,10 @@ const Transactions = () => {
             <select
               className="select"
               value={sortBy}
-              onChange={(event) => setSortBy(event.target.value)}
+              onChange={(event) => {
+                setSortBy(event.target.value);
+                setCurrentPage(1); // <-- Keeps the page view predictable
+              }}
             >
               <option value="date-desc">Newest first</option>
               <option value="date-asc">Oldest first</option>
@@ -510,9 +568,8 @@ const Transactions = () => {
                           </span>
                         </td>
                         <td
-                          className={`right amount ${
-                            isIncome ? 'amount-positive' : 'amount-negative'
-                          }`}
+                          className={`right amount ${isIncome ? 'amount-positive' : 'amount-negative'
+                            }`}
                         >
                           {isIncome ? '+' : '-'}
                           {money.format(Math.abs(Number(item.amount || 0)))}

@@ -394,7 +394,8 @@ export default function ContactUs() {
 
         {/* Footer */}
         <footer className="cu-footer">
-          <span>© 2026 Khant · Made with React</span>
+          <p>© {new Date().getFullYear()}  WealthFlow Financial Technologies.
+            All rights reserved.</p>
           <span className="cu-footer-divider">·</span>
           <span>Usually responds within a day</span>
         </footer>

@@ -136,14 +136,34 @@ const DashboardContent = () => {
     ];
   }, [monthlyReport]);
 
+  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
   const chartData = useMemo(() => {
-    const all = yearlyReport?.months ?? [];
-    return range === '6m' ? all.slice(-6) : all.slice(-12);
+    // Normalize if data arrives wrapped or as a raw array directly
+    const rawMonths = Array.isArray(yearlyReport)
+      ? yearlyReport
+      : (yearlyReport?.months || []);
+
+    const formattedData = rawMonths.map(item => ({
+      ...item,
+      // Convert numerical 1-indexed months (e.g., 5) to short labels (e.g., 'May')
+      month: typeof item.month === 'number'
+        ? MONTH_NAMES[item.month - 1] || `M${item.month}`
+        : item.month
+    }));
+
+    // Filter based on the selected premium segmented-control timeline toggle
+    return range === '6m' ? formattedData.slice(-6) : formattedData.slice(-12);
   }, [yearlyReport, range]);
 
+  // Track maximum layout ceiling to dynamically calculate CSS bar heights safely
   const chartMax = useMemo(() => {
-    if (!chartData.length) return 1;
-    return Math.max(...chartData.map((d) => Math.max(d.income, d.expense)), 1);
+    if (!chartData || chartData.length === 0) return 1;
+
+    return Math.max(
+      ...chartData.map((d) => Math.max(Number(d.income || 0), Number(d.expense || 0))),
+      1
+    );
   }, [chartData]);
 
   const spendingBreakdownData = useMemo(() => {

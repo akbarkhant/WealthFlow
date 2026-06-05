@@ -54,9 +54,6 @@ async function register(req, res, next) {
 async function login(req, res, next) {
   try {
     // 🔍 TEMPORARY TEST LOG
-    console.log('--- LOGIN CONTROLLER TRACE ---');
-    console.log('Raw Headers:', req.headers['content-type']);
-    console.log('Parsed Request Body:', req.body);
     
     const tokens = await authService.login(req.body);
     sendSuccess(res, tokens);

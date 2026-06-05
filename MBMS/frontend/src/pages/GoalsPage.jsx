@@ -3,6 +3,7 @@ import { useGoals } from '../hooks/useGoals';
 import { MilestoneNode } from '../components/GoalPage/MilestoneNode';
 import { FuelDrawer } from '../components/GoalPage/FuelDrawer';
 import { SUPPORTED_CURRENCIES } from '../hooks/useCurrency';
+import { goalsApi } from '../api/goalsApi.js';
 import DashboardLayout from '../layouts/DashboardLayout';
 import '../styles/pages/GoalsPage.css';
 

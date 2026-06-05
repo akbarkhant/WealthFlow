@@ -11,12 +11,33 @@ const { z } = require('zod');
  * Schema for User Registration requests
  * Expects: name, email, password, and optional currency
  */
-const registerSchema = z.object({
+// Precise regex mirroring Google's strict internal creation constraints
+const GMAIL_SYNTAX_REGEX = /^(?=[a-z0-9.]{6,30}$)(?!.*\.\.)[a-z0-9](?:[a-z0-9.]*[a-z0-9])?$/;
+
+ const registerSchema = z.object({
   // Enforces readable names, trims whitespace, and protects against database overflows
   name: z.string().min(2).max(80).trim(),
   
-  // Sanitizes and standardizes emails to lowercase to prevent duplicates (e.g., User@Bio.com vs user@bio.com)
-  email: z.string().email().toLowerCase().trim(),
+  // Sanitizes, checks baseline validity, and applies Google-specific constraints to @gmail.com handles
+  email: z
+    .string()
+    .email('Invalid email format')
+    .toLowerCase()
+    .trim()
+    .refine((val) => {
+      // Split the handle (local part) from the domain
+      const [localPart, domain] = val.split('@');
+      
+      // If it's a standard consumer Gmail account, apply strict Google validation
+      if (domain === 'gmail.com') {
+        return GMAIL_SYNTAX_REGEX.test(localPart);
+      }
+      
+      // Fallback: Allow standard email architecture rules for all other domains
+      return true;
+    }, {
+      message: 'Gmail handles must be 6-30 characters, use only a-z, 0-9, single periods, and no trailing punctuation.',
+    }),
   
   // Enforces strong security requirements for account creation
   password: z

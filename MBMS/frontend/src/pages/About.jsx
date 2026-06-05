@@ -225,13 +225,13 @@ export default function About() {
                 Got a project in mind or just want to chat? My inbox is always open.
               </p>
               <div className="contact-links">
-                <a href="mailto:khant@example.com" className="btn-primary">
+                <a href="mailto:akbarkhant101@example.com" className="btn-primary">
                   ✉️ Send an email
                 </a>
-                <a href="https://github.com" target="_blank" rel="noreferrer" className="contact-social glass-card">
+                <a href="https://github.com/akbarkhant" target="_blank" rel="noreferrer" className="contact-social glass-card">
                   GitHub
                 </a>
-                <a href="https://linkedin.com" target="_blank" rel="noreferrer" className="contact-social glass-card">
+                <a href="https://linkedin.com/in/akbarkhant" target="_blank" rel="noreferrer" className="contact-social glass-card">
                   LinkedIn
                 </a>
                 <a href="https://twitter.com" target="_blank" rel="noreferrer" className="contact-social glass-card">
@@ -243,7 +243,8 @@ export default function About() {
         </section>
 
         <footer className="footer">
-          <span>© 2026 Khant · Built with React</span>
+          <p>© {new Date().getFullYear()}  WealthFlow Financial Technologies.
+              All rights reserved.</p>
         </footer>
       </main>
     </div>

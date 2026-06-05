@@ -94,8 +94,8 @@ async function list(req, res, next) {
  */
 async function getById(req, res, next) {
   try {
-    // 6. Access Control handled in service via dual parameters
-    const goal = await service.getById(
+    // FIX #3: Was service.getById(...) — correct method name is getGoalById
+    const goal = await service.getGoalById(
       req.params.id,
       req.user.id
     );
@@ -105,6 +105,7 @@ async function getById(req, res, next) {
     next(err);
   }
 }
+
 /**
  * ─────────────────────────────────────────────
  * POST /api/goals
@@ -113,9 +114,9 @@ async function getById(req, res, next) {
  */
 async function create(req, res, next) {
   try {
-    // FIX: Destructure targetAmount (camelCase) to match the JSON input, 
-    // or fallback to target_amount if your legacy frontend sends snake_case.
-    const { name, icon, target_amount, currency, allowOverflow, deadline } = req.body;
+    // FIX #1: Destructure both snake_case and camelCase variants so neither
+    // causes a ReferenceError when the other is absent.
+    const { name, icon, target_amount, targetAmount, currency, allowOverflow, deadline } = req.body;
 
     // Consolidate the variable cleanly
     const finalTarget = target_amount || targetAmount;
@@ -132,11 +133,11 @@ async function create(req, res, next) {
       return res.status(400).json({ success: false, message: 'Goal name is required.' });
     }
 
-    // Forward the sanitized object down to your service layer
-    const newGoal = await service.create(req.user.id, {
+    // FIX #6: Was service.create(...) — correct method name is createGoal
+    const newGoal = await service.createGoal(req.user.id, {
       name,
       icon: icon || '🎯',
-      target_amount: Number(finalTarget),
+      targetAmount: Number(finalTarget),
       currency: currency || 'USD',
       allowOverflow: !!allowOverflow,
       deadline: deadline || null
@@ -166,20 +167,24 @@ async function contribute(req, res, next) {
       return res.status(400).json({ success: false, message: 'Contribution amount must be greater than zero.' });
     }
 
-    // FIX: Pass the raw number directly as the 3rd argument instead of an object
+    // FIX #7: Was contribute(req.params.id, req.user.id, Number(amount)) — service
+    // signature is contribute(goalId, userId, contributionPayload) and expects an
+    // object payload, not a raw number.
     const updatedGoal = await service.contribute(
       req.params.id,
       req.user.id,
-      Number(amount) 
+      { amount: Number(amount) }
     );
 
     const goalWithProgress = calculateProgress(updatedGoal);
 
     return sendSuccess(res, {
       ...goalWithProgress,
+      // FIX #2: Was updatedGoal.status === false (always false); correct check
+      // is whether the goal just transitioned into COMPLETED this request.
       justCompleted:
         goalWithProgress.isCompleted &&
-        updatedGoal.status === false,
+        updatedGoal.justCompleted === true,
       message: `Successfully contributed Rs. ${Number(amount).toLocaleString()} toward your goal.`,
     });
   } catch (err) {
@@ -197,17 +202,17 @@ async function update(req, res, next) {
   try {
     const { name, target_amount, target_date, status, allow_overflow } = req.body;
     
-    // Whitelist acceptable payload parameters to block cross-user or malicious updates (e.g. changing current_amount manually)
+    // Whitelist acceptable payload parameters to block cross-user or malicious
+    // updates (e.g. changing current_amount manually)
     const updatePayload = {};
     if (name !== undefined) updatePayload.name = name;
-    if (target_amount !== undefined) updatePayload.target_amount = Number(target_amount);
-    if (target_date !== undefined) updatePayload.target_date = target_date;
+    if (target_amount !== undefined) updatePayload.targetAmount = Number(target_amount);
+    if (target_date !== undefined) updatePayload.deadline = target_date;
     if (status !== undefined) updatePayload.status = status; // Reopen / Archive / Pause
-    if (allow_overflow !== undefined) updatePayload.allow_overflow = allow_overflow;
+    if (allow_overflow !== undefined) updatePayload.allowOverflow = allow_overflow;
 
-    // 5. Validation and safety constraints are checked in the service layer 
-    // (e.g., verifying target_amount hasn't fallen below current_amount)
-    const updatedGoal = await service.update(
+    // FIX #4: Was service.update(...) — correct method name is patchGoal
+    const updatedGoal = await service.patchGoal(
       req.params.id,
       req.user.id,
       updatePayload
@@ -227,8 +232,8 @@ async function update(req, res, next) {
  */
 async function remove(req, res, next) {
   try {
-    // Service handles ownership checks and safety logic (e.g. soft-delete/archive)
-    await service.remove(req.params.id, req.user.id);
+    // FIX #5: Was service.remove(...) — correct method name is deleteGoal
+    await service.deleteGoal(req.params.id, req.user.id);
 
     return sendSuccess(res, {
       message: 'Financial goal deleted successfully.',

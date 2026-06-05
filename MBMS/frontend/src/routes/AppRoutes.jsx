@@ -56,7 +56,7 @@ const AppRoutes = () => {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path='/admin-dashboard' element={<AdminDashboard/>}/>
-      <Route path="/features/budget-managment" element={<BudgetingPage />} />
+      <Route path="/features/budget-management" element={<BudgetingPage />} />
       <Route path="/features/security" element={<SecurityPage />} />
       <Route path='/features/analytics' element={<SmartAnalytics />} />
       <Route path="/verify-email" element={<VerifyEmail />} />

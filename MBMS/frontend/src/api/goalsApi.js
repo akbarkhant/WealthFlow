@@ -2,6 +2,12 @@
 
 const BASE_URL = '/api/goals';
 
+// Handle session expiration globally
+const handleUnauthorized = () => {
+  localStorage.removeItem('accessToken');
+  window.location.href = '/login';
+};
+
 // Helper function to handle global headers and authentication
 const getAuthHeaders = () => {
   const token = localStorage.getItem('accessToken');
@@ -12,7 +18,7 @@ const getAuthHeaders = () => {
 };
 
 // Centralized API endpoints handler object
-export const goalsApi = {
+const goalsApi = {
 
   // Fetch all goals: GET /api/goals
   getAll: async () => {
@@ -44,16 +50,9 @@ export const goalsApi = {
 
   create: async (goalData) => {
     try {
-
-      const token = localStorage.getItem('accessToken');
-
-      const response = await fetch('/api/goals', {
+      const response = await fetch(BASE_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Include authorization headers if your middleware expects them here
-          'Authorization': `Bearer ${token}`
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(goalData),
       });
       return await response.json();
@@ -64,12 +63,13 @@ export const goalsApi = {
 
   delete: async (goalId) => {
     try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const response = await fetch(`/api/goals/${goalId}`, {
+      const response = await fetch(`${BASE_URL}/${goalId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}` // Mirroring your successful POST fix!
-        }
+        // FIX: Was localStorage.getItem('token') || sessionStorage.getItem('token')
+        // which used a different key ('token') than everywhere else ('accessToken'),
+        // so the header was always an empty Bearer token.
+        // Unified to use getAuthHeaders() for consistency.
+        headers: getAuthHeaders(),
       });
       return await response.json();
     } catch (error) {
@@ -78,11 +78,4 @@ export const goalsApi = {
   },
 };
 
-// ../api/goalsApi.js (or wherever your API layer lives)
-
-
-// Handle session expiration globally
-const handleUnauthorized = () => {
-  localStorage.removeItem('accessToken');
-  window.location.href = '/login';
-};
+module.exports = { goalsApi };

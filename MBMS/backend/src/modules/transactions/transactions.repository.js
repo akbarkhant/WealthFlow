@@ -32,10 +32,11 @@
 
 'use strict';
 
-const { query, pool } = require('../../config/db.config');
-const { v4: uuidv4 }  = require('uuid');
-const { logger }      = require('../../config/logger.config');
-const QueryStream     = require('pg-query-stream');
+const { query } = require('../../config/db.config');
+const { v4: uuidv4 } = require('uuid');
+const { logger } = require('../../config/logger.config');
+const QueryStream = require('pg-query-stream');
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // ── Whitelists ────────────────────────────────────────────────────────────────
 const VALID_TYPES = new Set(['income', 'expense', 'transfer']);
@@ -89,8 +90,11 @@ async function runQuery(client, text, params = [], requireClient = false) {
         'Database isolation failure: an active transaction client is required for this operation.',
       );
     }
-    return query(text, params);
+    // FIX: Unpack .rows here as well from the global query helper
+    const result = await query(text, params);
+    return result?.rows || result;
   }
+
   const result = await client.query(text, params);
   return result.rows;
 }
@@ -177,7 +181,7 @@ async function withBalanceLock(outerClient, userId, delta, mutationFn) {
 async function findUserById(userId, client) {
   assertValidUUID(userId, 'userId');
 
-  const result = await runQuery(
+  const rows = await runQuery(
     client,
     `SELECT id, currency, balance::text AS balance
      FROM users
@@ -185,7 +189,8 @@ async function findUserById(userId, client) {
     [userId]
   );
 
-  return result.rows[0] || null;
+  // FIX: Access the array directly since runQuery has already unpacked it
+  return rows[0] || null;
 }
 
 /**
@@ -247,7 +252,7 @@ async function updateUserBalance(userId, deltaAmount, client) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function findAll(userId, q = {}, client) {
-  const page  = Math.max(Number.parseInt(q.page,  10) || 1, 1);
+  const page = Math.max(Number.parseInt(q.page, 10) || 1, 1);
   const limit = Math.min(Math.max(Number.parseInt(q.limit, 10) || 20, 1), 200);
   const offset = (page - 1) * limit;
 
@@ -290,7 +295,7 @@ async function findAll(userId, q = {}, client) {
   }
 
   const whereClause = conditions.join(' AND ');
-  const limitIdx  = idx;
+  const limitIdx = idx;
   const offsetIdx = idx + 1;
 
   const [countRows, dataRows] = await Promise.all([
@@ -310,7 +315,7 @@ async function findAll(userId, q = {}, client) {
        ORDER BY t.date DESC, t.id DESC
        LIMIT  $${limitIdx}
        OFFSET $${offsetIdx}`,
-       [...values, limit, offset],
+      [...values, limit, offset],
     ),
   ]);
 
@@ -378,7 +383,7 @@ async function findPaginated(userId, filters = {}, client) {
       const [cursorDate, cursorId] = decoded.split('|');
 
       if (cursorDate && cursorId) {
-        assertValidUUID(cursorId,   'cursor.id');
+        assertValidUUID(cursorId, 'cursor.id');
         assertValidDate(cursorDate, 'cursor.date');
 
         const cdIdx = idx++;
@@ -411,10 +416,10 @@ async function findPaginated(userId, filters = {}, client) {
 
   let nextCursor = null;
   if (hasNextPage && pageResults.length > 0) {
-    const last    = pageResults[pageResults.length - 1];
+    const last = pageResults[pageResults.length - 1];
     const dateStr = String(last.date).slice(0, 10);
     const payload = `${dateStr}|${last.id}`;
-    nextCursor    = Buffer.from(payload).toString('base64');
+    nextCursor = Buffer.from(payload).toString('base64');
   }
 
   return {
@@ -477,10 +482,11 @@ async function findByIdempotencyKey(userId, idempotencyKey, client) {
  * Inserts a new transaction and atomically updates the owner's balance.
  */
 async function create(userId, input, amountInBaseCurrency, outerClient = null) {
+  // 1. Enforce validation patterns
   if (input.type && !VALID_TYPES.has(input.type)) {
     throw new Error(`Invalid transaction type "${input.type}".`);
   }
-  if (input.categoryId)        assertValidUUID(input.categoryId,       'categoryId');
+  if (input.categoryId) assertValidUUID(input.categoryId, 'categoryId');
   if (input.destinationUserId) assertValidUUID(input.destinationUserId, 'destinationUserId');
 
   const amt = Number(input.amount);
@@ -488,19 +494,30 @@ async function create(userId, input, amountInBaseCurrency, outerClient = null) {
     throw new Error('"amount" must be a finite positive number.');
   }
 
-  const id    = uuidv4();
+  // 2. Inject the 2 to 4 second variable exchange rate network delay
+  const randomDelay = Math.floor(Math.random() * (4000 - 2000 + 1)) + 2000;
+  console.log(`[Exchange Rate] Simulating network lookup delay of ${randomDelay}ms...`);
+  await sleep(randomDelay);
+
+  // 3. Setup structural transaction primitives
+  const id = uuidv4();
   const delta = balanceDelta(input.type, Number(amountInBaseCurrency));
 
+  // 4. Execute atomic database block using the safe 'client' proxy handle
   await withBalanceLock(outerClient, userId, delta, async (client) => {
-    // If it's a transfer, apply the credit delta side to the destination user inside the same block
+    
+    // Handle specific atomic transfers across accounting scopes
     if (input.type === 'transfer' && input.destinationUserId) {
       await findUserByIdForUpdate(input.destinationUserId, client);
-      const destAmountBase = input.destinationAmountInBaseCurrency 
-        ? Number(input.destinationAmountInBaseCurrency) 
+      
+      const destAmountBase = input.destinationAmountInBaseCurrency
+        ? Number(input.destinationAmountInBaseCurrency)
         : Number(amountInBaseCurrency);
+        
       await updateUserBalance(input.destinationUserId, destAmountBase, client);
     }
 
+    // Run core database write operational queries
     await runQuery(
       client,
       `INSERT INTO transactions (
@@ -513,23 +530,25 @@ async function create(userId, input, amountInBaseCurrency, outerClient = null) {
         id,
         userId,
         input.destinationUserId ?? null,
-        input.categoryId        ?? null,
+        input.categoryId ?? null,
         amt,
         input.currency,
         Number(amountInBaseCurrency),
         input.destinationAmountInBaseCurrency ?? null,
-        input.exchangeRateUsed                  ?? '1.000000000000',
-        input.idempotencyKey                    ?? null,
+        input.exchangeRateUsed ?? '1.000000000000',
+        input.idempotencyKey ?? null,
         input.type,
-        input.description                       ?? null,
+        input.description ?? null,
         input.date,
-        input.isRecurring                       ?? false,
+        input.isRecurring ?? false,
       ],
       true,
     );
   });
 
-  return findById(id, userId, null);
+  // 5. Query out the freshly created record using the persistent execution context client
+  // FIX: Passing the final query runner context down safely
+  return findById(id, userId, outerClient);
 }
 
 /**
@@ -600,7 +619,7 @@ async function update(id, userId, input, amountInBaseCurrency, outerClient = nul
   if (fields.length === 0) return findById(id, userId, null);
 
   fields.push('updated_at = NOW()');
-  const idIdx     = idx++;
+  const idIdx = idx++;
   const userIdIdx = idx;
   values.push(id, userId);
 
@@ -610,8 +629,8 @@ async function update(id, userId, input, amountInBaseCurrency, outerClient = nul
 
   if (amountInBaseCurrency !== undefined || input.type !== undefined) {
     const oldDelta = balanceDelta(existing.type, Number(existing.amountInBaseCurrency));
-    const newType  = input.type              ?? existing.type;
-    const newBase  = amountInBaseCurrency    != null ? Number(amountInBaseCurrency) : Number(existing.amountInBaseCurrency);
+    const newType = input.type ?? existing.type;
+    const newBase = amountInBaseCurrency != null ? Number(amountInBaseCurrency) : Number(existing.amountInBaseCurrency);
     const newDelta = balanceDelta(newType, newBase);
     delta = newDelta - oldDelta;
   }
@@ -622,7 +641,7 @@ async function update(id, userId, input, amountInBaseCurrency, outerClient = nul
       await findUserByIdForUpdate(existing.destinationUserId, client);
       if (input.destinationAmountInBaseCurrency !== undefined) {
         const oldDestAmt = Number(existing.destinationAmountInBaseCurrency || existing.amountInBaseCurrency);
-        const newDestAmt = Number(input.destinationAmountInBaseCurrency    || amountInBaseCurrency || existing.amountInBaseCurrency);
+        const newDestAmt = Number(input.destinationAmountInBaseCurrency || amountInBaseCurrency || existing.amountInBaseCurrency);
         await updateUserBalance(existing.destinationUserId, newDestAmt - oldDestAmt, client);
       }
     }
@@ -705,7 +724,7 @@ function streamAllByUserId(userId) {
 
 async function getMonthlySummary(userId, startDate, endDate, client) {
   assertValidDate(startDate, 'startDate');
-  assertValidDate(endDate,   'endDate');
+  assertValidDate(endDate, 'endDate');
   if (new Date(startDate) > new Date(endDate)) {
     throw new Error('startDate cannot be after endDate.');
   }
@@ -728,7 +747,7 @@ async function getMonthlySummary(userId, startDate, endDate, client) {
 
 async function getCategoryBreakdown(userId, startDate, endDate, client) {
   assertValidDate(startDate, 'startDate');
-  assertValidDate(endDate,   'endDate');
+  assertValidDate(endDate, 'endDate');
 
   if (client) await client.query("SET LOCAL statement_timeout = '5s'");
 
@@ -761,7 +780,7 @@ async function getCategoryBreakdown(userId, startDate, endDate, client) {
 
 async function getYearlyTrajectory(userId, startOfYear, endOfYear, client) {
   assertValidDate(startOfYear, 'startOfYear');
-  assertValidDate(endOfYear,   'endOfYear');
+  assertValidDate(endOfYear, 'endOfYear');
 
   if (client) await client.query("SET LOCAL statement_timeout = '8s'");
 
@@ -799,17 +818,25 @@ async function getRecentDashboardTransactions(userId, limit = 5, client) {
   );
 }
 
-async function findByMonth(userId, month, year) {
+async function findByMonth(userId, month, year, client) {
+  // Construct clean ISO date boundaries for the month to hit indices beautifully
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  // Let Postgres compute the absolute timestamp boundary safely
+  const endDate = `(date '${startDate}' + interval '1 month' - interval '1 day')::date`;
+
   const sql = `
-    SELECT *
-    FROM transactions
-    WHERE user_id = $1
-      AND EXTRACT(MONTH FROM created_at) = $2
-      AND EXTRACT(YEAR FROM created_at) = $3
+    SELECT ${TRANSACTION_SELECT}
+    FROM transactions t
+    LEFT JOIN categories c ON c.id = t.category_id
+    WHERE (t.user_id = $1 OR t.destination_user_id = $1)
+      AND t.date >= $2::date
+      AND t.date <= ${endDate}
+      AND t.deleted_at IS NULL
+    ORDER BY t.date DESC, t.id DESC
   `;
 
-  const result = await query(sql, [userId, month, year]);
-  return result.rows ?? [];
+  // Uses runQuery to instantly enjoy array normalization
+  return runQuery(client, sql, [userId, startDate]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -821,18 +848,18 @@ module.exports = {
   getUserBalance,
   findUserByIdForUpdate,
   updateUserBalance,
-  
+
   findAll,
   findPaginated,
   findAllUnpaginated,
   findById,
   findByIdempotencyKey,
   streamAllByUserId,
-  
+
   create,
   update,
   softDelete,
-  
+
   getMonthlySummary,
   getCategoryBreakdown,
   getYearlyTrajectory,
