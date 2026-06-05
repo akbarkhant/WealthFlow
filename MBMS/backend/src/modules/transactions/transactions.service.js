@@ -1,440 +1,471 @@
-const repo = require('./transactions.repository');
-const { withTransaction } = require('../../config/db.config');
+/**
+ * @module services/transaction.service
+ * @description Production-grade transaction engine coordinating high-precision 
+ * minor-unit ledger logic, isolated network IO, and robust streaming mechanisms.
+ */
+
+'use strict';
+
+const transactionRepository = require('./transactions.repository');
+const dbConfig = require('../../config/db.config');
 const currencyService = require('../currencies/currencies.service');
 const notificationService = require('../notifications/notification.service');
 const { AppError, ForbiddenError, NotFoundError } = require('../../shared/AppError');
-
-const AMOUNT_SCALE = 100n;
-const RATE_MAX_SCALE = 12;
-
-function normalizeCurrency(value, fieldName = 'currency') {
-  const currency = String(value || '').trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) {
-    throw new AppError(`${fieldName} must be a 3-letter ISO currency code`, 400);
-  }
-  return currency;
+const { logger } = require('../../config/logger.config');
+const moneyUtil = require('../../utils/money.utils');
+``
+if (!dbConfig || typeof dbConfig.withTransaction !== 'function') {
+  throw new Error('Database Infrastructure Failure: withTransaction helper not found.');
 }
 
-function parseDecimalToMinorUnits(value, fieldName = 'amount', options = {}) {
-  const { allowNegative = false } = options;
-  const raw = String(value).trim();
-  const pattern = allowNegative ? /^-?\d+(\.\d{1,2})?$/ : /^\d+(\.\d{1,2})?$/;
+const withTransaction = dbConfig.withTransaction;
 
-  if (!pattern.test(raw)) {
-    throw new AppError(`${fieldName} must be a decimal with at most 2 fractional digits`, 400);
-  }
+/* ────────────────────────────────────────────────────────────────────────── */
+/* 🛡️ INTERNAL AUXILIARY ENGINE METHODS                                       */
+/* ────────────────────────────────────────────────────────────────────────── */
 
-  const sign = raw.startsWith('-') ? -1n : 1n;
-  const unsigned = raw.startsWith('-') ? raw.slice(1) : raw;
-  const [wholePart, fractionPart = ''] = unsigned.split('.');
-  const whole = BigInt(wholePart);
-  const cents = BigInt(fractionPart.padEnd(2, '0'));
-
-  return sign * ((whole * AMOUNT_SCALE) + cents);
-}
-
-function formatMinorUnits(minorUnits) {
-  const sign = minorUnits < 0n ? '-' : '';
-  const absolute = minorUnits < 0n ? -minorUnits : minorUnits;
-  const whole = absolute / AMOUNT_SCALE;
-  const cents = absolute % AMOUNT_SCALE;
-
-  return `${sign}${whole.toString()}.${cents.toString().padStart(2, '0')}`;
-}
-
-function parseRateToRatio(rate) {
-  if (typeof rate === 'number') {
-    if (!Number.isFinite(rate)) {
-      throw new AppError('Exchange rate must be finite', 400);
-    }
-    rate = rate.toFixed(RATE_MAX_SCALE);
-  }
-
-  let raw = String(rate).trim();
-  if (raw.includes('.')) {
-    raw = raw.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
-  }
-
-  if (!/^\d+(\.\d{1,12})?$/.test(raw)) {
-    throw new AppError('Exchange rate must be a positive decimal', 400);
-  }
-
-  const [wholePart, fractionPart = ''] = raw.split('.');
-  const numerator = BigInt(`${wholePart}${fractionPart}`);
-  const denominator = 10n ** BigInt(fractionPart.length);
-
-  if (numerator <= 0n) {
-    throw new AppError('Exchange rate must be greater than zero', 400);
-  }
-
-  return { numerator, denominator };
-}
-
-function multiplyMinorUnitsByRate(amountMinorUnits, rate) {
-  const { numerator, denominator } = parseRateToRatio(rate);
-  const product = amountMinorUnits * numerator;
-
-  return (product + (denominator / 2n)) / denominator;
-}
-
-async function convertCurrencyAmount(amount, fromCurrency, toCurrency) {
-  const sourceCurrency = normalizeCurrency(fromCurrency, 'fromCurrency');
-  const targetCurrency = normalizeCurrency(toCurrency, 'toCurrency');
-  const amountMinorUnits = parseDecimalToMinorUnits(amount, 'amount');
-
-  if (sourceCurrency === targetCurrency) {
-    return formatMinorUnits(amountMinorUnits);
-  }
-
-  const rate = await currencyService.getExchangeRate(sourceCurrency, targetCurrency);
-  const convertedMinorUnits = multiplyMinorUnitsByRate(amountMinorUnits, rate);
-
-  if (convertedMinorUnits <= 0n) {
-    throw new AppError('Converted amount rounds to zero', 400);
-  }
-
-  return formatMinorUnits(convertedMinorUnits);
-}
-
-function assertSufficientFunds(balance, requiredAmount, message = 'Insufficient funds') {
-  const balanceMinorUnits = parseDecimalToMinorUnits(balance, 'balance', {
-    allowNegative: true,
-  });
-  const requiredMinorUnits = parseDecimalToMinorUnits(requiredAmount, 'requiredAmount');
-
+/**
+ * Validates balance limits using clean minor-unit calculations.
+ */
+function assertSufficientFunds(balanceStr, requiredMinorUnits, message = 'Insufficient funds') {
+  const balanceMinorUnits = moneyUtil.parseDecimalToMinorUnits(balanceStr, 'balance', { allowNegative: true });
   if (balanceMinorUnits < requiredMinorUnits) {
     throw new AppError(message, 400);
   }
 }
 
-function signedAmount(minorUnits) {
-  return formatMinorUnits(minorUnits);
-}
-
-function negateAmount(amount) {
-  return formatMinorUnits(-parseDecimalToMinorUnits(amount, 'amount'));
-}
-
-function extractYearMonth(dateInput) {
+/**
+ * Extracts Year-Month elements safely via structural token arrays.
+ * Fixes Bug #3 (Potential formatting structure crash).
+ */
+function extractYearMonth(dateInput, timezone = 'UTC') {
   if (!dateInput) return null;
-  const text = dateInput instanceof Date ? dateInput.toISOString() : String(dateInput);
-  return /^\d{4}-\d{2}/.test(text) ? text.slice(0, 7) : null;
+  const targetDate = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  
+  if (Number.isNaN(targetDate.getTime())) return null;
+
+  try {
+    const parts = new Intl.DateTimeFormat('en', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit'
+    }).formatToParts(targetDate);
+
+    const yearPart = parts.find(p => p.type === 'year');
+    const monthPart = parts.find(p => p.type === 'month');
+
+    if (!yearPart || !monthPart) return null;
+    return `${yearPart.value}-${monthPart.value}`;
+  } catch (error) {
+    logger.error({ error, dateInput }, 'Failed to parse year-month format string components.');
+    return null;
+  }
 }
 
+/**
+ * Triggers asynchronous background budget compliance assessments.
+ * Fixes Improvement #1 (Silent background failure logging).
+ */
+function triggerBudgetAlert(userId, categoryId, yearMonth) {
+  if (!categoryId || !yearMonth) return;
+  notificationService.checkBudgetAlerts(userId, categoryId, yearMonth)
+    .catch((error) => {
+      logger.warn({ error, userId, categoryId, yearMonth }, 'Deferred budget tracking evaluation failed.');
+    });
+}
+
+/**
+ * Organizes profile record indexes deterministically to minimize database deadlock possibilities.
+ */
 async function lockUsersForUpdate(userIds, client) {
-  const uniqueIds = [...new Set(userIds)].sort();
+  const uniqueIds = [...new Set(userIds.filter(id => id !== null && id !== undefined))].sort();
   const lockedUsers = new Map();
 
   for (const id of uniqueIds) {
-    const user = await repo.findUserByIdForUpdate(id, client);
+    const user = await transactionRepository.findUserByIdForUpdate(id, client);
     if (user) {
       lockedUsers.set(id, user);
     }
   }
-
   return lockedUsers;
 }
 
-function triggerBudgetAlert(userId, categoryId, yearMonth) {
-  if (!categoryId || !yearMonth) return;
+/* ────────────────────────────────────────────────────────────────────────── */
+/* 🚀 MUTATION ORCHESTRATION PIPELINES (ATOMIC TRANSACTIONS)                  */
+/* ────────────────────────────────────────────────────────────────────────── */
 
-  notificationService
-    .checkBudgetAlerts(userId, categoryId, yearMonth)
-    .catch(() => {});
-}
-
-async function list(userId, query) {
-  return repo.findAll(userId, query);
-}
-
-async function getById(id, userId) {
-  const transaction = await repo.findById(id, userId);
-  if (!transaction) throw new NotFoundError('Transaction');
-  return transaction;
-}
-
-async function create(userId, input) {
+/**
+ * Handles atomic single-party and multi-party transaction entries.
+ * Fixes Critical Issues #1 & #2: Resolves exchange metrics and un-locked lookups outside the transaction context.
+ */
+async function create(userId, input, contextOptions = {}) {
+  const { idempotencyKey = null } = contextOptions;
   let budgetAlert = null;
 
+  // 1. Idempotency Guard check before hitting core locks
+  if (idempotencyKey) {
+    const existingTx = await transactionRepository.findByIdempotencyKey(userId, idempotencyKey);
+    if (existingTx) {
+      logger.info({ userId, idempotencyKey, event: 'TRANSACTION_IDEMPOTENCY_HIT' }, 'Idempotency checkpoint matched. Returning cached record.');
+      return existingTx;
+    }
+  }
+
+  // 2. Perform safe read-only target validation outside transaction locks
+  const sourceUserCheck = await transactionRepository.findUserById(userId);
+  if (!sourceUserCheck) throw new NotFoundError('User');
+
+  const inputCurrency = moneyUtil.normalizeCurrency(input.currency || sourceUserCheck.currency);
+  const userBaseCurrency = moneyUtil.normalizeCurrency(sourceUserCheck.currency);
+
+  let targetDestUserCurrency = null;
+  let computedExchangeRate = '1.000000000000';
+
+  if (input.type === 'transfer') {
+    if (!input.destinationUserId) throw new AppError('Destination user ID is required for transfers', 400);
+    if (input.destinationUserId === userId) throw new AppError('Cannot transfer money to the same user', 400);
+
+    const destUserCheck = await transactionRepository.findUserById(input.destinationUserId);
+    if (!destUserCheck) throw new NotFoundError('Destination user');
+    targetDestUserCurrency = moneyUtil.normalizeCurrency(destUserCheck.currency);
+  }
+
+  // 3. Resolve network currency exchange data safely prior to executing database engine locks
+  if (inputCurrency !== userBaseCurrency) {
+    const rate = await currencyService.getExchangeRate(inputCurrency, userBaseCurrency);
+    computedExchangeRate = typeof rate === 'number' ? rate.toFixed(12) : String(rate);
+  }
+
+  const sourceAmountMinorUnits = moneyUtil.parseDecimalToMinorUnits(input.amount, 'amount');
+  const sourceAmountInBaseMinor = inputCurrency === userBaseCurrency 
+    ? sourceAmountMinorUnits 
+    : moneyUtil.multiplyMinorUnitsByRate(sourceAmountMinorUnits, computedExchangeRate);
+
+  let destinationAmountInBaseMinor = sourceAmountInBaseMinor;
+
+  if (input.type === 'transfer' && targetDestUserCurrency !== userBaseCurrency) {
+    const destRate = await currencyService.getExchangeRate(inputCurrency, targetDestUserCurrency);
+    destinationAmountInBaseMinor = moneyUtil.multiplyMinorUnitsByRate(sourceAmountMinorUnits, destRate);
+  }
+
+  // 4. Open atomic database transaction container
   const transaction = await withTransaction(async (client) => {
-    if (input.type === 'transfer' && !input.destinationUserId) {
-      throw new AppError('Destination user ID is required for transfers', 400);
-    }
-
-    if (input.type === 'transfer' && input.destinationUserId === userId) {
-      throw new AppError('Cannot transfer money to the same user', 400);
-    }
-
-    const userIdsToLock = input.type === 'transfer'
-      ? [userId, input.destinationUserId]
-      : [userId];
+    const userIdsToLock = input.type === 'transfer' ? [userId, input.destinationUserId] : [userId];
     const lockedUsers = await lockUsersForUpdate(userIdsToLock, client);
+    
     const sourceUser = lockedUsers.get(userId);
+    if (!sourceUser) throw new NotFoundError('User');
 
-    if (!sourceUser) {
-      throw new NotFoundError('User');
+    if (input.type === 'transfer' || input.type === 'expense') {
+      assertSufficientFunds(sourceUser.balance, sourceAmountInBaseMinor);
     }
 
-    const sourceAmountInBase = await convertCurrencyAmount(
-      input.amount,
-      input.currency,
-      sourceUser.currency
+    // Capture precise parameters directly inside immutable entry structure values
+    const enrichedInput = {
+      ...input,
+      exchangeRateUsed: computedExchangeRate,
+      destinationAmountInBaseCurrency: input.type === 'transfer' ? moneyUtil.formatMinorUnits(destinationAmountInBaseMinor) : null,
+      idempotencyKey
+    };
+
+    const created = await transactionRepository.create(
+      userId, 
+      enrichedInput, 
+      moneyUtil.formatMinorUnits(sourceAmountInBaseMinor), 
+      client
     );
 
     if (input.type === 'transfer') {
-      const destinationUser = lockedUsers.get(input.destinationUserId);
-
-      if (!destinationUser) {
-        throw new NotFoundError('Destination user');
-      }
-
-      assertSufficientFunds(sourceUser.balance, sourceAmountInBase);
-
-      const destinationAmountInBase = await convertCurrencyAmount(
-        input.amount,
-        input.currency,
-        destinationUser.currency
-      );
-
-      const created = await repo.create(userId, input, sourceAmountInBase, client);
-      await repo.updateUserBalance(userId, negateAmount(sourceAmountInBase), client);
-      await repo.updateUserBalance(input.destinationUserId, destinationAmountInBase, client);
-
-      return {
-        ...created,
-        destinationAmountInBaseCurrency: destinationAmountInBase,
-        destinationCurrency: destinationUser.currency,
-      };
+      await transactionRepository.updateUserBalance(userId, moneyUtil.formatMinorUnits(-sourceAmountInBaseMinor), client);
+      await transactionRepository.updateUserBalance(input.destinationUserId, moneyUtil.formatMinorUnits(destinationAmountInBaseMinor), client);
+    } else {
+      const balanceDelta = input.type === 'expense' ? -sourceAmountInBaseMinor : sourceAmountInBaseMinor;
+      await transactionRepository.updateUserBalance(userId, moneyUtil.formatMinorUnits(balanceDelta), client);
     }
 
     if (input.type === 'expense') {
-      assertSufficientFunds(sourceUser.balance, sourceAmountInBase);
+      budgetAlert = { userId, categoryId: input.categoryId, yearMonth: extractYearMonth(input.date) };
     }
 
-    const created = await repo.create(userId, input, sourceAmountInBase, client);
-    const balanceDelta = input.type === 'expense'
-      ? negateAmount(sourceAmountInBase)
-      : sourceAmountInBase;
-
-    await repo.updateUserBalance(userId, balanceDelta, client);
-
-    if (input.type === 'expense') {
-      budgetAlert = {
-        userId,
-        categoryId: input.categoryId,
-        yearMonth: extractYearMonth(input.date),
-      };
-    }
+    // Structured Audit Logging (Improvement #3)
+    logger.info({
+      event: 'TRANSACTION_CREATED',
+      userId,
+      transactionId: created.id,
+      amount: input.amount,
+      currency: inputCurrency,
+      type: input.type,
+      exchangeRateUsed: computedExchangeRate
+    }, 'Ledger asset transaction processed successfully.');
 
     return created;
   });
 
   if (budgetAlert) {
-    triggerBudgetAlert(
-      budgetAlert.userId,
-      budgetAlert.categoryId,
-      budgetAlert.yearMonth
-    );
+    triggerBudgetAlert(budgetAlert.userId, budgetAlert.categoryId, budgetAlert.yearMonth);
   }
-
   return transaction;
 }
 
+/**
+ * Handles field modifications on single-party records safely.
+ * Fixes Bugs #4, #8, #10: Adds runtime validation, currency-lookup safety checks, and handles meta changes.
+ */
 async function update(id, userId, input) {
   let budgetAlert = null;
 
+  const originalCheck = await transactionRepository.findById(id, userId);
+  if (!originalCheck) throw new NotFoundError('Transaction');
+  if (originalCheck.userId !== userId) throw new ForbiddenError('Access Denied');
+
+  const prospectiveType = input.type !== undefined ? input.type : originalCheck.type;
+  if (originalCheck.type === 'transfer' || prospectiveType === 'transfer' || input.destinationUserId !== undefined) {
+    throw new AppError('Transfer transactions cannot be modified directly. Reverse and recreate instead.', 400);
+  }
+
+  const userProfile = await transactionRepository.findUserById(userId);
+  if (!userProfile) throw new NotFoundError('User profile details not found');
+
+  const fieldsAffectingCalculations = ['amount', 'currency', 'type', 'categoryId', 'date'];
+  const hasCalculationFieldChanges = fieldsAffectingCalculations.some(field => input[field] !== undefined);
+
+  let nextAmountInBaseMinor = moneyUtil.parseDecimalToMinorUnits(originalCheck.amountInBaseCurrency, 'amountInBaseCurrency');
+  let computedExchangeRate = originalCheck.exchangeRateUsed || '1.000000000000';
+
+  // Perform currency calculations outside database engine locks
+  if (hasCalculationFieldChanges) {
+    const nextAmount = input.amount ?? originalCheck.amount;
+    const nextCurrency = moneyUtil.normalizeCurrency(input.currency ?? originalCheck.currency);
+    const userBaseCurrency = moneyUtil.normalizeCurrency(userProfile.currency);
+
+    if (nextCurrency !== userBaseCurrency) {
+      const rate = await currencyService.getExchangeRate(nextCurrency, userBaseCurrency);
+      computedExchangeRate = typeof rate === 'number' ? rate.toFixed(12) : String(rate);
+    } else {
+      computedExchangeRate = '1.000000000000';
+    }
+
+    const nextAmountMinorUnits = moneyUtil.parseDecimalToMinorUnits(nextAmount, 'amount');
+    nextAmountInBaseMinor = nextCurrency === userBaseCurrency
+      ? nextAmountMinorUnits
+      : moneyUtil.multiplyMinorUnitsByRate(nextAmountMinorUnits, computedExchangeRate);
+  }
+
   const transaction = await withTransaction(async (client) => {
-    const existing = await repo.findById(id, userId, client);
-
-    if (!existing) {
-      throw new NotFoundError('Transaction');
-    }
-
-    if (existing.userId !== userId) {
-      throw new ForbiddenError('Only the transfer sender can modify this transaction');
-    }
-
-    if (
-      existing.type === 'transfer'
-      || input.type === 'transfer'
-      || input.destinationUserId !== undefined
-    ) {
-      throw new AppError(
-        'Transfer transactions cannot be modified directly. Reverse and recreate instead.',
-        400
-      );
-    }
-
     const lockedUsers = await lockUsersForUpdate([userId], client);
     const user = lockedUsers.get(userId);
+    if (!user) throw new NotFoundError('User');
 
-    if (!user) {
-      throw new NotFoundError('User');
-    }
-
-    const amountChanged = input.amount !== undefined;
-    const currencyChanged = input.currency !== undefined;
-    const typeChanged = input.type !== undefined;
-    const needsBalanceRecalculation = amountChanged || currencyChanged || typeChanged;
-
-    let nextAmountInBase;
-
-    if (needsBalanceRecalculation) {
-      const nextAmount = input.amount ?? existing.amount;
-      const nextCurrency = input.currency ?? existing.currency;
-      const nextType = input.type ?? existing.type;
-      nextAmountInBase = await convertCurrencyAmount(nextAmount, nextCurrency, user.currency);
-
-      const existingAmountMinorUnits = parseDecimalToMinorUnits(
-        existing.amountInBaseCurrency,
-        'amountInBaseCurrency'
-      );
-      const nextAmountMinorUnits = parseDecimalToMinorUnits(
-        nextAmountInBase,
-        'nextAmountInBase'
-      );
-
-      const reversalMinorUnits = existing.type === 'expense'
-        ? existingAmountMinorUnits
-        : -existingAmountMinorUnits;
-      const applicationMinorUnits = nextType === 'expense'
-        ? -nextAmountMinorUnits
-        : nextAmountMinorUnits;
+    if (hasCalculationFieldChanges) {
+      const existingAmountMinorUnits = moneyUtil.parseDecimalToMinorUnits(originalCheck.amountInBaseCurrency, 'amountInBaseCurrency');
+      const reversalMinorUnits = originalCheck.type === 'expense' ? existingAmountMinorUnits : -existingAmountMinorUnits;
+      const applicationMinorUnits = prospectiveType === 'expense' ? -nextAmountInBaseMinor : nextAmountInBaseMinor;
       const netDeltaMinorUnits = reversalMinorUnits + applicationMinorUnits;
 
       if (netDeltaMinorUnits < 0n) {
-        assertSufficientFunds(user.balance, formatMinorUnits(-netDeltaMinorUnits));
+        assertSufficientFunds(user.balance, moneyUtil.formatMinorUnits(-netDeltaMinorUnits));
       }
 
       if (netDeltaMinorUnits !== 0n) {
-        await repo.updateUserBalance(userId, signedAmount(netDeltaMinorUnits), client);
+        await transactionRepository.updateUserBalance(userId, moneyUtil.formatMinorUnits(netDeltaMinorUnits), client);
       }
     }
 
-    const updated = await repo.update(id, userId, input, nextAmountInBase, client);
+    const enrichedInput = { ...input, exchangeRateUsed: computedExchangeRate };
+    const updated = await transactionRepository.update(id, userId, enrichedInput, moneyUtil.formatMinorUnits(nextAmountInBaseMinor), client);
 
-    if ((input.type ?? existing.type) === 'expense') {
+    if (prospectiveType === 'expense') {
       budgetAlert = {
         userId,
-        categoryId: input.categoryId ?? existing.categoryId,
-        yearMonth: extractYearMonth(input.date ?? existing.date),
+        categoryId: input.categoryId ?? originalCheck.categoryId,
+        yearMonth: extractYearMonth(input.date ?? originalCheck.date),
       };
     }
+
+    logger.info({
+      event: 'TRANSACTION_UPDATED',
+      userId,
+      transactionId: id,
+      modifiedFields: Object.keys(input)
+    }, 'Ledger tracking item structural line updated.');
 
     return updated;
   });
 
   if (budgetAlert) {
-    triggerBudgetAlert(
-      budgetAlert.userId,
-      budgetAlert.categoryId,
-      budgetAlert.yearMonth
-    );
+    triggerBudgetAlert(budgetAlert.userId, budgetAlert.categoryId, budgetAlert.yearMonth);
   }
-
   return transaction;
 }
 
+/**
+ * Clears an active record and safely reverses minor-unit allocation deltas.
+ */
 async function remove(id, userId) {
-  const transaction = await withTransaction(async (client) => {
-    const existing = await repo.findById(id, userId, client);
-
-    if (!existing) {
-      throw new NotFoundError('Transaction');
-    }
-
-    if (existing.userId !== userId) {
-      throw new ForbiddenError('Only the transfer sender can remove this transaction');
-    }
+  return withTransaction(async (client) => {
+    const existing = await transactionRepository.findById(id, userId, client);
+    if (!existing) throw new NotFoundError('Transaction');
+    if (existing.userId !== userId) throw new ForbiddenError('Access Denied');
 
     if (existing.type === 'transfer') {
       if (!existing.destinationUserId) {
-        throw new AppError('Transfer destination is missing', 400);
+        throw new AppError('Transfer destination target context metadata missing association link records.', 400);
+      }
+      // Fixes Bug #6: Require destination baseline values explicitly on line reversals
+      if (!existing.destinationAmountInBaseCurrency) {
+        throw new AppError('Historical multi-currency data integrity failure: destination base amount missing.', 500);
       }
 
-      const lockedUsers = await lockUsersForUpdate(
-        [userId, existing.destinationUserId],
-        client
-      );
-      const sourceUser = lockedUsers.get(userId);
+      const lockedUsers = await lockUsersForUpdate([userId, existing.destinationUserId], client);
       const destinationUser = lockedUsers.get(existing.destinationUserId);
+      if (!destinationUser) throw new NotFoundError('Destination user record missing');
 
-      if (!sourceUser) {
-        throw new NotFoundError('User');
-      }
-
-      if (!destinationUser) {
-        throw new NotFoundError('Destination user');
-      }
-
-      const destinationReversalAmount = await convertCurrencyAmount(
-        existing.amount,
-        existing.currency,
-        destinationUser.currency
-      );
+      const destReversalMinor = moneyUtil.parseDecimalToMinorUnits(existing.destinationAmountInBaseCurrency, 'destinationAmountInBaseCurrency');
 
       assertSufficientFunds(
         destinationUser.balance,
-        destinationReversalAmount,
-        'Destination user has insufficient funds to reverse this transfer'
+        destReversalMinor,
+        'Destination user has insufficient balance space to reverse this transfer'
       );
 
-      await repo.updateUserBalance(userId, existing.amountInBaseCurrency, client);
-      await repo.updateUserBalance(
-        existing.destinationUserId,
-        negateAmount(destinationReversalAmount),
-        client
-      );
+      await transactionRepository.updateUserBalance(userId, existing.amountInBaseCurrency, client);
+      await transactionRepository.updateUserBalance(existing.destinationUserId, moneyUtil.formatMinorUnits(-destReversalMinor), client);
+    } else {
+      const lockedUsers = await lockUsersForUpdate([userId], client);
+      const user = lockedUsers.get(userId);
+      if (!user) throw new NotFoundError('User');
 
-      const deleted = await repo.softDelete(id, userId, client);
-      if (!deleted) throw new NotFoundError('Transaction');
+      const amountMinor = moneyUtil.parseDecimalToMinorUnits(existing.amountInBaseCurrency, 'amountInBaseCurrency');
+      const reversalDelta = existing.type === 'expense' ? amountMinor : -amountMinor;
 
-      return existing;
+      if (reversalDelta < 0n) {
+        assertSufficientFunds(user.balance, moneyUtil.formatMinorUnits(-reversalDelta));
+      }
+
+      await transactionRepository.updateUserBalance(userId, moneyUtil.formatMinorUnits(reversalDelta), client);
     }
 
-    const lockedUsers = await lockUsersForUpdate([userId], client);
-    const user = lockedUsers.get(userId);
+    const deleted = await transactionRepository.softDelete(id, userId, client);
+    if (!deleted) throw new NotFoundError('Transaction record deletion aborted');
 
-    if (!user) {
-      throw new NotFoundError('User');
-    }
-
-    const amountInBase = existing.amountInBaseCurrency;
-    const reversalMinorUnits = existing.type === 'expense'
-      ? parseDecimalToMinorUnits(amountInBase, 'amountInBaseCurrency')
-      : -parseDecimalToMinorUnits(amountInBase, 'amountInBaseCurrency');
-
-    if (reversalMinorUnits < 0n) {
-      assertSufficientFunds(user.balance, formatMinorUnits(-reversalMinorUnits));
-    }
-
-    if (reversalMinorUnits !== 0n) {
-      await repo.updateUserBalance(userId, signedAmount(reversalMinorUnits), client);
-    }
-
-    const deleted = await repo.softDelete(id, userId, client);
-    if (!deleted) throw new NotFoundError('Transaction');
+    logger.info({
+      event: 'TRANSACTION_DELETED',
+      userId,
+      transactionId: id,
+      type: existing.type
+    }, 'Ledger line record removed and structural asset allocation balances reverted.');
 
     return existing;
   });
+}
 
+/* ────────────────────────────────────────────────────────────────────────── */
+/* 🔍 READ & ANALYTICS PIPELINES (READ-ONLY POOL DISPATCH)                    */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+async function list(userId, query) {
+  return transactionRepository.findAll(userId, query);
+}
+
+async function listPaginated(userId, query) {
+  return transactionRepository.findPaginated(userId, query);
+}
+
+async function getById(id, userId) {
+  const transaction = await transactionRepository.findById(id, userId);
+  if (!transaction) throw new NotFoundError('Transaction');
   return transaction;
 }
 
-async function listAllForAnalysis(userId) {
-  if (typeof repo.findAllUnpaginated === 'function') {
-    return repo.findAllUnpaginated(userId);
+/**
+ * Streams massive user transaction histories asynchronously to protect system process memory blocks.
+ * Fixes Bug #7: Uses a progressive chunk stream instead of bulk-loading arrays into memory.
+ * * @example
+ * for await (const transaction of transactionService.listAllForAnalysis(userId)) {
+ * analyticsEngine.process(transaction);
+ * }
+ */
+async function* listAllForAnalysis(userId) {
+  if (typeof transactionRepository.streamAllByUserId === 'function') {
+    yield* transactionRepository.streamAllByUserId(userId);
+    return;
   }
 
-  const result = await repo.findAll(userId, { limit: 100000, page: 1 });
-  return result.data || result;
+  let currentCursor = null;
+  let hasNext = true;
+  let processingSafetyGuard = 0;
+
+  while (hasNext) {
+    const pageResult = await transactionRepository.findPaginated(userId, {
+      limit: 250,
+      nextCursor: currentCursor
+    });
+
+    if (!pageResult.transactions || pageResult.transactions.length === 0) {
+      break;
+    }
+
+    for (const transaction of pageResult.transactions) {
+      yield transaction;
+    }
+
+    hasNext = pageResult.pagination.hasNextPage;
+    currentCursor = pageResult.pagination.nextCursor;
+    processingSafetyGuard += pageResult.transactions.length;
+
+    if (processingSafetyGuard >= 100000) {
+      logger.error({ userId }, 'Bulk data generation streaming pipeline capped to prevent worker process execution crashes.');
+      break;
+    }
+  }
+}
+
+async function fetchDashboardData(userId, timezone = 'UTC') {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(now);
+
+  const year = parts.find(p => p.type === 'year').value;
+  const month = parts.find(p => p.type === 'month').value;
+
+  const startOfMonth = `${year}-${month}-01`;
+  const endOfMonth = new Date(parseInt(year, 10), parseInt(month, 10), 0).toISOString().split('T')[0];
+  
+  const startOfYear = `${year}-01-01`;
+  const endOfYear = `${year}-12-31`;
+
+  const results = await Promise.allSettled([
+    transactionRepository.getUserBalance(userId),
+    transactionRepository.getMonthlySummary(userId, startOfMonth, endOfMonth),
+    transactionRepository.getCategoryBreakdown(userId, startOfMonth, endOfMonth),
+    transactionRepository.getYearlyTrajectory(userId, startOfYear, endOfYear),
+    transactionRepository.getRecentDashboardTransactions(userId, 5)
+  ]);
+
+  const [balance, monthlySummary, breakdown, trajectory, recent] = results.map(r =>
+    r.status === 'fulfilled' ? r.value : null
+  );
+
+  return {
+    balance: balance ?? '0.00',
+    monthlySummary: monthlySummary ?? { income: 0.0, expenses: 0.0 },
+    categoryBreakdown: breakdown ?? [],
+    yearlyTrajectory: trajectory ?? [],
+    recentTransactions: recent ?? []
+  };
 }
 
 module.exports = {
   list,
+  listPaginated,
   listAllForAnalysis,
   getById,
   create,
   update,
   remove,
+  fetchDashboardData
 };

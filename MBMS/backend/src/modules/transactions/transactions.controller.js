@@ -79,10 +79,53 @@ async function deleteTransaction(req, res, next) {
   }
 }
 
+// Add this to your transactions.controller.js file:
+
+async function getMonthlyReport(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const { startDate, endDate } = req.query;
+
+    // Fallback defaults if dates are missing from the query parameters
+    const now = new Date();
+    const start = startDate || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const end = endDate || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
+
+    // Query your repository metrics using the same parameters as fetchDashboardData
+    const result = await transactionsService.list(userId, { 
+      startDate: start, 
+      endDate: end,
+      limit: 100000 
+    });
+
+    // Calculate sums safely from your high-precision ledger array
+    let income = 0;
+    let expenses = 0;
+
+    if (result && Array.isArray(result.data)) {
+      result.data.forEach(tx => {
+        const amt = parseFloat(tx.amount || 0);
+        if (tx.type === 'income') income += amt;
+        if (tx.type === 'expense') expenses += amt;
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      totalIncome: income,
+      totalExpenses: expenses,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   getAllTransactions,
   getTransactionById,
   createTransaction,
   updateTransaction,
   deleteTransaction,
+  getMonthlyReport
 };

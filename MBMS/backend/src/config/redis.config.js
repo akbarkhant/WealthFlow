@@ -21,9 +21,6 @@ redis.on('error', (err) => {
 });
 
 // ── Connect Redis ────────────────────────────────────────────────
-async function connectRedis() {
-  await redis.connect();
-}
 
 // ── Token Blacklist Helpers ──────────────────────────────────────
 const BLACKLIST_PREFIX = 'token:blacklist:';
@@ -104,7 +101,6 @@ async function disconnectRedis() {
 // ── Exports ──────────────────────────────────────────────────────
 module.exports = {
   redis,
-  connectRedis,
   disconnectRedis,
 
   blacklistToken,

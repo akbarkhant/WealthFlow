@@ -1,32 +1,33 @@
-// src/modules/ai/ai.controller.js
-
 const service = require('./ai.service');
 const transactionService = require('../transactions/transactions.service');
 const budgetService = require('../budgets/budget.service');
 const { query } = require('../../config/db.config');
 const { sendSuccess } = require('../../shared/ApiResponse');
 const { logger } = require('../../config/logger.config');
+const { StringDecoder } = require('string_decoder');
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CHAT HISTORY — helpers
+// CHAT HISTORY — Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 async function saveChatMessage(userId, role, content) {
+  if (!content || !content.trim()) return;
   await query(
     `INSERT INTO chat_history (user_id, role, content, created_at)
-      VALUES ($1, $2, $3, NOW())`,
-    [userId, role, content]
+     VALUES ($1, $2, $3, NOW())`,
+    [userId, role, content.trim()]
   );
 }
 
 async function loadChatHistory(userId, limit = 50) {
-  return query(
+  const result = await query(
     `SELECT id, role, content, created_at
-      FROM   chat_history
-      WHERE  user_id = $1
-      ORDER  BY created_at ASC
-      LIMIT  $2`,
+     FROM   chat_history
+     WHERE  user_id = $1
+     ORDER  BY created_at ASC
+     LIMIT  $2`,
     [userId, limit]
   );
+  return result.rows || result || [];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,7 +55,7 @@ async function clearChatHistory(req, res, next) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. POST /api/ai/chat  (streaming)
+// 3. POST /api/ai/chat  (Streaming)
 // ─────────────────────────────────────────────────────────────────────────────
 async function chat(req, res, next) {
   try {
@@ -64,45 +65,56 @@ async function chat(req, res, next) {
     // Persist user message first
     await saveChatMessage(userId, 'user', message);
 
-    // 1. Fetch live financial data envelope from transaction service
+    // Fetch transaction data safely
     const transactionResult = await transactionService.list(userId, {});
+    
+    // DEFENSIVE ARRAY GUARD (Applied)
+    let userTransactions = [];
+    if (transactionResult) {
+      if (Array.isArray(transactionResult)) {
+        userTransactions = transactionResult;
+      } else if (transactionResult.data && Array.isArray(transactionResult.data)) {
+        userTransactions = transactionResult.data;
+      } else if (transactionResult.rows && Array.isArray(transactionResult.rows)) {
+        userTransactions = transactionResult.rows;
+      } else if (transactionResult.transactions && Array.isArray(transactionResult.transactions)) {
+        userTransactions = transactionResult.transactions;
+      }
+    }
 
-    // 2. Unpack the nested rows array safely (Fixes ReferenceError)
-    const userTransactions = transactionResult?.data || [];
-
-    // 3. Slice recent entries safely from the array
     const recentTransactions = userTransactions.slice(0, 26);
-
     const contextSummary = buildContextSummary(recentTransactions);
 
     const budgetResult = await budgetService.list(userId);
-    console.log('BUDGETS:', budgets);
+    const userBudgets = budgetResult?.data || budgetResult || [];
 
     const financialContext = `
 ${contextSummary}
 
 Active Budgets:
-${budgetResult
-        .map(b => `${b.name}: Limit ${b.amountLimit}`)
-        .join('\n')}
+${userBudgets.map(b => `- ${b.name}: Limit Rs. ${b.amountLimit || b.amount || 0}`).join('\n')}
 `;
 
-    // Intercept res.end so we can save the AI reply after streaming completes
+    // Intercept res.write to safely capture streamed chunks for the DB history logs
     let aiReply = '';
+    const decoder = new StringDecoder('utf-8');
     const originalWrite = res.write.bind(res);
     const originalEnd = res.end.bind(res);
 
-    res.write = (chunk) => {
-      aiReply += chunk;
-      return originalWrite(chunk);
-    };
-    res.end = async (...args) => {
-      try {
-        await saveChatMessage(userId, 'assistant', aiReply);
-      } catch (_) { }
-      return originalEnd(...args);
+    res.write = (chunk, encoding, callback) => {
+      aiReply += typeof chunk === 'string' ? chunk : decoder.write(chunk);
+      return originalWrite(chunk, encoding, callback);
     };
 
+    res.end = async (...args) => {
+      try {
+        aiReply += decoder.end();
+        await saveChatMessage(userId, 'assistant', aiReply);
+      } catch (err) {
+        logger.error(`Failed to background-save chat history: ${err.message}`);
+      }
+      return originalEnd(...args);
+    };
 
     await service.chatService({
       message,
@@ -117,21 +129,24 @@ ${budgetResult
 }
 
 function buildContextSummary(transactions) {
-  if (!transactions.length) return 'No recent transactions found.';
+  if (!transactions || !transactions.length) return "User's recent financial context: No recent transactions found.";
 
-  const income = transactions.filter(t => t.type === 'income')
-    .reduce((a, t) => a + Number(t.amount), 0);
-  const expenses = transactions.filter(t => t.type === 'expense')
-    .reduce((a, t) => a + Number(t.amount), 0);
+  const income = transactions
+    .filter(t => t.type === 'income')
+    .reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
+    
+  const expenses = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
 
   const lines = transactions.slice(0, 8).map(t =>
-    `- ${t.description ?? 'Transaction'} (${t.type}): Rs. ${t.amount}`
+    `- ${t.description ?? 'Transaction'} (${t.type}): Rs. ${t.amount || t.amount_in_base_currency || 0}`
   );
 
   return `User's recent financial context:
   Income this period:  Rs. ${income}
   Expenses this period: Rs. ${expenses}
-  Recent transactions:
+  Recent transaction log entries:
   ${lines.join('\n')}`;
 }
 
@@ -140,20 +155,20 @@ function buildContextSummary(transactions) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function analyze(req, res, next) {
   try {
-    const userId = req.user.id; // Extracted from your auth middleware
+    const userId = req.user.id;
     const { startDate, endDate, promptContext } = req.body || {};
 
     logger.info(`AI analysis requested for user ${userId} from ${startDate || 'all-time'} to ${endDate || 'now'}`);
 
-    // 1. Fetch data from your transaction layer
     const rawData = await transactionService.list(userId, { startDate, endDate });
-
-    // 2. DEFENSIVE GUARD: Ensure allTx resolves to a real array
-    // Accounts for: raw PG objects (.rows), structured responses (.transactions), or null variants
+    
+    // DEFENSIVE ARRAY GUARD (Applied)
     let allTx = [];
     if (rawData) {
       if (Array.isArray(rawData)) {
         allTx = rawData;
+      } else if (rawData.data && Array.isArray(rawData.data)) {
+        allTx = rawData.data;
       } else if (rawData.rows && Array.isArray(rawData.rows)) {
         allTx = rawData.rows;
       } else if (rawData.transactions && Array.isArray(rawData.transactions)) {
@@ -161,43 +176,37 @@ async function analyze(req, res, next) {
       }
     }
 
-    // 3. Safe filtering (No more "filter is not a function" crashes!)
     const expenses = allTx.filter(tx => tx.type === 'expense');
     const income = allTx.filter(tx => tx.type === 'income');
 
-    // 4. Calculate core analytical aggregates to feed the AI context
-    const totalExpenses = expenses.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount), 0);
-    const totalIncome = income.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount), 0);
+    const totalExpenses = expenses.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount || 0), 0);
+    const totalIncome = income.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount || 0), 0);
     const netSavings = totalIncome - totalExpenses;
 
-    // Grouping spending categories for context brevity
     const categoryBreakdown = expenses.reduce((acc, tx) => {
-      const category = tx.category_name || tx.categoryId || 'Uncategorized';
-      acc[category] = (acc[category] || 0) + Number(tx.amount);
+      const category = tx.category_name || tx.categoryName || 'Uncategorized';
+      acc[category] = (acc[category] || 0) + Number(tx.amount || tx.amount_in_base_currency || 0);
       return acc;
     }, {});
 
-    // 5. Compile the payload context to deliver to your LLM engine
     const financialContext = {
       summary: {
         totalIncome,
         totalExpenses,
         netSavings,
-        period: { startDate, endDate }
+        period: { startDate: startDate || 'N/A', endDate: endDate || 'Now' }
       },
       topCategories: categoryBreakdown,
       sampleTransactions: expenses.slice(0, 15).map(tx => ({
         date: tx.date,
-        amount: tx.amount,
-        currency: tx.currency,
+        amount: tx.amount || tx.amount_in_base_currency,
+        currency: tx.currency || 'Rs.',
         description: tx.description
       }))
     };
 
-    // 6. Invoke your AI engine service layer
     const aiInsight = await service.analyzeService(financialContext, promptContext);
 
-    // 7. Deliver clean JSON response
     return res.status(200).json({
       success: true,
       data: {
@@ -205,35 +214,31 @@ async function analyze(req, res, next) {
         metricsProcessed: allTx.length
       }
     });
-
   } catch (error) {
     logger.error(`AI Analysis Error: ${error.message}`, { stack: error.stack });
-    
-    // Pass along to global error handling middleware
     return next(error);
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. POST /api/ai/suggest  → Spending Forecast
+// 5. POST /api/ai/suggest  → Spending Forecast Optimization
 // ─────────────────────────────────────────────────────────────────────────────
 async function suggest(req, res, next) {
   try {
-    const userId = req.user.id; // Extracted from your auth middleware
+    const userId = req.user.id;
     const { promptContext } = req.body || {};
 
-    if (logger && typeof logger.info === 'function') {
-      logger.info(`AI savings suggestions requested for user: ${userId}`);
-    }
+    logger.info(`AI savings suggestions requested for user: ${userId}`);
 
-    // 1. Fetch transaction history from your repository abstraction layer
     const rawData = await transactionService.list(userId);
-
-    // 2. DEFENSIVE GUARD: Safely extract the array structure
+    
+    // DEFENSIVE ARRAY GUARD (Applied)
     let allTx = [];
     if (rawData) {
       if (Array.isArray(rawData)) {
         allTx = rawData;
+      } else if (rawData.data && Array.isArray(rawData.data)) {
+        allTx = rawData.data;
       } else if (rawData.rows && Array.isArray(rawData.rows)) {
         allTx = rawData.rows;
       } else if (rawData.transactions && Array.isArray(rawData.transactions)) {
@@ -241,19 +246,16 @@ async function suggest(req, res, next) {
       }
     }
 
-    // 3. Filter data securely without encountering ".filter is not a function" errors
     const expenses = allTx.filter(tx => tx.type === 'expense');
     const income = allTx.filter(tx => tx.type === 'income');
 
-    // 4. Compute financial metrics to build the budget profile context
-    const totalExpenses = expenses.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount), 0);
-    const totalIncome = income.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount), 0);
+    const totalExpenses = expenses.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount || 0), 0);
+    const totalIncome = income.reduce((sum, tx) => sum + Number(tx.amount_in_base_currency || tx.amount || 0), 0);
     const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0;
 
-    // Grouping category balances to detect heavy optimization opportunities
     const spendingPattern = expenses.reduce((acc, tx) => {
-      const category = tx.category_name || tx.categoryId || 'Other';
-      acc[category] = (acc[category] || 0) + Number(tx.amount);
+      const category = tx.category_name || tx.categoryName || 'Other';
+      acc[category] = (acc[category] || 0) + Number(tx.amount || tx.amount_in_base_currency || 0);
       return acc;
     }, {});
 
@@ -264,23 +266,19 @@ async function suggest(req, res, next) {
         savingsRatePercentage: Number(savingsRate.toFixed(2))
       },
       spendingPattern,
-      // Pass the 10 largest expenses to see where the user can cut back
       highValueExpenses: expenses
-        .sort((a, b) => Number(b.amount) - Number(a.amount))
+        .sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))
         .slice(0, 10)
         .map(tx => ({
           date: tx.date,
-          amount: tx.amount,
+          amount: tx.amount || tx.amount_in_base_currency,
           category: tx.category_name || 'Uncategorized',
           description: tx.description
         }))
     };
 
-    // 5. Fire compiled profile context down to your specialized service layer
-    // NOTE: If your service uses commonJS require, verify 'service.suggestService' mapping match
     const savingsSuggestions = await service.suggestService(optimizationProfile, promptContext);
 
-    // 6. Return response payload
     return res.status(200).json({
       success: true,
       data: {
@@ -288,26 +286,21 @@ async function suggest(req, res, next) {
         metricsProcessed: allTx.length
       }
     });
-
   } catch (error) {
-    if (logger && typeof logger.error === 'function') {
-      logger.error(`AI Suggest Error: ${error.message}`, { stack: error.stack });
-    }
+    logger.error(`AI Suggest Error: ${error.message}`, { stack: error.stack });
     return next(error);
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. POST /api/ai/receipt  → Receipt Scanner (Feature 11)
+// 6. POST /api/ai/receipt  → Receipt Scanner
 // ─────────────────────────────────────────────────────────────────────────────
 async function scanReceipt(req, res, next) {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No image file uploaded.' });
     }
-
     const result = await service.receiptService(req.file.path);
-
     return sendSuccess(res, result);
   } catch (err) {
     next(err);
@@ -315,9 +308,7 @@ async function scanReceipt(req, res, next) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 7. GET /api/ai/education          → list all topics
-//    GET /api/ai/education/:index   → tip by rotation index
-//    GET /api/ai/education/topic/:name → tip by topic name
+// 7. FINANCIAL LITERACY EDUCATION
 // ─────────────────────────────────────────────────────────────────────────────
 async function getEducationTopics(req, res, next) {
   try {
@@ -349,37 +340,46 @@ async function getEducationTipByTopic(req, res, next) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 8. GET /api/ai/report/:month  → Monthly PDF Report (Feature 13)
-//    month format: YYYY-MM  (e.g. 2025-06)
+// 8. GET /api/ai/report/:month  → Monthly PDF Report Context Delivery
 // ─────────────────────────────────────────────────────────────────────────────
 async function getMonthlyReport(req, res, next) {
   try {
     const userId = req.user.id;
     const month = req.params.month; // 'YYYY-MM'
 
-    // Pull user name
     const userRows = await query('SELECT name, currency FROM users WHERE id = $1', [userId]);
-    const userName = userRows[0]?.name ?? 'User';
-    const currency = userRows[0]?.currency ?? 'Rs.';
-
+    const userName = userRows.rows?.[0]?.name ?? userRows[0]?.name ?? 'User';
+    const currency = userRows.rows?.[0]?.currency ?? userRows[0]?.currency ?? 'Rs.';
 
     const response = await transactionService.list(userId);
-    // Filter transactions for the requested month
-
-    const allTx = response?.data || [];
+    
+    // DEFENSIVE ARRAY GUARD (Applied)
+    let allTx = [];
+    if (response) {
+      if (Array.isArray(response)) {
+        allTx = response;
+      } else if (response.data && Array.isArray(response.data)) {
+        allTx = response.data;
+      } else if (response.rows && Array.isArray(response.rows)) {
+        allTx = response.rows;
+      } else if (response.transactions && Array.isArray(response.transactions)) {
+        allTx = response.transactions;
+      }
+    }
 
     const monthTx = allTx.filter(t => String(t.date).startsWith(month));
-    const income = monthTx.filter(t => t.type === 'income')
-      .reduce((a, t) => a + Number(t.amount), 0);
+    const incomeArr = monthTx.filter(t => t.type === 'income');
     const expenses = monthTx.filter(t => t.type === 'expense');
-    const totalExp = expenses.reduce((a, t) => a + Number(t.amount), 0);
 
-    // Category breakdown
+    const incomeSum = incomeArr.reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
+    const totalExp = expenses.reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
+
     const catMap = {};
     expenses.forEach(t => {
       const k = t.category_name ?? t.categoryName ?? 'Uncategorized';
-      catMap[k] = (catMap[k] || 0) + Number(t.amount);
+      catMap[k] = (catMap[k] || 0) + Number(t.amount || t.amount_in_base_currency || 0);
     });
+
     const categoryBreakdown = Object.entries(catMap)
       .map(([name, total]) => ({
         name,
@@ -388,33 +388,45 @@ async function getMonthlyReport(req, res, next) {
       }))
       .sort((a, b) => b.total - a.total);
 
-    // AI insights for the report
-    const budgets = await budgetService.list(userId);
-    const incomeArr = monthTx.filter(t => t.type === 'income');
-    const { budgetHealthScore, insights } = await service.analyzeService({
-      income: incomeArr,
-      expenses: expenses,
-      budgets,
-    });
+    // Map custom structure strictly matching expectations of analyzeService
+    const reportDataEnvelope = {
+      summary: {
+        totalIncome: incomeSum,
+        totalExpenses: totalExp,
+        netSavings: incomeSum - totalExp,
+        period: { startDate: `${month}-01`, endDate: `${month}-31` }
+      },
+      topCategories: catMap,
+      sampleTransactions: expenses.slice(0, 10).map(e => ({ date: e.date, amount: e.amount, description: e.description }))
+    };
 
-    // Generate the PDF
+    const aiInsightsMarkdown = await service.analyzeService(reportDataEnvelope, 'Focus layout recommendations specifically tailored for end-of-month financial statements.');
+
+    // Calculate baseline budget health score manually
+    let budgetHealthScore = 100;
+    if (incomeSum > 0) {
+      const burnRate = (totalExp / incomeSum) * 100;
+      budgetHealthScore = Math.max(0, Math.min(100, Math.round(100 - (burnRate * 0.5))));
+    } else if (totalExp > 0) {
+      budgetHealthScore = 20; 
+    }
+
     const pdfBuffer = await service.reportService({
       month,
-      income,
+      income: incomeSum,
       expenses: totalExp,
       categoryBreakdown,
-      insights,
+      insights: aiInsightsMarkdown,
       budgetHealthScore,
       currency,
       userName,
     });
 
-    // Stream PDF to client
     const filename = `WealthFlow_Report_${month}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', pdfBuffer.length);
-    res.end(pdfBuffer);
+    return res.end(pdfBuffer);
 
   } catch (err) {
     next(err);
@@ -422,17 +434,14 @@ async function getMonthlyReport(req, res, next) {
 }
 
 module.exports = {
-  // Chat
   getChatHistory,
   clearChatHistory,
   chat,
-  // Analysis
   analyze,
   suggest,
-  // Phase 2 — new
   scanReceipt,
   getEducationTopics,
   getEducationTip,
   getEducationTipByTopic,
   getMonthlyReport,
-};  
+};

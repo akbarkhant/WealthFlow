@@ -98,17 +98,17 @@ export default function GoalsPage() {
       showToast(result.message || 'Failed to construct goal.', 'error');
     }
   };
-
   const handleDeleteGoal = async (goalId, goalName) => {
-    // Simple guard rail check
-    const confirmDelete = window.confirm(`Are you sure you want to delete "${goalName}"? This will also remove all its contribution history.`);
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete "${goalName}"? This will also remove all its contribution history.`
+    );
     if (!confirmDelete) return;
 
     try {
       const result = await goalsApi.delete(goalId);
       if (result.success) {
-        // Optimistically update your UI state immediately
-        setGoals(prevGoals => prevGoals.filter(goal => goal.id !== goalId));
+        // FIXED: Invoke the clean wrapper function exposed from your hook
+        removeGoalFromState(goalId);
         showToast("Goal successfully deleted", "success");
       } else {
         showToast(result.message || "Failed to delete goal", "error");

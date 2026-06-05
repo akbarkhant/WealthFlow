@@ -1,6 +1,6 @@
 // src/modules/accounts/accounts.repository.js
 
-const db = require('../../config/db.config'); // Your pg Pool instance
+const db  = require('../../config/db.config'); // Your pg Pool instance
 
 /**
  * Helper utility to safely extract rows regardless of the db.config wrapper structure

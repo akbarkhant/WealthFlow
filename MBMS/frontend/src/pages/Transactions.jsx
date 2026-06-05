@@ -30,7 +30,6 @@ import EmptyState from '../components/feedback/EmptyState';
 import '../styles/pages/Transactions.css';
 
 const PAGE_SIZE = 7;
-const period = getMonthDateRange(...Object.values(getCurrentPeriod()).reverse());
 
 const money = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -46,10 +45,11 @@ const getCategoryClass = (category = '') => {
   return 'status-muted';
 };
 
+// Generates a local YYYY-MM-DD string without timezone or midnight drift
 const getLocalDateString = () => {
   const date = new Date();
   const offset = date.getTimezoneOffset();
-  const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+  const localDate = new Date(date.getTime() - offset * 60 * 1000);
   return localDate.toISOString().split('T')[0];
 };
 
@@ -57,7 +57,7 @@ const Transactions = () => {
   const [searchParams] = useSearchParams();
   const [transactions, setTransactions] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0, hasMore: false });
-  const [summary, setSummary] = useState(null);
+  const [summary, setSummary] = useState({ totalIncome: 0, totalExpenses: 0 });
   const [categories, setCategories] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,12 +67,26 @@ const Transactions = () => {
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('search') || '');
   const [typeFilter, setTypeFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  // FIX #4: sortBy state is kept for UI but note backend always sorts date DESC.
+  // Wire up backend support in findAll when sort control is needed server-side.
   const [sortBy, setSortBy] = useState('date-desc');
   const [currentPage, setCurrentPage] = useState(1);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [formError, setFormError] = useState('');
+
+  // monthly-report API calls receive the params they actually need.
+  const currentPeriodValues = useMemo(() => {
+    const period = getCurrentPeriod(); // { month, year }
+    const range = getMonthDateRange(...Object.values(period).reverse());
+    return {
+      ...range,          
+      month: period.month,
+      year: period.year,
+    };
+  }, []);
+
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
@@ -82,7 +96,6 @@ const Transactions = () => {
     currency: 'USD',
   });
 
-  // Track active toast timer to prevent memory leaks
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 3000);
@@ -93,12 +106,13 @@ const Transactions = () => {
     setToast({ message, tone });
   }, []);
 
+  // Return undefined (not an empty-string match) so the API omits the param.
   const categoryIdFilter = useMemo(() => {
-    return categoryFilter === 'all'
-      ? undefined
-      : categories.find((c) => c.name === categoryFilter)?.id;
+    if (categoryFilter === 'all' || categories.length === 0) return undefined;
+    return categories.find((c) => c.name === categoryFilter)?.id;
   }, [categoryFilter, categories]);
 
+  // Main data fetch — all state changes flow through here via useEffect dependency.
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -111,45 +125,57 @@ const Transactions = () => {
           search: searchQuery.trim() || undefined,
           type: typeFilter === 'all' ? undefined : typeFilter,
           categoryId: categoryIdFilter,
-          sortBy, // Pass sorting string straight to API instead of evaluating after delivery
-          startDate: period.startDate,
-          endDate: period.endDate,
+          sortBy,
+          startDate: currentPeriodValues.startDate,
+          endDate: currentPeriodValues.endDate,
         }),
-        listBudgets({ month: period.month, year: period.year }),
+
+        listBudgets({ month: currentPeriodValues.month, year: currentPeriodValues.year }),
         listCategories(),
-        getMonthlyReport({ month: period.month, year: period.year }),
+        getMonthlyReport({ month: currentPeriodValues.month, year: currentPeriodValues.year }),
       ]);
 
-      setTransactions(txResult.data);
-      setPagination({
-        page: txResult.meta.page,
-        totalPages: Math.max(1, txResult.meta.totalPages),
-        total: txResult.meta.total,
-        hasMore: txResult.meta.hasMore,
-      });
+      if (txResult && txResult.data) {
+        setTransactions(txResult.data);
+        setPagination({
+          page: txResult.meta?.page || 1,
+          totalPages: Math.max(1, txResult.meta?.totalPages || 1),
+          total: txResult.meta?.total || 0,
+          hasMore: txResult.meta?.hasMore || false,
+        });
+      }
+
       setCategories(Array.isArray(cats) ? cats : []);
       setBudgets((Array.isArray(bgs) ? bgs : []).map(mapBudgetForUi));
-      setSummary(monthly);
+
+      // Strict Normalization: Sanitizes backend responses stringifying data or changing casings
+      const extractedIncome =
+        monthly?.totalIncome ?? monthly?.income ?? monthly?.total_income ?? 0;
+      const extractedExpenses =
+        monthly?.totalExpenses ?? monthly?.expenses ?? monthly?.total_expenses ?? 0;
+
+      setSummary({
+        totalIncome: Number(extractedIncome),
+        totalExpenses: Number(extractedExpenses),
+      });
     } catch (err) {
-      console.error('Failed to load transaction data:', err);
+      console.error('Data loading sequence failed:', err);
       setError(err.message || 'We could not load transactions.');
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchQuery, typeFilter, categoryIdFilter, sortBy]);
+  }, [currentPage, searchQuery, typeFilter, categoryIdFilter, sortBy, currentPeriodValues]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Handle Type switching and category syncing gracefully inside an input handler context
   const handleInputChange = (event) => {
     const { name, value } = event.target;
 
     setFormData((current) => {
       const updated = { ...current, [name]: value };
 
-      // If the user flips the transaction type, automatically pick the first valid matching category
       if (name === 'type') {
         const firstMatchingCat = categories.find((c) => c.type === value);
         updated.categoryId = firstMatchingCat ? firstMatchingCat.id : '';
@@ -171,7 +197,6 @@ const Transactions = () => {
     setFormError('');
   }, [categories]);
 
-  // Set initial category value once categories load from backend
   useEffect(() => {
     if (categories.length > 0 && !formData.categoryId) {
       const defaultCat = categories.find((c) => c.type === 'expense');
@@ -233,7 +258,17 @@ const Transactions = () => {
 
       resetForm();
       setShowAddForm(false);
-      await loadData();
+
+      // FIX #2: Don't manually call loadData() here. Setting currentPage to 1
+      // triggers the useEffect → loadData dependency chain automatically,
+      // avoiding the double-fetch race condition. If already on page 1, force
+      // a reload by calling loadData once explicitly.
+      if (currentPage === 1) {
+        loadData();
+      } else {
+        setCurrentPage(1);
+      }
+
       showToast('Transaction added successfully.');
     } catch (err) {
       setFormError(err.response?.data?.error || err.message || 'Failed to add transaction.');
@@ -246,7 +281,14 @@ const Transactions = () => {
     try {
       await deleteTransaction(pendingDelete.id);
       setPendingDelete(null);
-      await loadData();
+
+      // FIX #2: Same pattern — let the state change drive the reload.
+      if (currentPage === 1) {
+        loadData();
+      } else {
+        setCurrentPage(1);
+      }
+
       showToast('Transaction deleted successfully.');
     } catch (err) {
       showToast('Failed to delete transaction.', 'error');
@@ -262,7 +304,6 @@ const Transactions = () => {
   };
 
   const totalPages = pagination.totalPages;
-  const currentTransactions = transactions;
 
   return (
     <DashboardLayout>
@@ -287,14 +328,14 @@ const Transactions = () => {
             <span><WalletCards size={19} /></span>
             <div>
               <p>Total Income</p>
-              <strong className="amount">{money.format(Number(summary?.totalIncome ?? 0))}</strong>
+              <strong className="amount">{money.format(summary.totalIncome)}</strong>
             </div>
           </article>
           <article className="summary-tile">
             <span><ReceiptText size={19} /></span>
             <div>
               <p>Total Expenses</p>
-              <strong className="amount">{money.format(Number(summary?.totalExpenses ?? 0))}</strong>
+              <strong className="amount">{money.format(summary.totalExpenses)}</strong>
             </div>
           </article>
           <article className="summary-tile">
@@ -311,12 +352,20 @@ const Transactions = () => {
             <article className="budget-item" key={budget.id}>
               <div className="budget-top">
                 <div className="budget-info">
-                  <span className="budget-icon" style={{ backgroundColor: budget.color ? `${budget.color}18` : 'rgba(0, 108, 73, 0.10)', color: budget.color || 'var(--primary)' }}>
+                  <span
+                    className="budget-icon"
+                    style={{
+                      backgroundColor: budget.color ? `${budget.color}18` : 'rgba(0, 108, 73, 0.10)',
+                      color: budget.color || 'var(--primary)',
+                    }}
+                  >
                     <WalletCards size={18} />
                   </span>
                   <div>
                     <p className="budget-name">{budget.category}</p>
-                    <p className="budget-meta">{budget.usedPercent}% of {money.format(Number(budget.limit || 0))}</p>
+                    <p className="budget-meta">
+                      {budget.usedPercent}% of {money.format(Number(budget.limit || 0))}
+                    </p>
                   </div>
                 </div>
                 <p className="budget-price amount">{money.format(Number(budget.used || 0))}</p>
@@ -326,7 +375,9 @@ const Transactions = () => {
                   className={`progress-fill ${budget.fillClass}`}
                   style={{
                     width: `${Math.min(budget.usedPercent, 100)}%`,
-                    ...(!['warning', 'danger'].includes(budget.fillClass) && budget.color ? { backgroundColor: budget.color } : {})
+                    ...(!['warning', 'danger'].includes(budget.fillClass) && budget.color
+                      ? { backgroundColor: budget.color }
+                      : {}),
                   }}
                 />
               </div>
@@ -355,20 +406,40 @@ const Transactions = () => {
               />
             </div>
 
-            <select className="select" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value); setCurrentPage(1); }}>
+            <select
+              className="select"
+              value={typeFilter}
+              onChange={(event) => {
+                setTypeFilter(event.target.value);
+                setCurrentPage(1);
+              }}
+            >
               <option value="all">All types</option>
               <option value="income">Income</option>
               <option value="expense">Expense</option>
             </select>
 
-            <select className="select" value={categoryFilter} onChange={(event) => { setCategoryFilter(event.target.value); setCurrentPage(1); }}>
+            <select
+              className="select"
+              value={categoryFilter}
+              onChange={(event) => {
+                setCategoryFilter(event.target.value);
+                setCurrentPage(1);
+              }}
+            >
               <option value="all">All categories</option>
               {[...new Set(categories.map((c) => c.name))].map((name) => (
-                <option key={name} value={name}>{name}</option>
+                <option key={name} value={name}>
+                  {name}
+                </option>
               ))}
             </select>
 
-            <select className="select" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+            <select
+              className="select"
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+            >
               <option value="date-desc">Newest first</option>
               <option value="date-asc">Oldest first</option>
               <option value="amount-desc">Highest amount</option>
@@ -388,7 +459,7 @@ const Transactions = () => {
           <ErrorMessage title="Transactions unavailable" message={error} onRetry={loadData} />
         )}
 
-        {!loading && !error && currentTransactions.length === 0 && (
+        {!loading && !error && transactions.length === 0 && (
           <EmptyState
             icon={ReceiptText}
             title="No transactions found"
@@ -402,7 +473,7 @@ const Transactions = () => {
           />
         )}
 
-        {!loading && !error && currentTransactions.length > 0 && (
+        {!loading && !error && transactions.length > 0 && (
           <section className="table-card">
             <div className="table-scroll">
               <table className="data-table transactions-table">
@@ -416,7 +487,7 @@ const Transactions = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentTransactions.map((item) => {
+                  {transactions.map((item) => {
                     const isIncome = item.type === 'income';
                     const initials = (item.description || 'TX').slice(0, 2).toUpperCase();
                     return (
@@ -424,15 +495,28 @@ const Transactions = () => {
                         <td className="timestamp">{item.date}</td>
                         <td>
                           <div className="merchant">
-                            <span className={`merchant-logo ${isIncome ? 'income' : 'expense'}`}>{initials}</span>
+                            <span className={`merchant-logo ${isIncome ? 'income' : 'expense'}`}>
+                              {initials}
+                            </span>
                             <span>{item.description}</span>
                           </div>
                         </td>
                         <td>
-                          <span className={`status-pill ${getCategoryClass(item.categoryName || item.category)}`}>{item.categoryName || item.category || 'Other'}</span>
+                          <span
+                            className={`status-pill ${getCategoryClass(
+                              item.categoryName || item.category
+                            )}`}
+                          >
+                            {item.categoryName || item.category || 'Other'}
+                          </span>
                         </td>
-                        <td className={`right amount ${isIncome ? 'amount-positive' : 'amount-negative'}`}>
-                          {isIncome ? '+' : '-'}{money.format(Math.abs(Number(item.amount || 0)))}
+                        <td
+                          className={`right amount ${
+                            isIncome ? 'amount-positive' : 'amount-negative'
+                          }`}
+                        >
+                          {isIncome ? '+' : '-'}
+                          {money.format(Math.abs(Number(item.amount || 0)))}
                         </td>
                         <td className="table-action">
                           <button
@@ -463,10 +547,14 @@ const Transactions = () => {
               <span className="pagination__meta">
                 Page {currentPage} of {totalPages} ({pagination.total} total)
               </span>
+              {/* FIX #5: Removed the !pagination.hasMore condition so the button
+                  is enabled based solely on page position. hasMore was causing
+                  the Next button to be permanently disabled when the API returned
+                  incomplete meta (e.g. during the month/year bug above). */}
               <button
                 className="btn btn-secondary"
                 type="button"
-                disabled={currentPage >= totalPages || !pagination.hasMore}
+                disabled={currentPage >= totalPages}
                 onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
               >
                 Next
@@ -476,11 +564,26 @@ const Transactions = () => {
         )}
 
         {showAddForm && (
-          <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="transaction-modal-title">
+          <div
+            className="modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="transaction-modal-title"
+          >
             <div className="modal-panel">
               <div className="modal-header">
-                <h2 className="modal-title" id="transaction-modal-title">Add Transaction</h2>
-                <button className="icon-button" type="button" aria-label="Close modal" onClick={() => { setShowAddForm(false); resetForm(); }}>
+                <h2 className="modal-title" id="transaction-modal-title">
+                  Add Transaction
+                </h2>
+                <button
+                  className="icon-button"
+                  type="button"
+                  aria-label="Close modal"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    resetForm();
+                  }}
+                >
                   <X />
                 </button>
               </div>
@@ -519,7 +622,13 @@ const Transactions = () => {
                     </div>
                     <div className="field">
                       <label htmlFor="type">Type</label>
-                      <select className="select" id="type" name="type" value={formData.type} onChange={handleInputChange}>
+                      <select
+                        className="select"
+                        id="type"
+                        name="type"
+                        value={formData.type}
+                        onChange={handleInputChange}
+                      >
                         <option value="expense">Expense</option>
                         <option value="income">Income</option>
                       </select>
@@ -548,12 +657,26 @@ const Transactions = () => {
                     </div>
                     <div className="field">
                       <label htmlFor="date">Date</label>
-                      <input className="input" id="date" name="date" type="date" value={formData.date} onChange={handleInputChange} />
+                      <input
+                        className="input"
+                        id="date"
+                        name="date"
+                        type="date"
+                        value={formData.date}
+                        onChange={handleInputChange}
+                      />
                     </div>
                   </div>
 
                   <div className="modal-actions">
-                    <button className="btn btn-secondary" type="button" onClick={() => { setShowAddForm(false); resetForm(); }}>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => {
+                        setShowAddForm(false);
+                        resetForm();
+                      }}
+                    >
                       Cancel
                     </button>
                     <button className="btn btn-primary" type="submit">
@@ -567,11 +690,23 @@ const Transactions = () => {
         )}
 
         {pendingDelete && (
-          <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-transaction-title">
+          <div
+            className="modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-transaction-title"
+          >
             <div className="modal-panel confirm-panel">
               <div className="modal-header">
-                <h2 className="modal-title" id="delete-transaction-title">Delete transaction?</h2>
-                <button className="icon-button" type="button" aria-label="Close modal" onClick={() => setPendingDelete(null)}>
+                <h2 className="modal-title" id="delete-transaction-title">
+                  Delete transaction?
+                </h2>
+                <button
+                  className="icon-button"
+                  type="button"
+                  aria-label="Close modal"
+                  onClick={() => setPendingDelete(null)}
+                >
                   <X />
                 </button>
               </div>
@@ -580,8 +715,18 @@ const Transactions = () => {
                   This will remove <strong>{pendingDelete.description}</strong> from your ledger.
                 </p>
                 <div className="modal-actions">
-                  <button className="btn btn-secondary" type="button" onClick={() => setPendingDelete(null)}>Cancel</button>
-                  <button className="btn btn-danger" type="button" onClick={handleDeleteTransaction}>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={() => setPendingDelete(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    type="button"
+                    onClick={handleDeleteTransaction}
+                  >
                     <Trash2 size={16} />
                     Delete
                   </button>

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Wallet, Tag } from
 import { useApi } from '../hooks/useApi';
 import { getMonthlyReport, getCategoryBreakdown } from '../api/chartsApi';
 import '../styles/pages/HistoryPage.css';
+import DashboardLayout from '../layouts/DashboardLayout';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -72,6 +73,7 @@ export default function HistoryPage() {
   });
 
   return (
+    <DashboardLayout>
     <div className="history-page">
 
       {/* ── Header ─────────────────────────────────────────────── */}
@@ -183,5 +185,6 @@ export default function HistoryPage() {
         </>
       )}
     </div>
+    </DashboardLayout>
   );
 }

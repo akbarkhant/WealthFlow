@@ -1,3 +1,5 @@
+// index.js
+
 export { default as api, request, setServerErrorHandler, API_URL } from './client';
 export * as authApi from './authApi';
 export * as userApi from './userApi';

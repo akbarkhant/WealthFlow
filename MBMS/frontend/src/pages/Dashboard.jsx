@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowDownRight,
@@ -13,13 +13,13 @@ import {
   PiggyBank,
 } from 'lucide-react';
 import DashboardLayout from '../layouts/DashboardLayout';
-import { fetchDashboard } from '../api/dashboardApi';
-import { useApi } from '../hooks/useApi';
+import { ReportProvider, useReports } from '../context/ReportContext';
 import { getCurrentPeriod, getMonthDateRange, periodFromDateInputs } from '../utils/dateRange';
 import { MetricCardSkeleton, ChartSkeleton } from '../components/feedback/LoadingSkeleton';
 import ErrorMessage from '../components/feedback/ErrorMessage';
 import EmptyState from '../components/feedback/EmptyState';
 import usePushNotification from '../hooks/usePushNotification';
+import { listTransactions } from '../api/transactionsApi';
 import '../styles/pages/Dashboard.css';
 
 const currency = new Intl.NumberFormat('en-US', {
@@ -35,10 +35,11 @@ const percent = new Intl.NumberFormat('en-US', {
 
 const defaultPeriod = getMonthDateRange(...Object.values(getCurrentPeriod()).reverse());
 
-const Dashboard = () => {
+const DashboardContent = () => {
   const [range, setRange] = useState('6m');
   const [startDate, setStartDate] = useState(defaultPeriod.startDate);
   const [endDate, setEndDate] = useState(defaultPeriod.endDate);
+  const [recentTransactions, setRecentTransactions] = useState([]);
 
   const {
     isSubscribed,
@@ -48,67 +49,120 @@ const Dashboard = () => {
     toggle,
   } = usePushNotification();
 
+  // Consume our new unified, cached state context layer
+  const {
+    monthlyReport,
+    breakdown,
+    yearlyReport,
+    goals,
+    loading,
+    error,
+    fetchDashboardData
+  } = useReports();
+
   const period = useMemo(
     () => periodFromDateInputs(startDate, endDate),
     [startDate, endDate]
   );
 
-  const { data: metrics, loading, error, refetch } = useApi(
-    () =>
-      fetchDashboard({
-        month: period.month,
-        year: period.year,
-        startDate: period.startDate,
-        endDate: period.endDate,
-        transactionLimit: 5,
-      }),
-    [period.month, period.year, period.startDate, period.endDate]
-  );
+  // Trigger centralized data retrieval when period state adjustments occur
+  useEffect(() => {
+    fetchDashboardData(period.month, period.year);
+  }, [period.month, period.year, fetchDashboardData]);
 
+  useEffect(() => {
+    const loadTransactions = async () => {
+      try {
+        const result = await listTransactions({
+          page: 1,
+          limit: 7,
+          sortBy: 'date-desc',
+          startDate,
+          endDate,
+        });
+
+        console.log('Transactions API Result:', result);
+
+        setRecentTransactions(result.data || []);
+      } catch (err) {
+        console.error('Failed to load transactions:', err);
+        setRecentTransactions([]);
+      }
+    };
+
+    loadTransactions();
+  }, [startDate, endDate]);
+
+  const handleManualRefetch = () => {
+    fetchDashboardData(period.month, period.year, true);
+  };
+
+  // Compile individual states from our concurrent context objects back into standard UI view models
   const summaryCards = useMemo(() => {
-    if (!metrics) return [];
+    const income = monthlyReport?.income ?? 0;
+    const expenses = monthlyReport?.expenses ?? 0;
+    const netSavings = income - expenses;
+    const savingsRate = income > 0 ? (netSavings / income) * 100 : 0;
 
     return [
       {
         label: 'Net This Month',
-        value: currency.format(metrics.netSavings ?? 0),
+        value: currency.format(netSavings),
         detail: 'Income minus expenses',
-        tone: (metrics.netSavings ?? 0) >= 0 ? 'positive' : 'negative',
+        tone: netSavings >= 0 ? 'positive' : 'negative',
         icon: WalletCards,
       },
       {
         label: 'Monthly Income',
-        value: currency.format(metrics.monthlyIncome ?? 0),
+        value: currency.format(income),
         detail: 'From reports API',
         tone: 'positive',
         icon: ArrowUpRight,
       },
       {
         label: 'Monthly Expenses',
-        value: currency.format(metrics.monthlyExpenses ?? 0),
+        value: currency.format(expenses),
         detail: 'From reports API',
         tone: 'negative',
         icon: ArrowDownRight,
       },
       {
         label: 'Savings Rate',
-        value: percent.format((metrics.savingsRate ?? 0) / 100),
+        value: percent.format(savingsRate / 100),
         detail: 'Net savings / income',
         tone: 'neutral',
         icon: PiggyBank,
       },
     ];
-  }, [metrics]);
+  }, [monthlyReport]);
 
   const chartData = useMemo(() => {
-    const all = metrics?.monthlyChart ?? [];
+    const all = yearlyReport?.months ?? [];
     return range === '6m' ? all.slice(-6) : all.slice(-12);
-  }, [metrics, range]);
+  }, [yearlyReport, range]);
 
   const chartMax = useMemo(() => {
     if (!chartData.length) return 1;
     return Math.max(...chartData.map((d) => Math.max(d.income, d.expense)), 1);
   }, [chartData]);
+
+  const spendingBreakdownData = useMemo(() => {
+    return breakdown?.categories ?? [];
+  }, [breakdown]);
+
+  const recentTransactionsData = useMemo(() => {
+    return Array.isArray(recentTransactions)
+      ? recentTransactions
+      : [];
+  }, [recentTransactions]);
+
+  const budgetsAtRiskData = useMemo(
+    () =>
+      Array.isArray(goals)
+        ? goals.filter(goal => Number(goal?.usedPercent || 0) >= 90)
+        : [],
+    [goals]
+  );
 
   const applyCurrentMonth = () => {
     const p = getMonthDateRange(...Object.values(getCurrentPeriod()).reverse());
@@ -129,7 +183,6 @@ const Dashboard = () => {
           </div>
 
           <div className="page-header__actions">
-            {/* Notification toggle — hidden if browser doesn't support push */}
             {isSupported && (
               <div className="notif-toggle-wrap">
                 <button
@@ -154,7 +207,7 @@ const Dashboard = () => {
               </div>
             )}
 
-            <button className="btn btn-secondary" type="button" onClick={refetch} disabled={loading}>
+            <button className="btn btn-secondary" type="button" onClick={handleManualRefetch} disabled={loading}>
               <RefreshCw size={18} />
               Refresh
             </button>
@@ -199,11 +252,11 @@ const Dashboard = () => {
 
         {/* ── Error State ── */}
         {!loading && error && (
-          <ErrorMessage title="Dashboard unavailable" message={error} onRetry={refetch} />
+          <ErrorMessage title="Dashboard unavailable" message={error} onRetry={handleManualRefetch} />
         )}
 
         {/* ── Main Content ── */}
-        {!loading && !error && metrics && (
+        {!loading && !error && monthlyReport && (
           <>
             {/* Metric Cards */}
             <div className="metrics-grid">
@@ -308,7 +361,7 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                {(metrics.spendingBreakdown ?? []).length === 0 ? (
+                {spendingBreakdownData.length === 0 ? (
                   <EmptyState
                     icon={WalletCards}
                     title="No spending breakdown"
@@ -318,7 +371,7 @@ const Dashboard = () => {
                   <>
                     <div className="donut-wrap">
                       <svg viewBox="0 0 42 42" className="donut-chart" role="img" aria-label="Spending breakdown">
-                        {metrics.spendingBreakdown.map((item, index, list) => {
+                        {spendingBreakdownData.map((item, index, list) => {
                           const offset = list
                             .slice(0, index)
                             .reduce((total, current) => total + current.percent, 0);
@@ -339,7 +392,7 @@ const Dashboard = () => {
                       </svg>
                     </div>
                     <div className="breakdown-list">
-                      {metrics.spendingBreakdown.map((item) => (
+                      {spendingBreakdownData.map((item) => (
                         <div className="breakdown-item" key={item.category}>
                           <span>
                             <i style={{ backgroundColor: item.color }} />
@@ -382,7 +435,7 @@ const Dashboard = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {metrics.recentTransactions.length === 0 ? (
+                      {recentTransactionsData.length === 0 ? (
                         <tr>
                           <td colSpan={3}>
                             <EmptyState
@@ -398,15 +451,20 @@ const Dashboard = () => {
                           </td>
                         </tr>
                       ) : (
-                        metrics.recentTransactions.map((tx) => (
+                        recentTransactionsData.map((tx) => (
                           <tr key={tx.id}>
                             <td>{tx.description}</td>
                             <td>
-                              <span className="status-pill status-muted">{tx.category}</span>
+                              <span className="status-pill status-muted">
+                                {tx.categoryName || 'Uncategorized'}
+                              </span>
                             </td>
-                            <td className={`amount ${tx.amount < 0 ? 'negative' : 'positive'}`}>
-                              {tx.amount < 0 ? '-' : '+'}
-                              {currency.format(Math.abs(tx.amount || 0))}
+                            <td
+                              className={`amount ${tx.type === 'expense' ? 'negative' : 'positive'
+                                }`}
+                            >
+                              {tx.type === 'expense' ? '-' : '+'}
+                              {currency.format(Number(tx.amount || 0))}
                             </td>
                           </tr>
                         ))
@@ -432,13 +490,13 @@ const Dashboard = () => {
                 </div>
 
                 <div className="bill-preview-list">
-                  {metrics.budgetsAtRisk.length === 0 ? (
+                  {budgetsAtRiskData.length === 0 ? (
                     <EmptyState
                       title="All budgets on track"
                       description="No categories are at or above 90% of their limit."
                     />
                   ) : (
-                    metrics.budgetsAtRisk.map((budget) => (
+                    budgetsAtRiskData.map((budget) => (
                       <div className="bill-preview" key={budget.id}>
                         <span className="bill-preview__icon">
                           <WalletCards size={18} />
@@ -460,6 +518,15 @@ const Dashboard = () => {
 
       </section>
     </DashboardLayout>
+  );
+};
+
+// Index shell safely injects the shared Provider boundary condition context context
+const Dashboard = () => {
+  return (
+    <ReportProvider>
+      <DashboardContent />
+    </ReportProvider>
   );
 };
 

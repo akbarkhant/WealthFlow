@@ -1,416 +1,444 @@
-// goals.service.js
-// Business logic layer (controller ↔ repository)
+// src/services/goals.service.js
+'use strict';
 
-const repo = require('./goals.repository');
+const goalsRepository = require('./goals.repository');
+const { redis }       = require('../../config/redis.config');
+const { logger }      = require('../../config/logger.config');
+
+// ── Cache Configuration ───────────────────────────────────────────────────────
+const CACHE_TTL    = 600;                              // 10-minute window
+const cacheKey     = (userId) => `cache:goals:${userId}`;
+const goalCacheKey = (goalId, userId) => `cache:goal:${userId}:${goalId}`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILITY — Safe Error Factory
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * ─────────────────────────────────────────────
- * UTILITY / CALCULATION HELPER FUNCTIONS
- * ─────────────────────────────────────────────
+ * Creates a typed HTTP error with a status code attached,
+ * avoiding repetitive inline boilerplate across every method.
  */
+function createError(message, status = 400) {
+  const err  = new Error(message);
+  err.status = status;
+  return err;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILITY — Goal Metrics Calculator
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Computes goal progress percentage and dynamic time metrics
- * Matches Requirements 3 & 4
+ * Computes runtime tracking fields that are never persisted to the DB:
+ *   - progress             (0–100, or above if overflow is enabled)
+ *   - daysLeft             (null if no deadline)
+ *   - requiredDailySavings (null if no deadline)
+ *   - derivedStatus        (OVERDUE upgrade when deadline passed and still ACTIVE)
+ *
+ * Accepts both camelCase and snake_case shapes so it works against raw DB rows
+ * and already-transformed objects alike.
  */
 function calculateGoalMetrics(goal) {
-  const currentAmount = Number(goal.currentAmount || goal.current_amount || 0);
-  const target_amount = Number(goal.target_amount || goal.target_amount || 0);
-  const allowOverflow = !!(goal.allowOverflow || goal.allow_overflow);
-  const deadline = goal.deadline || goal.targetDate;
+  const currentAmount  = Number(goal.currentAmount  ?? goal.current_amount  ?? 0);
+  const targetAmount   = Number(goal.targetAmount   ?? goal.target_amount   ?? 0);
+  const allowOverflow  = !!(goal.allowOverflow       ?? goal.allow_overflow);
+  const deadline       = goal.deadline               ?? goal.targetDate;
 
-  // 1. Progress Calculation (Avoid division by zero & clamp if needed)
+  // ── 1. Progress ────────────────────────────────────────────────────────────
   let progress = 0;
-  if (target_amount > 0) {
-    progress = (currentAmount / target_amount) * 100;
-    if (!allowOverflow && progress > 100) {
-      progress = 100;
-    }
+  if (targetAmount > 0) {
+    progress = (currentAmount / targetAmount) * 100;
+    if (!allowOverflow && progress > 100) progress = 100;
     progress = Math.max(0, parseFloat(progress.toFixed(2)));
   }
 
-  // 2. Time-Based / Smart Logic
-  let daysLeft = null;
+  // ── 2. Time-Based Metrics ──────────────────────────────────────────────────
+  let daysLeft             = null;
   let requiredDailySavings = null;
-  let isOverdue = false;
+  let isOverdue            = false;
 
   if (deadline) {
-    const today = new Date();
+    const today      = new Date();
     today.setHours(0, 0, 0, 0);
     const targetDate = new Date(deadline);
     targetDate.setHours(0, 0, 0, 0);
 
-    const timeDiff = targetDate.getTime() - today.getTime();
-    daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+    daysLeft = Math.ceil((targetDate - today) / 86_400_000);
 
-    // Check if goal is overdue
     if (daysLeft < 0 && goal.status !== 'COMPLETED') {
       isOverdue = true;
-      daysLeft = 0; // Don't expose negative days to UI
+      daysLeft  = 0;             // never expose negative days to clients
     }
 
-    // Required daily savings rate to meet deadline
-    const remainingAmount = target_amount - currentAmount;
-    if (remainingAmount > 0 && daysLeft > 0) {
-      requiredDailySavings = parseFloat((remainingAmount / daysLeft).toFixed(2));
-    } else if (remainingAmount <= 0) {
+    const remaining = targetAmount - currentAmount;
+    if (remaining <= 0) {
       requiredDailySavings = 0;
+    } else if (daysLeft > 0) {
+      requiredDailySavings = parseFloat((remaining / daysLeft).toFixed(2));
     } else {
-      requiredDailySavings = remainingAmount; // Everything is due right now
+      requiredDailySavings = remaining; // full remainder due immediately
     }
   }
 
-  // Derive status based on metrics if it's currently ACTIVE
-  let currentStatus = goal.status || 'ACTIVE';
-  if (currentStatus === 'ACTIVE' && isOverdue) {
-    currentStatus = 'OVERDUE';
-  }
+  // ── 3. Derived Status (non-persisted upgrade) ──────────────────────────────
+  const derivedStatus =
+    goal.status === 'ACTIVE' && isOverdue ? 'OVERDUE' : (goal.status ?? 'ACTIVE');
 
-  return {
-    progress,
-    daysLeft,
-    requiredDailySavings,
-    derivedStatus: currentStatus
-  };
+  return { progress, daysLeft, requiredDailySavings, derivedStatus };
 }
 
 /**
- * ─────────────────────────────────────────────
- * LIST ALL GOALS
- * ─────────────────────────────────────────────
+ * Merges persisted goal data with its calculated runtime metrics.
+ * Keeps derivedStatus as the effective `status` only for ACTIVE goals
+ * so PAUSED / COMPLETED / ARCHIVED statuses are never silently overwritten.
  */
-async function list(userId) {
-  const goals = await repo.findAllByUser(userId);
-
-  // Enhance every goal in the list with calculating tracking logic
-  const enrichedGoals = goals.map(goal => {
-    const metrics = calculateGoalMetrics(goal);
-    return {
-      ...goal,
-      progress: metrics.progress,
-      daysLeft: metrics.daysLeft,
-      requiredDailySavings: metrics.requiredDailySavings,
-      status: goal.status === 'ACTIVE' ? metrics.derivedStatus : goal.status
-    };
-  });
-
-  return {
-    data: enrichedGoals,
-    meta: {
-      total: enrichedGoals.length,
-    },
-  };
-}
-
-/**
- * ─────────────────────────────────────────────
- * GET SINGLE GOAL
- * ─────────────────────────────────────────────
- */
-async function getById(goalId, userId) {
-  const goal = await repo.findById(goalId, userId);
-
-  // Requirement 6: Ownership Verification
-  if (!goal) {
-    const err = new Error('Goal not found');
-    err.status = 404;
-    throw err;
-  }
-
+function enrichGoal(goal) {
   const metrics = calculateGoalMetrics(goal);
-  
   return {
     ...goal,
-    progress: metrics.progress,
-    daysLeft: metrics.daysLeft,
+    progress:             metrics.progress,
+    daysLeft:             metrics.daysLeft,
     requiredDailySavings: metrics.requiredDailySavings,
-    status: goal.status === 'ACTIVE' ? metrics.derivedStatus : goal.status
+    status:               goal.status === 'ACTIVE' ? metrics.derivedStatus : goal.status,
   };
 }
 
-/**
- * ─────────────────────────────────────────────
- * CREATE GOAL
- * ─────────────────────────────────────────────
- */
-async function create(userId, body) {
-  const {
-    name,
-    icon,
-    target_amount,
-    targetDate,
-    current_amount,
-    currency,
-    allow_overflow,
-  } = body;
+// ─────────────────────────────────────────────────────────────────────────────
+// ALLOWED STATUSES (single source of truth)
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // Requirement 5 & 6: Strict Field Validations
-  if (!userId) {
-    const err = new Error('userId is strictly required');
-    err.status = 400;
-    throw err;
+const ALLOWED_STATUSES = new Set(['ACTIVE', 'COMPLETED', 'PAUSED', 'FAILED', 'ARCHIVED']);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVICE CLASS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class GoalsService {
+
+  // ── LIST ───────────────────────────────────────────────────────────────────
+
+  /**
+   * Returns all goals for a user, enriched with runtime metrics.
+   * Results are cached in Redis for CACHE_TTL seconds.
+   */
+  async list(userId) {
+    const key = cacheKey(userId);
+
+    // ── Cache read ────────────────────────────────────────────────────────────
+    try {
+      const cached = await redis.get(key);
+      if (cached) {
+        logger.debug({ userId }, 'Goals cache hit');
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      logger.error({ err }, 'Redis cache read error — listUserGoals');
+      // Non-fatal: fall through to DB
+    }
+
+    const goals        = await goalsRepository.findAllByUser(userId);
+    const enrichedGoals = goals.map(enrichGoal);
+
+    const response = {
+      data: enrichedGoals,
+      meta: { total: enrichedGoals.length },
+    };
+
+    // ── Cache write ───────────────────────────────────────────────────────────
+    try {
+      await redis.set(key, JSON.stringify(response), 'EX', CACHE_TTL);
+    } catch (err) {
+      logger.error({ err }, 'Redis cache write error — listUserGoals');
+    }
+
+    return response;
   }
 
-  if (!name) {
-    const err = new Error('name is required');
-    err.status = 400;
-    throw err;
+  // ── GET BY ID ──────────────────────────────────────────────────────────────
+
+  /**
+   * Fetches a single goal with ownership check and metric enrichment.
+   * Per-goal cache avoids repeated DB hits for frequently polled goals.
+   */
+  async getGoalById(goalId, userId) {
+    const key = goalCacheKey(goalId, userId);
+
+    try {
+      const cached = await redis.get(key);
+      if (cached) {
+        logger.debug({ userId, goalId }, 'Single-goal cache hit');
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      logger.error({ err }, 'Redis cache read error — getGoalById');
+    }
+
+    const goal = await goalsRepository.findById(goalId, userId);
+    if (!goal) throw createError('Goal not found', 404);
+
+    const enriched = enrichGoal(goal);
+
+    try {
+      await redis.set(key, JSON.stringify(enriched), 'EX', CACHE_TTL);
+    } catch (err) {
+      logger.error({ err }, 'Redis cache write error — getGoalById');
+    }
+
+    return enriched;
   }
 
-  if (target_amount === undefined || target_amount === null) {
-    const err = new Error('target_amount is required');
-    err.status = 400;
-    throw err;
+  // ── CREATE ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Validates, normalises, and persists a new goal.
+   * Automatically marks the goal COMPLETED when the initial deposit already
+   * meets or exceeds the target.
+   */
+  async createGoal(userId, body) {
+    // ── Input validation ──────────────────────────────────────────────────────
+    if (!userId)   throw createError('userId is required', 400);
+    if (!body.name) throw createError('name is required', 400);
+
+    if (body.targetAmount === undefined || body.targetAmount === null) {
+      throw createError('targetAmount is required', 400);
+    }
+
+    const targetAmount  = Math.floor(Number(body.targetAmount));
+    if (isNaN(targetAmount) || targetAmount <= 0) {
+      throw createError('targetAmount must be a positive number', 400);
+    }
+
+    if (!body.currency) throw createError('currency is required', 400);
+
+    const currentAmount = body.currentAmount ? Math.floor(Number(body.currentAmount)) : 0;
+
+    const payload = {
+      userId,
+      name:           body.name.trim(),
+      icon:           body.icon           ?? null,
+      target_amount:  targetAmount,
+      current_amount: currentAmount,
+      currency:       body.currency,
+      allow_overflow: !!body.allowOverflow,
+      deadline:       body.deadline ? new Date(body.deadline) : null,
+      // Auto-complete when initial deposit already satisfies the target
+      status:         currentAmount >= targetAmount ? 'COMPLETED' : 'ACTIVE',
+    };
+
+    const goal = await goalsRepository.create(payload);
+    await this._invalidateUserCache(userId);
+
+    return enrichGoal(goal);
   }
 
-  if (Number(target_amount) <= 0) {
-    const err = new Error('target_amount must be greater than 0');
-    err.status = 400;
-    throw err;
+  // ── CONTRIBUTE ─────────────────────────────────────────────────────────────
+
+  /**
+   * Applies a monetary contribution to a goal.
+   *
+   * Business rules enforced:
+   *   1. Amount must be a positive number.
+   *   2. Goal must exist and belong to the requesting user.
+   *   3. Lifecycle gate: COMPLETED / PAUSED / FAILED goals reject contributions.
+   *   4. Overflow logic: caps actual contribution at remaining balance when
+   *      allow_overflow is false.
+   *   5. Automatically transitions goal to COMPLETED when target is reached.
+   *   6. Writes an immutable audit record to goal_contributions.
+   */
+  async recordContribution(userId, goalId, contributionPayload) {
+    const { source = 'manual', note = null } = contributionPayload ?? {};
+    const amount = Math.floor(Number(contributionPayload?.amount));
+
+    if (isNaN(amount) || amount <= 0) {
+      throw createError('Contribution amount must be a positive number', 400);
+    }
+
+    const goal = await goalsRepository.findById(goalId, userId);
+    if (!goal) throw createError('Goal not found or unauthorized', 404);
+
+    // ── Lifecycle gates ───────────────────────────────────────────────────────
+    if (goal.status === 'COMPLETED') {
+      throw createError(
+        'Completed goals cannot accept contributions unless explicitly reopened',
+        400,
+      );
+    }
+    if (goal.status === 'PAUSED' || goal.status === 'FAILED') {
+      throw createError(
+        `Cannot contribute to a goal that is currently ${goal.status}`,
+        400,
+      );
+    }
+
+    // ── Overflow / cap logic ──────────────────────────────────────────────────
+    const currentAmount = Number(goal.currentAmount ?? goal.current_amount ?? 0);
+    const targetAmount  = Number(goal.targetAmount  ?? goal.target_amount  ?? 0);
+    const allowOverflow = !!(goal.allowOverflow      ?? goal.allow_overflow);
+
+    let actualContribution = amount;
+    let newAmount          = currentAmount + amount;
+
+    if (newAmount > targetAmount && !allowOverflow) {
+      actualContribution = targetAmount - currentAmount;
+      newAmount          = targetAmount;
+
+      // Guard: already fully funded (could happen under high concurrency)
+      if (actualContribution <= 0) {
+        throw createError('Goal is already fully funded and overflow is disabled', 400);
+      }
+    }
+
+    // ── Determine final status ────────────────────────────────────────────────
+    const finalStatus = newAmount >= targetAmount ? 'COMPLETED' : goal.status;
+
+    // ── Persist updates ───────────────────────────────────────────────────────
+    const updatedGoal = await goalsRepository.update(goalId, userId, {
+      current_amount: newAmount,
+      status:         finalStatus,
+    });
+
+    // Immutable audit trail
+    await goalsRepository.contribute({
+      goalId,
+      userId,
+      amount: actualContribution,
+      source,
+      note,
+      date: new Date(),
+    });
+
+    await this._invalidateUserCache(userId);
+    await this._invalidateSingleCache(goalId, userId);
+
+    const justCompleted = finalStatus === 'COMPLETED' && goal.status !== 'COMPLETED';
+
+    if (justCompleted) {
+      logger.info({ userId, goalId }, 'Goal milestone target reached');
+      // TODO (Week 6): dispatch COMPLETED event to BullMQ notification queue
+    }
+
+    return {
+      ...enrichGoal(updatedGoal),
+      justCompleted,
+      actualContribution,
+      message: `Successfully contributed ${updatedGoal.currency ?? 'Rs.'} ${actualContribution.toLocaleString()} toward your goal.`,
+    };
   }
 
-  if (!currency) {
-    const err = new Error('currency is required');
-    err.status = 400;
-    throw err;
+  // ── UPDATE ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Applies partial updates to a goal with full constraint enforcement.
+   *
+   * Rules:
+   *   - Completed goals are read-only unless the update explicitly changes status.
+   *   - target_amount cannot go below current progress.
+   *   - Updating target_amount to exactly what's already saved auto-completes the goal.
+   *   - Status must be a member of ALLOWED_STATUSES.
+   */
+  async patchGoal(goalId, userId, body) {
+    const existingGoal = await goalsRepository.findById(goalId, userId);
+    if (!existingGoal) throw createError('Goal not found', 404);
+
+    // Block edits on completed goals unless status itself is being changed
+    if (existingGoal.status === 'COMPLETED' && body.status === undefined) {
+      throw createError(
+        'Cannot modify a completed goal unless updating status to reopen it',
+        400,
+      );
+    }
+
+    const currentAmount = Number(
+      existingGoal.currentAmount ?? existingGoal.current_amount ?? 0,
+    );
+    const updatePayload = {};
+
+    // ── target_amount ─────────────────────────────────────────────────────────
+    if (body.targetAmount !== undefined) {
+      const numericTarget = Math.floor(Number(body.targetAmount));
+      if (isNaN(numericTarget) || numericTarget <= 0) {
+        throw createError('targetAmount must be a positive number', 400);
+      }
+      if (numericTarget < currentAmount) {
+        throw createError(
+          `targetAmount cannot be set below current progress of ${currentAmount}`,
+          400,
+        );
+      }
+      updatePayload.target_amount = numericTarget;
+    }
+
+    // ── status ────────────────────────────────────────────────────────────────
+    if (body.status !== undefined) {
+      if (!ALLOWED_STATUSES.has(body.status)) {
+        throw createError(`Invalid status: must be one of ${[...ALLOWED_STATUSES].join(', ')}`, 400);
+      }
+      updatePayload.status = body.status;
+    }
+
+    // ── scalar fields ─────────────────────────────────────────────────────────
+    if (body.name          !== undefined) updatePayload.name          = body.name.trim();
+    if (body.icon          !== undefined) updatePayload.icon          = body.icon;
+    if (body.deadline      !== undefined) updatePayload.deadline      = body.deadline ? new Date(body.deadline) : null;
+    if (body.allowOverflow !== undefined) updatePayload.allow_overflow = !!body.allowOverflow;
+
+    const updated = await goalsRepository.update(goalId, userId, updatePayload);
+
+    await this._invalidateUserCache(userId);
+    await this._invalidateSingleCache(goalId, userId);
+
+    // Auto-complete if the new target_amount is now met by existing savings
+    const metrics = calculateGoalMetrics(updated);
+    if (updated.status === 'ACTIVE' && metrics.progress >= 100) {
+      const autoCompleted = await goalsRepository.update(goalId, userId, {
+        status: 'COMPLETED',
+      });
+      await this._invalidateSingleCache(goalId, userId);
+      return enrichGoal(autoCompleted);
+    }
+
+    return enrichGoal(updated);
   }
 
-  const initial_amount = Number(current_amount || 0);
-  const target = Number(target_amount);
-  
-  // Determine starting status based on initial balance
-  let status = 'ACTIVE';
-  if (initial_amount >= target) {
-    status = 'COMPLETED';
+  // ── DELETE ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Hard-deletes a goal after verifying ownership.
+   * Invalidates both the per-goal and the user-level list cache.
+   */
+  async deleteGoal(goalId, userId) {
+    const existingGoal = await goalsRepository.findById(goalId, userId);
+    if (!existingGoal) throw createError('Goal not found', 404);
+
+    const deleted = await goalsRepository.remove(goalId, userId);
+    if (!deleted) throw createError('Goal could not be deleted', 500);
+
+    await this._invalidateUserCache(userId);
+    await this._invalidateSingleCache(goalId, userId);
+
+    return {
+      success: true,
+      message: 'Goal deleted successfully',
+    };
   }
 
-  const goal = await repo.create({
-    userId,
-    name: name ,
-    icon,
-    currency,
-    target_amount: target,
-    current_amount: initial_amount,
-    deadline: targetDate || null,
-    allow_overflow: !!allow_overflow,
-    status: status, // Requirement 1: Starts ACTIVE or COMPLETED if initial satisfies goal
-  });
+  // ── CACHE HELPERS (private) ────────────────────────────────────────────────
 
-  const metrics = calculateGoalMetrics(goal);
-
-  return {
-    ...goal,
-    ...metrics,
-  };
-}
-
-/**
- * ─────────────────────────────────────────────
- * CONTRIBUTE TO GOAL (Money Flow & Side Effects)
- * ─────────────────────────────────────────────
- */
-async function contribute(goalId, userId, amount, paymentDetails = {}) {
-  const numericAmount = Number(amount);
-  
-  // Safely destruct payment attributes with fallbacks if object is omitted
-  const { source = 'manual', note = null } = paymentDetails || {};
-
-  // Requirement 1: Validate contribution amount is valid currency increments
-  if (isNaN(numericAmount) || numericAmount <= 0) {
-    const err = new Error('Contribution amount must be greater than zero');
-    err.status = 400;
-    throw err;
-  }
-
-  // Requirement 2: Ensure target goal exists and belongs exclusively to the request user
-  const goal = await repo.findById(goalId, userId);
-  if (!goal) {
-    const err = new Error('Goal not found or unauthorized');
-    err.status = 404;
-    throw err;
-  }
-
-  // Requirement 3: Lifecycle rule constraints enforcement
-  if (goal.status === 'COMPLETED') {
-    const err = new Error('Completed goals cannot accept contributions unless explicitly reopened');
-    err.status = 400;
-    throw err;
-  }
-  
-  if (goal.status === 'PAUSED' || goal.status === 'FAILED') {
-    const err = new Error(`Cannot contribute to a goal that is currently ${goal.status}`);
-    err.status = 400;
-    throw err;
-  }
-
-  // Requirement 4: Core Flow Mathematics (Capping vs. Unlimited Overflowing)
-  const current_amount = Number(goal.currentAmount || goal.current_amount || 0);
-  const target_amount = Number(goal.target_amount || goal.target_amount || 0);
-  const allow_overflow = !!(goal.allowOverflow || goal.allow_overflow);
-
-  let proposedNewAmount = current_amount + numericAmount;
-  let actualContributionAmount = numericAmount;
-
-  if (proposedNewAmount > target_amount && !allow_overflow) {
-    // If overflow tracking is disabled, cap the final calculation right at the target
-    actualContributionAmount = target_amount - current_amount;
-    proposedNewAmount = target_amount;
-
-    // Safety edge case guard if database synchronization was delayed
-    if (actualContributionAmount <= 0) {
-      const err = new Error('Goal is already fully funded and overflow is disabled');
-      err.status = 400;
-      throw err;
+  async _invalidateUserCache(userId) {
+    try {
+      await redis.del(cacheKey(userId));
+    } catch (err) {
+      logger.error({ err, userId }, 'Redis cache invalidation error — user list');
     }
   }
 
-  // Requirement 5: Auto-evaluate state migration changes
-  let finalStatus = goal.status;
-  if (proposedNewAmount >= target_amount) {
-    finalStatus = 'COMPLETED';
-  }
-
-  // Requirement 6: Update main goal document
-  // Passing properties explicitly in camelCase to fit the repository's destructuring block
-  const updatedGoal = await repo.update(goalId, userId, {
-    name: goal.name || goal.name, 
-    target_amount: target_amount,
-    allow_overflow: allow_overflow,
-    deadline: goal.deadline || goal.target_date,
-    current_amount: proposedNewAmount, // Map to the exact repository keyword update field
-    status: finalStatus
-  });
-
-  // Requirement 7: Write to audit trail (goal_contributions table) for legal history tracking
-  await repo.contribute({
-    goalId,
-    userId,
-    amount: actualContributionAmount,
-    source,
-    note,
-    date: new Date()
-  });
-
-  // Requirement 8: Recalculate runtime tracking transformations (Days left, percentage etc.)
-  // Safe execution pattern check in case module helper is declared under alternative namespaces
-  const metrics = typeof calculateGoalMetrics === 'function' ? calculateGoalMetrics(updatedGoal) : {};
-  const justCompleted = (finalStatus === 'COMPLETED' && goal.status !== 'COMPLETED');
-
-  // Build the unified payload package to return back to the controller pipeline
-  return {
-    ...updatedGoal,
-    ...metrics,
-    justCompleted,
-    message: `Successfully contributed ${updatedGoal.currency || 'Rs.'} ${actualContributionAmount.toLocaleString()} toward your goal.`,
-  };
-}
-/**
- * ─────────────────────────────────────────────
- * UPDATE GOAL (Business Rules Validation)
- * ─────────────────────────────────────────────
- */
-async function update(goalId, userId, body) {
-  const { target_amount, status, name, icon, deadline, allow_overflow } = body;
-
-  // Requirement 6: Look up existing target configuration safely
-  const existingGoal = await repo.findById(goalId, userId);
-  if (!existingGoal) {
-    const err = new Error('Goal not found');
-    err.status = 404;
-    throw err;
-  }
-
-  // Requirement 5: Cannot modify completed goals unless explicitly mutating status
-  if (existingGoal.status === 'COMPLETED' && !status) {
-    const err = new Error('Cannot modify details of a completed goal unless updating status to reopen it');
-    err.status = 400;
-    throw err;
-  }
-
-  const currentAmount = Number(existingGoal.currentAmount || existingGoal.current_amount || 0);
-  const updatePayload = {};
-
-  // Requirement 5: Target amount boundary guards
-  if (target_amount !== undefined) {
-    const numericTarget = Number(target_amount);
-    if (numericTarget <= 0) {
-      const err = new Error('target_amount must be greater than 0');
-      err.status = 400;
-      throw err;
+  async _invalidateSingleCache(goalId, userId) {
+    try {
+      await redis.del(goalCacheKey(goalId, userId));
+    } catch (err) {
+      logger.error({ err, goalId, userId }, 'Redis cache invalidation error — single goal');
     }
-    if (numericTarget < currentAmount) {
-      const err = new Error(`target_amount cannot be set lower than your current progress of ${currentAmount}`);
-      err.status = 400;
-      throw err;
-    }
-    updatePayload.target_amount = numericTarget;
   }
-
-  // Requirement 1: Handle Manual Lifecycle status Updates
-  if (status) {
-    const allowedStatuses = ['ACTIVE', 'COMPLETED', 'PAUSED', 'FAILED', 'ARCHIVED'];
-    if (!allowedStatuses.includes(status)) {
-      const err = new Error('Invalid goal status update requested');
-      err.status = 400;
-      throw err;
-    }
-    updatePayload.status = status;
-  }
-
-  // Map remaining structural safe fields
-  if (name !== undefined) updatePayload.name = name;
-  if (icon !== undefined) updatePayload.icon = icon;
-  if (deadline !== undefined) updatePayload.deadline = deadline;
-  if (allow_overflow !== undefined) updatePayload.allow_overflow = !!allow_overflow;
-
-  // Persist modifications
-  const updated = await repo.update(goalId, userId, updatePayload);
-  const metrics = calculateGoalMetrics(updated);
-
-  // Requirement 8: If changes in parameters complete goals automatically
-  if (updated.status === 'ACTIVE' && metrics.progress >= 100) {
-    const autoCompletedGoal = await repo.update(goalId, userId, { status: 'COMPLETED' });
-    return { ...autoCompletedGoal, ...calculateGoalMetrics(autoCompletedGoal) };
-  }
-
-  return {
-    ...updated,
-    ...metrics
-  };
 }
 
-/**
- * ─────────────────────────────────────────────
- * DELETE / ARCHIVE GOAL
- * ─────────────────────────────────────────────
- */
-async function remove(goalId, userId) {
-  // Requirement 6: Ensure authorization matches before dropping entries
-  const existingGoal = await repo.findById(goalId, userId);
-  if (!existingGoal) {
-    const err = new Error('Goal not found');
-    err.status = 404;
-    throw err;
-  }
-
-  const deleted = await repo.remove(goalId, userId);
-  if (!deleted) {
-    const err = new Error('Goal could not be deleted');
-    err.status = 500;
-    throw err;
-  }
-
-  return {
-    success: true,
-    message: 'Goal deleted successfully',
-  };
-}
-
-module.exports = {
-  list,
-  getById,
-  create,
-  contribute,
-  update,
-  remove,
-};
+module.exports = new GoalsService();

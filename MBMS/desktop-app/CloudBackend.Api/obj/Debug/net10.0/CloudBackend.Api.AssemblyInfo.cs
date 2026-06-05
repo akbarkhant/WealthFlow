@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CloudBackend.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8ebfc8ed5552a0b66fad4c631b0effe0b7b784a0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5dc4b32b1df818be93cc4028652f768b681a9107")]
 [assembly: System.Reflection.AssemblyProductAttribute("CloudBackend.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CloudBackend.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -26,15 +26,6 @@ export function deriveGoalStatus(goal) {
 /**
  * Central hook for goal data + currency conversion.
  *
- * What it does beyond the original:
- *  - Embeds useCurrency so the entire feature has one source of truth for rates
- *  - Exposes `displayCurrency` / `setDisplayCurrency` so any child can switch
- *  - Computes `summary` with all amounts converted to displayCurrency
- *  - Attaches `convertedCurrent` / `convertedTarget` to each goal object so
- *    MilestoneNode / FuelDrawer don't need to call convert() themselves
- *  - Provides `fmt`, `fmtCompact`, `fmtNative` formatters for consistent rendering
- *  - Validates contributions against the goal's NATIVE currency (not converted)
- *
  * @param {{ defaultCurrency?: string }} options
  */
 export function useGoals({ defaultCurrency = 'USD' } = {}) {
@@ -70,7 +61,9 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
       const result = await goalsApi.getAll();
 
       if (result.success) {
-        setGoals(result.data ?? []);
+        // 🟢 FIXED: Safely extract array regardless of backend payload structure
+        const targetData = result.data?.items ?? result.data ?? [];
+        setGoals(Array.isArray(targetData) ? targetData : []);
       } else {
         setError(result.message ?? 'Failed to sync with goals infrastructure.');
       }
@@ -84,11 +77,25 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
   useEffect(() => { fetchGoals(); }, [fetchGoals]);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Optimistic State Modifiers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Cleans a target goal item out of active state optimistically following deletion
+   * @param {string|number} goalId
+   */
+  const removeGoalFromState = useCallback((goalId) => {
+    setGoals((prev) => prev.filter((g) => g.id !== goalId));
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Goals enriched with converted amounts + derived status
-  // Recomputes whenever raw goals OR rates OR displayCurrency change
   // ─────────────────────────────────────────────────────────────────────────
 
   const enrichedGoals = useMemo(() => {
+    // 🟢 FIXED: Safety fall-through check to prevent object mapper execution drops
+    if (!Array.isArray(goals)) return [];
+
     return goals.map(goal => {
       const current = Number(goal.current_amount ?? 0);
       const target = Number(goal.target_amount ?? 0);
@@ -147,17 +154,6 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
   // Contribute to a goal
   // ─────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Add a contribution to a goal.
-   *
-   * `amount` must always be in the goal's NATIVE currency (same as what the
-   * user types in FuelDrawer — we never send converted values to the backend).
-   *
-   * @param {number|string} goalId
-   * @param {number|string} amount       In goal's native currency
-   * @param {string}        [note]       Optional audit note
-   * @returns {Promise<{ success: boolean, message?: string }>}
-   */
   const fuelGoal = useCallback(async (goalId, amount, note) => {
     setError(null);
 
@@ -191,7 +187,6 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
       const result = await goalsApi.contribute(goalId, parsedAmt, note);
 
       if (result.success) {
-        // Re-sync from server to stay consistent with backend calculations
         await fetchGoals();
         return result;
       }
@@ -206,25 +201,13 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
     }
   }, [goals, fetchGoals, fmtNative]);
 
-
   // ─────────────────────────────────────────────────────────────────────────
   // Create a new goal
   // ─────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Initialize a brand new savings goal.
-   * * @param {Object} goalPayload
-   * @param {string} goalPayload.name
-   * @param {number|string} goalPayload.target_amount
-   * @param {string} [goalPayload.currency] - defaults to USD
-   * @param {string} [goalPayload.icon] - defaults to 🎯
-   * @param {boolean} [goalPayload.allowOverflow]
-   * @param {string|null} [goalPayload.deadline]
-   */
   const createGoal = useCallback(async (goalPayload) => {
     setError(null);
 
-    // Client-side quick guardrails mirroring backend logic
     if (!goalPayload.name || goalPayload.name.trim() === '') {
       return { success: false, message: 'Goal name is required.' };
     }
@@ -243,7 +226,6 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
       });
 
       if (result.success) {
-        // Re-sync from server to instantly show new goal in the UI list
         await fetchGoals();
         return result;
       }
@@ -259,14 +241,9 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
   }, [fetchGoals]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Currency switcher helper: convert a one-off amount on the fly
-  // (useful if FuelDrawer wants to show an "≈ EUR 12.50" hint)
+  // Currency switcher helper
   // ─────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Convert `amount` in `fromCurrency` to any arbitrary `toCurrency`.
-   * Uses the same live rates as everything else.
-   */
   const convertTo = useCallback(
     (amount, fromCurrency, toCurrency) =>
       convertAmount(amount, fromCurrency, toCurrency, rates),
@@ -279,8 +256,8 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
 
   return {
     // ── Goal data ──
-    goals: enrichedGoals,     // goals with convertedCurrent/Target + derivedStatus
-    rawGoals: goals,          // untouched API response, if needed
+    goals: enrichedGoals,     
+    rawGoals: goals,          
     loading,
     error,
     refetch: fetchGoals,
@@ -288,6 +265,7 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
     // ── Actions ──
     fuelGoal,
     createGoal,
+    removeGoalFromState, // 🟢 EXPOSED: Links deleting interface channels back inside state engines
 
     // ── Currency state ──
     displayCurrency,
@@ -301,9 +279,9 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
     summary,
 
     // ── Formatters ──
-    fmt,          // convert + full decimals  → fmt(goal.current_amount, goal.currency)
-    fmtCompact,   // convert + no decimals    → fmtCompact(goal.target_amount, goal.currency)
-    fmtNative,    // no conversion, native    → fmtNative(goal.current_amount, goal.currency)
-    convertTo,    // one-off arbitrary convert
+    fmt,          
+    fmtCompact,   
+    fmtNative,    
+    convertTo,    
   };
 }

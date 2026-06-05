@@ -3,16 +3,26 @@ import api, { buildQuery } from './client';
 export async function listTransactions(params = {}) {
   const result = await api.get(`/transactions${buildQuery(params)}`);
 
-  if (result && typeof result === 'object' && Array.isArray(result.data) && result.meta) {
+  // Fix: Target result.data.rows since the backend response uses the pg driver format
+  if (
+    result &&
+    typeof result === 'object' && 
+    result.data && 
+    Array.isArray(result.data.rows) && 
+    result.meta
+  ) {
     return {
-      data: result.data,
+      data: result.data.rows, // Pull the array out of the nested rows property
       meta: {
         ...result.meta,
+        // Calculate total pages based on meta values
+        totalPages: result.meta.limit > 0 ? Math.ceil(result.meta.total / result.meta.limit) : 0,
         hasMore: result.meta.page < result.meta.totalPages,
       },
     };
   }
 
+  // Fallback fallback logic safety check
   const list = Array.isArray(result) ? result : [];
   return {
     data: list,

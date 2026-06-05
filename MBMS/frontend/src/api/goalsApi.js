@@ -13,15 +13,21 @@ const getAuthHeaders = () => {
 
 // Centralized API endpoints handler object
 export const goalsApi = {
+
   // Fetch all goals: GET /api/goals
   getAll: async () => {
     const response = await fetch(BASE_URL, {
       method: 'GET',
       headers: getAuthHeaders(),
     });
-    
+
     if (response.status === 401) handleUnauthorized();
-    return response.json();
+
+    const json = await response.json();
+
+    // If your global sendSuccess utility packs responses like { success: true, data: { items: [], total: 3 } }
+    // This safely normalizes it so that hook unpacking can parse it securely
+    return json;
   },
 
   // Inject currency into a goal node: POST /api/goals/:id/contribute

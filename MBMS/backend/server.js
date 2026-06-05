@@ -2,7 +2,7 @@ require('dotenv').config()
 const http = require('http');
 const app = require('./src/app');
 const { config } = require('./src/config/index.config');
-const { connectRedis, disconnectRedis } = require('./src/config/redis.config');
+const { disconnectRedis } = require('./src/config/redis.config');
 const { query } = require('./src/config/db.config');
 const { registerProcessHandlers } = require('./src/middleware/errorHandler.middleware');
 const { startInsightsCron } = require('./src/modules/ai/ai.cron')
@@ -20,7 +20,7 @@ async function start() {
     })();
 
     // ── Connect Redis ─────────────────────────
-    await connectRedis();
+    // await connectRedis();
 
     // ── Start Server ──────────────────────────
     server.listen(PORT, () => {

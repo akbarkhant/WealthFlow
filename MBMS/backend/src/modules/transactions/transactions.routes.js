@@ -33,6 +33,13 @@ router.get(
   controller.getTransactionById
 );
 
+// Add this route right inside transactions.routes.js:
+
+router.get(
+  '/reports/monthly',
+  controller.getMonthlyReport
+);
+
 // Create a transaction (with strict balance verification rules)
 router.post(
   '/',

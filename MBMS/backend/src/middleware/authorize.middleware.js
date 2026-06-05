@@ -48,14 +48,19 @@ function authenticate(req, res, next) {
       config.JWT_ACCESS_SECRET
     );
 
+    // Clean up the string to ensure perfect compatibility with Postgres UUID types
+    let rawUserId = decoded.sub ?? decoded.id;
+    if (typeof rawUserId === 'string') {
+      rawUserId = rawUserId.trim().toLowerCase();
+    }
+
     // Attach user data to request
     req.user = {
-      id: decoded.sub ?? decoded.id,
+      id: rawUserId,
       email: decoded.email,
       role: decoded.role,
       jti: decoded.jti,
     };
-
     next();
   } catch (err) {
     logger.error(
