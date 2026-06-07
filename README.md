@@ -21,64 +21,6 @@ The system provides separate personal and business finance management, transacti
 
 ---
 
-# 🧱 Tech Stack
-
-## Frontend
-
-* React.js
-* JavaScript
-* HTML5
-* CSS3
-* Axios
-
-## Backend
-
-* Node.js
-* Express.js
-
-## Database
-
-* PostgreSQL / MongoDB
-
-## Authentication
-
-* JWT (JSON Web Tokens)
-
-## Tools
-
-* Git
-* GitHub
-* Postman
-* dotenv
-
----
-
-# 📁 Project Structure
-
-```text
-WealthFlow/
-│
-├── backend/
-│   ├── src/
-│   │   ├── routes/
-│   │   ├── controllers/
-│   │   ├── services/
-│   │   ├── models/
-│   │   └── middleware/
-│   ├── server.js
-│   └── .env
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── context/
-│   │   └── api/
-│   └── public/
-│
-└── README.md
-```
-
 ---
 
 # ⚙️ Installation & Setup
@@ -86,7 +28,7 @@ WealthFlow/
 ## 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/wealthflow.git
+git clone https://github.com/akbarkhant/WealthFlow.git
 cd wealthflow
 ```
 
@@ -116,13 +58,13 @@ npm run dev
 ```bash
 cd frontend
 npm install
-npm start
+npm run dev
 ```
 
 The frontend will run at:
 
 ```text
-http://localhost:3000
+http://localhost:5173
 ```
 
 The backend will run at:
@@ -282,7 +224,6 @@ npm test
 ## Database
 
 * PostgreSQL
-* MongoDB Atlas
 
 ---
 
@@ -332,7 +273,7 @@ git push origin feature/new-feature
 
 # 📜 License
 
-This project is licensed under the MIT License.
+This project is licensed under the GNU General Public License v3.0.
 
 ---
 
