@@ -93,20 +93,39 @@ npm run dev
 cd frontend
 npm install
 npm run dev
-🔗 API Routes
-🔐 Auth Routes
-POST   /api/auth/register   → Register new user
-POST   /api/auth/login      → Login user
-GET    /api/auth/me         → Get current user
-💰 Transaction Routes
-GET    /api/transactions        → Get all transactions
-POST   /api/transactions        → Add new transaction
-PUT    /api/transactions/:id    → Update transaction
-DELETE /api/transactions/:id    → Delete transaction
-📊 Budget Routes
-GET    /api/budgets         → Get budgets
-POST   /api/budgets         → Create budget
-DELETE /api/budgets/:id     → Delete budget
+
+## 🔗 API Routes
+
+### 🔐 Authentication
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login user |
+| GET | `/api/auth/me` | Get logged-in user |
+
+---
+
+### 💰 Transactions
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/transactions` | Get all transactions |
+| POST | `/api/transactions` | Add new transaction |
+| PUT | `/api/transactions/:id` | Update transaction |
+| DELETE | `/api/transactions/:id` | Delete transaction |
+
+---
+
+### 📊 Budgets
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/budgets` | Get all budgets |
+| POST | `/api/budgets` | Create budget |
+| DELETE | `/api/budgets/:id` | Delete budget |
+
+---
 📊 Core Modules
 Authentication Module – Secure login & registration
 Transaction Module – Manage income & expenses
