@@ -135,7 +135,7 @@ http://localhost:5000
 
 
 # 🔗 API Routes
-<div align='senter'>
+<div align='center'>
 ## 🔐 Authentication Routes
 
 | Method | Endpoint             | Description         |
