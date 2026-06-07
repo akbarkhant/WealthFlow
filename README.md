@@ -144,3 +144,5 @@ If you want next upgrade, I can make:
 - 🚀 **With badges + live demo section + screenshots**
 - 📊 **Architecture diagram + system design section**
 - 🧠 **WealthFlow AI version branding**
+
+---
