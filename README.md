@@ -135,7 +135,6 @@ http://localhost:5000
 
 
 # 🔗 API Routes
-<div align='center'>
 ## 🔐 Authentication Routes
 
 | Method | Endpoint             | Description         |
@@ -210,7 +209,6 @@ http://localhost:5000
 | GET    | `/api/dashboard`           | Dashboard overview  |
 | GET    | `/api/dashboard/analytics` | Dashboard analytics |
 | GET    | `/api/dashboard/insights`  | Financial insights  |
-</div>
 ---
 
 # 📊 Core Modules
