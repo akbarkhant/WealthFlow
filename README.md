@@ -6,74 +6,68 @@ WealthFlow is a full-stack **personal and business finance management system** d
 
 ## 🚀 Features
 
-- 📊 Income & Expense tracking
-- 💼 Separate Personal & Business finance management
-- 📅 Transaction history with filtering
-- 📈 Financial analytics & dashboard insights
-- 🔐 Secure authentication system (JWT/session-based)
-- 🧾 Category-based expense tracking
-- 📉 Budget management system
-- 🌐 RESTful API architecture
-- 📱 Responsive UI for all devices
+- 📊 Income & Expense tracking  
+- 💼 Separate Personal & Business finance management  
+- 📅 Transaction history with filtering  
+- 📈 Financial analytics & dashboard insights  
+- 🔐 Secure authentication system (JWT/session-based)  
+- 🧾 Category-based expense tracking  
+- 📉 Budget management system  
+- 🌐 RESTful API architecture  
+- 📱 Responsive UI for all devices  
 
 ---
 
 ## 🧱 Tech Stack
 
 ### Frontend
-- React.js / Vite
-- HTML5, CSS3, JavaScript
-- Axios (API communication)
+- React.js / Vite  
+- HTML5, CSS3, JavaScript  
+- Axios (API communication)  
 
 ### Backend
-- Node.js
-- Express.js
+- Node.js  
+- Express.js  
 
 ### Database
-- PostgreSQL / MongoDB (depending on your setup)
+- PostgreSQL / MongoDB (depending on your setup)  
 
 ### Authentication
-- JWT (JSON Web Tokens)
+- JWT (JSON Web Tokens)  
 
 ### Tools
-- Git & GitHub
-- Postman (API testing)
-- dotenv (environment variables)
+- Git & GitHub  
+- Postman (API testing)  
+- dotenv (environment variables)  
 
 ---
 
 ## 📁 Project Structure
 
-
+```bash
 WealthFlow/
 │
 ├── backend/
-│ ├── src/
-│ │ ├── routes/
-│ │ ├── controllers/
-│ │ ├── services/
-│ │ ├── models/
-│ │ └── middleware/
-│ ├── server.js
-│ └── .env
+│   ├── src/
+│   │   ├── routes/
+│   │   ├── controllers/
+│   │   ├── services/
+│   │   ├── models/
+│   │   └── middleware/
+│   ├── server.js
+│   └── .env
 │
 ├── frontend/
-│ ├── src/
-│ │ ├── components/
-│ │ ├── pages/
-│ │ ├── context/
-│ │ └── api/
-│ └── index.html
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── context/
+│   │   └── api/
+│   └── index.html
 │
 └── README.md
-
-
----
-
-## ⚙️ Installation & Setup
-
-### 1. Clone the repository
-```bash
+⚙️ Installation & Setup
+1. Clone the repository
 git clone https://github.com/your-username/wealthflow.git
 cd wealthflow
 2. Backend Setup
@@ -93,39 +87,23 @@ npm run dev
 cd frontend
 npm install
 npm run dev
-
-## 🔗 API Routes
-
-### 🔐 Authentication
-
-| Method | Route | Description |
-|--------|-------|-------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | Login user |
-| GET | `/api/auth/me` | Get logged-in user |
-
----
-
-### 💰 Transactions
-
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | `/api/transactions` | Get all transactions |
-| POST | `/api/transactions` | Add new transaction |
-| PUT | `/api/transactions/:id` | Update transaction |
-| DELETE | `/api/transactions/:id` | Delete transaction |
-
----
-
-### 📊 Budgets
-
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | `/api/budgets` | Get all budgets |
-| POST | `/api/budgets` | Create budget |
-| DELETE | `/api/budgets/:id` | Delete budget |
-
----
+🔗 API Routes
+🔐 Authentication
+Method	Route	Description
+POST	/api/auth/register	Register new user
+POST	/api/auth/login	Login user
+GET	/api/auth/me	Get logged-in user
+💰 Transactions
+Method	Route	Description
+GET	/api/transactions	Get all transactions
+POST	/api/transactions	Add new transaction
+PUT	/api/transactions/:id	Update transaction
+DELETE	/api/transactions/:id	Delete transaction
+📊 Budgets
+Method	Route	Description
+GET	/api/budgets	Get all budgets
+POST	/api/budgets	Create budget
+DELETE	/api/budgets/:id	Delete budget
 📊 Core Modules
 Authentication Module – Secure login & registration
 Transaction Module – Manage income & expenses
@@ -142,28 +120,27 @@ Mobile app version
 
 Contributions are welcome!
 
-1. Fork the repo
-2. Create a new branch
-3. Commit changes
-4. Push and create a PR
+Fork the repo
+Create a new branch
+Commit changes
+Push and create a PR
 📜 License
 
 This project is licensed under the MIT License.
 
 👨‍💻 Author
-
 Akbar Khan
-
-GitHub: [your-github]
+GitHub: your-github
 Email: your-email@example.com
-⭐ If you like this project
+⭐ Support
 
-Give it a ⭐ on GitHub to support development!
+If you like this project, give it a ⭐ on GitHub to support development!
 
 
 ---
 
-If you want, I can also:
-- Make it **more advanced (startup-level README)**
-- Add **badges (build, license, tech stack icons)**
-- Or generate a **fancy GitHub README with UI-style sections + banners**
+If you want next upgrade, I can make:
+- 🔥 **Professional startup README (Stripe-level style)**
+- 🚀 **With badges + live demo section + screenshots**
+- 📊 **Architecture diagram + system design section**
+- 🧠 **WealthFlow AI version branding**
