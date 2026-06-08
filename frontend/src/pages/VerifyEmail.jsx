@@ -1,33 +1,47 @@
-import React, { useState, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Mail, Loader2, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
 import api from "../api/client"; 
+import Navbar from '../components/HomeComponents/Navbar1';
 import "../styles/pages/VerifyEmail.css";
 
 const VerifyEmail = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const dropdownRef = useRef(null);
 
   const [email, setEmail] = useState(location.state?.email || "");
   const [loading, setLoading] = useState(!location.state?.email);
   const [error, setError] = useState(null);
   const [resendStatus, setResendStatus] = useState("idle");
+  const [countdown, setCountdown] = useState(0);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+  // Handle countdown timer for resending email
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  // Fetch email if not passed through navigation state
   useEffect(() => {
     if (email) return;
 
     const fetchUserEmail = async () => {
       try {
         setLoading(true);
-        // Uses your optimized framework call with automated intercept retry loops
         const data = await api.get("/users/me");
         const resolvedEmail = data?.user?.email || data?.email;
 
         if (!resolvedEmail) {
-          throw new Error("Could not extract email address from your account.");
+          throw new Error("Could not find an email address associated with this account.");
         }
         setEmail(resolvedEmail);
       } catch (err) {
-        setError(err.message || "Session error. Please log in again.");
+        setError(err.message || "Your session expired. Please log in again.");
       } finally {
         setLoading(false);
       }
@@ -36,12 +50,25 @@ const VerifyEmail = () => {
     fetchUserEmail();
   }, [email]);
 
+  // Close the email app dropdown if the user clicks anywhere outside of it
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
   const handleResendEmail = async () => {
-    if (!email) return;
+    if (!email || countdown > 0) return;
     try {
       setResendStatus("sending");
       await api.post("/auth/resend-verification", { email });
       setResendStatus("success");
+      setCountdown(60); // 60-second cooldown to pace the user and protect backend routes
     } catch (err) {
       setResendStatus("error");
     }
@@ -49,77 +76,119 @@ const VerifyEmail = () => {
 
   return (
     <div className="verify-email-page">
-      <header className="verify-header">
-        <div className="verify-header-container">
-          <div className="verify-logo" onClick={() => navigate('/')} style={{cursor: 'pointer'}}>
-            WealthFlow
-          </div>
-          <div className="verify-nav-links">
-            <Link to="/features">Features</Link>
-            <Link to="/solutions">Solutions</Link>
-            <Link to="/pricing">Pricing</Link>
-          </div>
-          <div className="verify-header-actions">
-            <Link to="/login" className="login-btn">Log In</Link>
-          </div>
-        </div>
-      </header>
+      <Navbar />
 
       <main className="verify-main">
         <div className="verify-container">
           <div className="verify-card">
-            <div className="bg-circle"></div>
+            
+            {/* Top Functional State Icon */}
             <div className="verify-icon-wrapper">
-              <div className="verify-icon-circle">
-                <span className="material-symbols-outlined mail-icon">mail</span>
+              <div className={`verify-icon-circle ${resendStatus === "success" ? "success-glow" : ""}`}>
+                {resendStatus === "success" ? (
+                  <CheckCircle2 className="verify-icon success-color" size={32} />
+                ) : error ? (
+                  <AlertCircle className="verify-icon error-color" size={32} />
+                ) : (
+                  <Mail className="verify-icon primary-color" size={32} />
+                )}
               </div>
             </div>
 
-            <h1 className="verify-title">Check your inbox</h1>
+            {/* Dynamic Card Headings */}
+            <h1 className="verify-title">
+              {error ? "Verification Issue" : resendStatus === "success" ? "Link sent!" : "Check your inbox"}
+            </h1>
 
+            {/* Content Status Blocks */}
             {loading ? (
-              <p className="verify-description">Loading profile parameters...</p>
+              <div className="verify-loading-state">
+                <Loader2 className="spinner" size={20} />
+                <p className="verify-description">Securing your profile context...</p>
+              </div>
             ) : error ? (
-              <p className="verify-description error-text-display" style={{ color: "#ef4444" }}>
-                {error}
-              </p>
+              <div className="status-alert-box error-box">
+                <p className="verify-description error-text">{error}</p>
+              </div>
             ) : (
               <p className="verify-description">
-                We sent a verification link to <strong>{email}</strong>. Please check your inbox.
+                We sent a secure verification link to <strong className="user-email">{email}</strong>. Please check your spam folder if it doesn't arrive shortly.
               </p>
             )}
 
+            {/* Interaction Actions Area */}
             <div className="verify-actions">
-              <button
-                className="open-email-btn"
-                onClick={() => window.location.href = "mailto:"}
-                disabled={loading || !!error}
-              >
-                Open Email App
-              </button>
+              
+              {/* Smart Email Client Dropdown Wrapper */}
+              <div className="email-client-selector" ref={dropdownRef}>
+                <button
+                  className="open-email-btn"
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  disabled={loading || !!error}
+                >
+                  <Mail size={18} />
+                  Open Email App
+                </button>
+                
+                {isDropdownOpen && (
+                  <div className="email-dropdown-menu">
+                    <a href="https://mail.google.com" target="_blank" rel="noopener noreferrer" onClick={() => setIsDropdownOpen(false)}>
+                      Gmail
+                    </a>
+                    <a href="https://outlook.live.com" target="_blank" rel="noopener noreferrer" onClick={() => setIsDropdownOpen(false)}>
+                      Outlook / Hotmail
+                    </a>
+                    <a href="https://mail.yahoo.com" target="_blank" rel="noopener noreferrer" onClick={() => setIsDropdownOpen(false)}>
+                      Yahoo Mail
+                    </a>
+                    <a href="https://www.icloud.com/mail" target="_blank" rel="noopener noreferrer" onClick={() => setIsDropdownOpen(false)}>
+                      iCloud Mail
+                    </a>
+                    <div className="dropdown-divider"></div>
+                    <a href="mailto:" className="fallback-client" onClick={() => setIsDropdownOpen(false)}>
+                      Default Native App (mailto:)
+                    </a>
+                  </div>
+                )}
+              </div>
 
+              <div className="resend-divider">
+                <span>or</span>
+              </div>
+
+              {/* Email Resend Trigger Pipeline */}
               <div className="resend-section">
-                <p>Didn't receive the email?</p>
                 <button
                   className="resend-btn"
                   onClick={handleResendEmail}
-                  disabled={resendStatus === "sending" || !email}
+                  disabled={resendStatus === "sending" || countdown > 0 || !email || !!error}
                 >
-                  {resendStatus === "sending" ? "Sending..." : "Resend Email"}
+                  {resendStatus === "sending" ? (
+                    <>
+                      <Loader2 className="spinner" size={16} />
+                      Sending link...
+                    </>
+                  ) : countdown > 0 ? (
+                    `Resend email in ${countdown}s`
+                  ) : (
+                    "Resend verification email"
+                  )}
                 </button>
 
-                {resendStatus === "success" && (
-                  <p className="status-msg success" style={{ color: "#10b981", fontSize: "14px", marginTop: "8px" }}>
-                    Email sent successfully!
-                  </p>
-                )}
                 {resendStatus === "error" && (
-                  <p className="status-msg error" style={{ color: "#ef4444", fontSize: "14px", marginTop: "8px" }}>
-                    Failed to resend email wrapper.
+                  <p className="status-msg error-text">
+                    Unable to send link. Please try again in a moment.
                   </p>
                 )}
               </div>
             </div>
+
+            {/* Back Navigation Escape Hatch */}
+            <button className="back-to-login-btn" onClick={() => navigate("/login")}>
+              <ArrowLeft size={16} />
+              Back to Sign In
+            </button>
+
           </div>
         </div>
       </main>

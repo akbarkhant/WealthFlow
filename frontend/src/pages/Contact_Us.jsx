@@ -1,27 +1,39 @@
 import { useState, useRef, useEffect } from "react";
+import { 
+  Mail, 
+  MessageSquare, 
+  MapPin, 
+  Terminal, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Loader2, 
+  SendHorizontal, 
+  Lock 
+} from "lucide-react";
+import api from "../api/client";
 import "../styles/pages/contact-us.css";
 
 const CONTACT_INFO = [
   {
-    icon: "✉️",
+    icon: <Mail size={20} />,
     label: "Email",
     value: "khant@example.com",
     href: "mailto:khant@example.com",
     desc: "Best for detailed inquiries",
   },
   {
-    icon: "💬",
+    icon: <MessageSquare size={20} />,
     label: "Discord",
     value: "khant#0001",
     href: "#",
     desc: "Quick chats & collabs",
   },
   {
-    icon: "📍",
+    icon: <MapPin size={20} />,
     label: "Location",
-    value: "Rangoon, Myanmar",
+    value: "Rawalpindi, Pakistan",
     href: null,
-    desc: "GMT+6:30 timezone",
+    desc: "GMT+5:00 timezone",
   },
 ];
 
@@ -35,10 +47,10 @@ const TOPICS = [
 ];
 
 const SOCIALS = [
-  { label: "GitHub", icon: "GH", href: "https://github.com/akbarkhant", color: "#24292e" },
-  { label: "LinkedIn", icon: "IN", href: "https://linkedin.com", color: "#0077b5" },
-  { label: "Twitter / X", icon: "𝕏", href: "https://twitter.com", color: "#000" },
-  { label: "Dev.to", icon: "DEV", href: "https://dev.to", color: "#0a0a0a" },
+  { label: "Github"   , href: "https://github.com/", color: "#24292e" },
+  { label: "Linkedin" , href: "https://linkedin.com", color: "#0077b5" },
+  { label: "Twitter"  , href: "https://twitter.com", color: "#000" },
+  { label: "Dev.to"   , icon: <Terminal size={18} />, href: "https://dev.to", color: "#0a0a0a" },
 ];
 
 function useInView(ref) {
@@ -96,17 +108,26 @@ export default function ContactUs() {
     const errs = validate();
     if (Object.keys(errs).length) {
       setErrors(errs);
-      // Shake animation
       const formEl = document.querySelector(".contact-form");
-      formEl.classList.add("shake");
-      setTimeout(() => formEl.classList.remove("shake"), 500);
+      if (formEl) {
+        formEl.classList.add("shake");
+        setTimeout(() => formEl.classList.remove("shake"), 500);
+      }
       return;
     }
-    setStatus("sending");
-    // Simulated async submit
-    await new Promise((r) => setTimeout(r, 1800));
-    // Randomly succeed (in a real app this would be your API call)
-    setStatus("success");
+
+    try {
+      setStatus("sending");
+      
+      // Hit your real backend submission handler route
+      await api.post("/contact", form);
+      
+      setStatus("success");
+    } catch (err) {
+      console.error("Submission failed:", err);
+      setStatus("error");
+      setErrors({ submit: err.response?.data?.message || err.message || "Network issue encountered." });
+    }
   };
 
   const handleReset = () => {
@@ -118,7 +139,7 @@ export default function ContactUs() {
 
   return (
     <div className="cu-root">
-      {/* Background */}
+      {/* Background Layer */}
       <div className="cu-bg">
         <div className="cu-blob cu-blob-1" />
         <div className="cu-blob cu-blob-2" />
@@ -143,11 +164,10 @@ export default function ContactUs() {
           </p>
         </header>
 
-        {/* Main Grid */}
+        {/* Main Layout Grid */}
         <div className="cu-main-grid">
-          {/* Left: Info Panel */}
+          {/* Left: Information Aside Panel */}
           <aside ref={infoRef} className={`cu-info-panel ${infoInView ? "visible" : ""}`}>
-            {/* Availability Card */}
             <div className="cu-avail-card glass-card">
               <div className="cu-avail-header">
                 <div className="cu-avail-indicator">
@@ -167,7 +187,7 @@ export default function ContactUs() {
               </div>
             </div>
 
-            {/* Contact Info */}
+            {/* List Contact Cards mapping updated lucide elements */}
             <div className="cu-info-list">
               {CONTACT_INFO.map((item, i) => (
                 <div
@@ -191,7 +211,7 @@ export default function ContactUs() {
               ))}
             </div>
 
-            {/* Socials */}
+            {/* Online Social Handles */}
             <div className="cu-socials glass-card">
               <span className="cu-socials-label">Find me online</span>
               <div className="cu-socials-grid">
@@ -213,22 +233,12 @@ export default function ContactUs() {
             </div>
           </aside>
 
-          {/* Right: Form */}
+          {/* Right: Functional Form Workspace Wrapper */}
           <div ref={formRef} className={`cu-form-wrap ${formInView ? "visible" : ""}`}>
             {status === "success" ? (
               <div className="cu-success glass-card">
-                <div className="cu-success-icon">
-                  <svg viewBox="0 0 52 52" fill="none">
-                    <circle cx="26" cy="26" r="25" stroke="#10b981" strokeWidth="2" />
-                    <path
-                      d="M14 26l8 8 16-16"
-                      stroke="#10b981"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="cu-check-path"
-                    />
-                  </svg>
+                <div className="cu-success-icon" style={{ color: "#10b981", display: "flex", justifyContent: "center" }}>
+                  <CheckCircle2 size={56} strokeWidth={1.5} />
                 </div>
                 <h2 className="cu-success-title">Message sent!</h2>
                 <p className="cu-success-body">
@@ -250,7 +260,14 @@ export default function ContactUs() {
                   <p className="cu-form-sub">All fields marked * are required</p>
                 </div>
 
-                {/* Name + Email Row */}
+                {errors.submit && (
+                  <div className="error-box" style={{ display: "flex", gap: "10px", padding: "12px", background: "rgba(239,68,68,0.1)", borderRadius: "8px", color: "#ef4444", marginBottom: "20px", fontSize: "14px" }}>
+                    <AlertTriangle size={18} />
+                    <span>{errors.submit}</span>
+                  </div>
+                )}
+
+                {/* Name + Email Inputs Row */}
                 <div className="cu-row">
                   <div className={`cu-field ${focusedField === "name" ? "focused" : ""} ${errors.name ? "has-error" : ""} ${form.name ? "has-value" : ""}`}>
                     <label className="cu-label" htmlFor="name">
@@ -266,9 +283,13 @@ export default function ContactUs() {
                       onFocus={() => setFocusedField("name")}
                       onBlur={() => setFocusedField(null)}
                       autoComplete="name"
+                      disabled={status === "sending"}
                     />
                     {errors.name && (
-                      <span className="cu-error-msg">⚠ {errors.name}</span>
+                      <span className="cu-error-msg">
+                        <AlertTriangle size={12} style={{ display: "inline", marginRight: "4px" }} />
+                        {errors.name}
+                      </span>
                     )}
                   </div>
 
@@ -286,14 +307,18 @@ export default function ContactUs() {
                       onFocus={() => setFocusedField("email")}
                       onBlur={() => setFocusedField(null)}
                       autoComplete="email"
+                      disabled={status === "sending"}
                     />
                     {errors.email && (
-                      <span className="cu-error-msg">⚠ {errors.email}</span>
+                      <span className="cu-error-msg">
+                        <AlertTriangle size={12} style={{ display: "inline", marginRight: "4px" }} />
+                        {errors.email}
+                      </span>
                     )}
                   </div>
                 </div>
 
-                {/* Topic */}
+                {/* Topic Selector Block */}
                 <div className={`cu-field ${errors.topic ? "has-error" : ""}`}>
                   <label className="cu-label">
                     Topic <span className="cu-req">*</span>
@@ -305,17 +330,21 @@ export default function ContactUs() {
                         key={t}
                         className={`cu-topic-btn ${form.topic === t ? "selected" : ""}`}
                         onClick={() => handleChange("topic", t)}
+                        disabled={status === "sending"}
                       >
                         {t}
                       </button>
                     ))}
                   </div>
                   {errors.topic && (
-                    <span className="cu-error-msg">⚠ {errors.topic}</span>
+                    <span className="cu-error-msg">
+                      <AlertTriangle size={12} style={{ display: "inline", marginRight: "4px" }} />
+                      {errors.topic}
+                    </span>
                   )}
                 </div>
 
-                {/* Budget (optional) */}
+                {/* Budget Selection (Optional Dropdown) */}
                 <div className={`cu-field ${focusedField === "budget" ? "focused" : ""}`}>
                   <label className="cu-label" htmlFor="budget">
                     Budget Range{" "}
@@ -328,6 +357,7 @@ export default function ContactUs() {
                     onChange={(e) => handleChange("budget", e.target.value)}
                     onFocus={() => setFocusedField("budget")}
                     onBlur={() => setFocusedField(null)}
+                    disabled={status === "sending"}
                   >
                     <option value="">Select a range...</option>
                     <option value="<1k">Under $1,000</option>
@@ -338,7 +368,7 @@ export default function ContactUs() {
                   </select>
                 </div>
 
-                {/* Message */}
+                {/* Message Body Field */}
                 <div className={`cu-field cu-field-grow ${focusedField === "message" ? "focused" : ""} ${errors.message ? "has-error" : ""}`}>
                   <label className="cu-label" htmlFor="message">
                     Message <span className="cu-req">*</span>
@@ -353,18 +383,22 @@ export default function ContactUs() {
                     onFocus={() => setFocusedField("message")}
                     onBlur={() => setFocusedField(null)}
                     maxLength={1000}
+                    disabled={status === "sending"}
                   />
                   <div className="cu-textarea-footer">
-                    {errors.message && (
-                      <span className="cu-error-msg">⚠ {errors.message}</span>
-                    )}
+                    {errors.message ? (
+                      <span className="cu-error-msg">
+                        <AlertTriangle size={12} style={{ display: "inline", marginRight: "4px" }} />
+                        {errors.message}
+                      </span>
+                    ) : <div />}
                     <span className={`cu-char-count ${charCount > 900 ? "warn" : ""}`}>
                       {charCount}/1000
                     </span>
                   </div>
                 </div>
 
-                {/* Submit */}
+                {/* Form Pipeline Triggers */}
                 <div className="cu-form-actions">
                   <button
                     type="submit"
@@ -373,18 +407,19 @@ export default function ContactUs() {
                   >
                     {status === "sending" ? (
                       <>
-                        <span className="cu-spinner" />
+                        <Loader2 size={16} className="cu-spinner" style={{ animation: "spin 1s linear infinite" }} />
                         Sending…
                       </>
                     ) : (
                       <>
                         <span>Send Message</span>
-                        <span className="cu-send-arrow">→</span>
+                        <SendHorizontal size={16} className="cu-send-arrow" />
                       </>
                     )}
                   </button>
                   <p className="cu-privacy-note">
-                    🔒 Your info is never shared with third parties.
+                    <Lock size={12} style={{ display: "inline", marginRight: "4px", verticalAlign: "middle" }} />
+                    Your info is never shared with third parties.
                   </p>
                 </div>
               </form>
@@ -392,10 +427,9 @@ export default function ContactUs() {
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Main Canvas Footer */}
         <footer className="cu-footer">
-          <p>© {new Date().getFullYear()}  WealthFlow Financial Technologies.
-            All rights reserved.</p>
+          <p>© {new Date().getFullYear()} WealthFlow Financial Technologies. All rights reserved.</p>
           <span className="cu-footer-divider">·</span>
           <span>Usually responds within a day</span>
         </footer>

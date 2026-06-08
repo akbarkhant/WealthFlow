@@ -6,6 +6,7 @@ const { disconnectRedis } = require('./src/config/redis.config');
 const { query } = require('./src/config/db.config');
 const { registerProcessHandlers } = require('./src/middleware/errorHandler.middleware');
 const { startInsightsCron } = require('./src/modules/ai/ai.cron')
+const { initCronJobs } = require('./src/config/cron.config');
 
 const server = http.createServer(app);
 const PORT = config.PORT || 5000;
@@ -30,6 +31,7 @@ async function start() {
       console.log(`🔗 Port        : ${PORT}`);
       console.log(`📡 URL         : http://localhost:${PORT}`);
       console.log('────────────────────────────────────');
+      initCronJobs();
     });
 
     registerProcessHandlers(server);

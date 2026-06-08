@@ -28,17 +28,13 @@ import {
   useToast,
 } from '../components/AccountsComponents';
 
-// useCurrency lives at  src/hooks/useCurrency.js  (the file provided)
 import { useCurrency, SUPPORTED_CURRENCIES } from '../hooks/useCurrency';
 import DashboardLayout from '../layouts/DashboardLayout';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ACCOUNTS PAGE
-// ─────────────────────────────────────────────────────────────────────────────
 export default function AccountsPage() {
   const { toast, toasts, removeToast } = useToast();
 
-  // ── exchange rates + display currency ─────────────────────────────────────
+  // ── Currency Layer ────────────────────────────────────────────────────────
   const {
     rates,
     ratesLoading,
@@ -49,13 +45,12 @@ export default function AccountsPage() {
     fmt,
     fmtCompact,
     fmtNative,
-  } = useCurrency('PKR'); // default to PKR; user can switch live
+  } = useCurrency('PKR');
 
-  // Tag fmt with current displayCurrency so AccountCard can detect when
-  // display ≠ native (used to decide whether to show the native subtitle).
+  // Explicitly tag custom currency formatter context flags
   fmt._displayCurrency = displayCurrency;
 
-  // ── server state ───────────────────────────────────────────────────────────
+  // ── Server State Tracking ──────────────────────────────────────────────────
   const {
     accounts,
     isLoading,
@@ -66,24 +61,22 @@ export default function AccountsPage() {
     optimisticRemove,
   } = useAccountsList();
 
-  // ── Compute converted totals client-side ──────────────────────────────────
-  // The backend getTotalAssets / getTotalLiabilities sums raw balances without
-  // currency conversion, so a USD account's balance is counted as if it were
-  // PKR.  We recompute here using live exchange rates so every account's
-  // balance is properly converted to displayCurrency before summing.
+  // ── Client-Side Filters ────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('ACTIVE'); // 'ACTIVE' or 'ARCHIVED'
+
+  // ── Multi-Currency Aggregations ──────────────────────────────────────────
   const convertedTotals = useMemo(() => {
     if (!accounts?.length) return { netWorth: 0, totalAssets: 0, totalLiabilities: 0 };
 
-    let totalAssets      = 0;
+    let totalAssets = 0;
     let totalLiabilities = 0;
 
     accounts.forEach(acc => {
+      // Net worth calculations always evaluate active capital pools
       if (acc.status !== 'ACTIVE') return;
+      
       const bal = Number(acc.balance || 0);
-      // convert from the account's own currency → current displayCurrency
-      const converted = rates
-        ? convert(bal, acc.currency)
-        : bal; // fallback: use raw value while rates load
+      const converted = rates ? convert(bal, acc.currency) : bal;
 
       const isLiability = acc.type === 'CREDIT_CARD' || acc.type === 'LOAN';
       if (isLiability) totalLiabilities += converted;
@@ -95,33 +88,53 @@ export default function AccountsPage() {
       totalLiabilities,
       netWorth: totalAssets - totalLiabilities,
     };
-  }, [accounts, rates, convert, displayCurrency]);
+  }, [accounts, rates, convert]);
 
-  // ── modal state ────────────────────────────────────────────────────────────
-  const [formModal,     setFormModal]     = useState({ open: false, initial: null });
-  const [ledgerModal,   setLedgerModal]   = useState({ open: false, account: null, op: 'deposit' });
+  // Split and filter accounts arrays safely across analytical state lenses
+  const filteredAccounts = useMemo(() => {
+    if (!Array.isArray(accounts)) return [];
+    return accounts.filter(acc => acc.status === activeTab);
+  }, [accounts, activeTab]);
+
+  // ── Modals Declarative State ───────────────────────────────────────────────
+  const [formModal, setFormModal] = useState({ open: false, initial: null });
+  const [ledgerModal, setLedgerModal] = useState({ open: false, account: null, op: 'deposit' });
   const [confirmDelete, setConfirmDelete] = useState({ open: false, account: null });
 
-  // ── mutations ──────────────────────────────────────────────────────────────
+  // ── Async Mutations Engine ─────────────────────────────────────────────────
   const createAsync = useCreateAccount({
-    onSuccess: () => { toast('Account created successfully!', 'success'); setFormModal({ open: false, initial: null }); refresh(); },
+    onSuccess: () => { 
+      toast('Account created successfully!', 'success'); 
+      setFormModal({ open: false, initial: null }); 
+      refresh(); 
+    },
   });
 
   const updateAsync = useUpdateAccount({
-    onSuccess: (data) => { toast('Account updated.', 'success'); setFormModal({ open: false, initial: null }); optimisticUpdate(data.id, data); },
+    onSuccess: (data) => { 
+      toast('Account details updated successfully.', 'success'); 
+      setFormModal({ open: false, initial: null }); 
+      optimisticUpdate(data.id, data); 
+    },
   });
 
   const archiveAsync = useArchiveAccount({
-    onSuccess: (data) => { toast('Account archived.', 'info'); optimisticUpdate(data.id, data); },
+    onSuccess: (data) => { 
+      toast('Account moved to archive status context.', 'info'); 
+      optimisticUpdate(data.id, data); 
+    },
   });
 
   const restoreAsync = useRestoreAccount({
-    onSuccess: () => { toast('Account restored.', 'success'); refresh(); },
+    onSuccess: () => { 
+      toast('Account restored to active workbench state.', 'success'); 
+      refresh(); 
+    },
   });
 
   const removeAsync = useRemoveAccount({
     onSuccess: () => {
-      toast('Account deleted.', 'info');
+      toast('Account record removed from core storage.', 'info');
       optimisticRemove(confirmDelete.account?.id);
       setConfirmDelete({ open: false, account: null });
       refresh();
@@ -129,19 +142,22 @@ export default function AccountsPage() {
   });
 
   const defaultAsync = useSetDefaultAccount({
-    onSuccess: (data) => { toast(`"${data.name}" set as default.`, 'success'); refresh(); },
+    onSuccess: (data) => { 
+      toast(`"${data.name}" set as system-wide standard baseline.`, 'success'); 
+      refresh(); 
+    },
   });
 
   const ledgerOp = useLedgerOperation({
     onSuccess: (data) => {
-      toast('Transaction completed.', 'success');
+      toast('Transaction synchronized successfully.', 'success');
       optimisticUpdate(data.id, { balance: data.balance });
       setLedgerModal({ open: false, account: null, op: 'deposit' });
       refresh();
     },
   });
 
-  // ── handlers ───────────────────────────────────────────────────────────────
+  // ── Memoized Event Orchestrators ───────────────────────────────────────────
   const handleFormSubmit = useCallback(async (formData, id) => {
     if (id) await updateAsync.execute(id, formData);
     else     await createAsync.execute(formData);
@@ -153,155 +169,165 @@ export default function AccountsPage() {
     if (op === 'transfer') await ledgerOp.transfer(accountId, targetId, amount);
   }, [ledgerOp]);
 
-  const openEdit     = (account) => setFormModal({ open: true, initial: account });
-  const openLedger   = (account, op) => setLedgerModal({ open: true, account, op });
-  const openCreate   = () => setFormModal({ open: true, initial: null });
+  const openEdit     = useCallback((account) => setFormModal({ open: true, initial: account }), []);
+  const openLedger   = useCallback((account, op) => setLedgerModal({ open: true, account, op }), []);
+  const openCreate   = useCallback(() => setFormModal({ open: true, initial: null }), []);
 
-  const handleArchive    = async (id) => { await archiveAsync.execute(id).catch(() => toast(archiveAsync.error || 'Failed to archive.', 'error')); };
-  const handleRestore    = async (id) => { await restoreAsync.execute(id).catch(() => toast(restoreAsync.error || 'Failed to restore.', 'error')); };
-  const handleSetDefault = async (id) => { await defaultAsync.execute(id).catch(() => toast(defaultAsync.error || 'Failed.', 'error')); };
-  const handleDeleteInit = (account) => setConfirmDelete({ open: true, account });
-  const handleDeleteConfirm = async () => {
+  const handleArchive    = useCallback(async (id) => { await archiveAsync.execute(id).catch(() => toast(archiveAsync.error || 'Failed to archive account pipeline.', 'error')); }, [archiveAsync, toast]);
+  const handleRestore    = useCallback(async (id) => { await restoreAsync.execute(id).catch(() => toast(restoreAsync.error || 'Failed to restore active lifecycle context.', 'error')); }, [restoreAsync, toast]);
+  const handleSetDefault = useCallback(async (id) => { await defaultAsync.execute(id).catch(() => toast(defaultAsync.error || 'Failed updating primary reference pointers.', 'error')); }, [defaultAsync, toast]);
+  const handleDeleteInit = useCallback((account) => setConfirmDelete({ open: true, account }), []);
+  
+  const handleDeleteConfirm = useCallback(async () => {
     await removeAsync.execute(confirmDelete.account?.id).catch(() =>
-      toast(removeAsync.error || 'Cannot delete account.', 'error')
+      toast(removeAsync.error || 'Cannot clear account: Verify structural compliance standards.', 'error')
     );
-  };
+  }, [removeAsync, confirmDelete.account, toast]);
 
-  // ── render ─────────────────────────────────────────────────────────────────
+  // ── Evaluation Context Flags ────────────────────────────────────────────────
   const formLoading = createAsync.isLoading || updateAsync.isLoading;
   const formError   = createAsync.error     || updateAsync.error;
-  // Strip is loading until both accounts and rates are ready
   const stripLoading = isLoading || (ratesLoading && !rates);
 
   return (
     <DashboardLayout>
-
-    <div className="accounts-module accounts-page">
-
-      {/* ── Page header ──────────────────────────────────────────────────── */}
-      <header className="accounts-page__header">
-        <div className="accounts-page__headline">
-          <span className="accounts-page__eyebrow">Financial Overview</span>
-          <h1 className="accounts-page__title">Accounts</h1>
-        </div>
-        <div className="accounts-page__actions">
-          {/* Live currency switcher */}
-          <CurrencySelector
-            value={displayCurrency}
-            onChange={setDisplayCurrency}
-            currencies={SUPPORTED_CURRENCIES}
-            loading={ratesLoading}
-          />
-          <button
-            className="btn btn--icon"
-            onClick={refresh}
-            title="Refresh"
-            aria-label="Refresh accounts"
-          >
-            ↻
-          </button>
-          <Button variant="primary" onClick={openCreate}>
-            + New account
-          </Button>
-        </div>
-      </header>
-
-      {/* ── Exchange-rate error (non-fatal, soft warning) ─────────────────── */}
-      {ratesError && (
-        <div className="alert alert--error" style={{ marginBottom: 'var(--space-4)' }}>
-          ⚠ {ratesError}
-        </div>
-      )}
-
-      {/* ── Net Worth Strip ───────────────────────────────────────────────── */}
-      {/*  totals are computed here (multi-currency converted) not from the   */}
-      {/*  backend endpoint which sums raw balances without conversion.        */}
-      <NetWorthStrip
-        totals={convertedTotals}
-        displayCurrency={displayCurrency}
-        fmtCompact={fmtCompact}
-        loading={stripLoading}
-      />
-
-      {/* ── Summary chips ────────────────────────────────────────────────── */}
-      <SummaryChips accounts={accounts} />
-
-      {/* ── Error state ──────────────────────────────────────────────────── */}
-      {isError && (
-        <div className="alert alert--error" style={{ marginBottom: 'var(--space-6)' }}>
-          ⚠ Failed to load accounts: {listError}
-          <button
-            onClick={refresh}
-            style={{ marginLeft: 12, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', color: 'inherit', fontSize: 'inherit' }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* ── Account grid ─────────────────────────────────────────────────── */}
-      {isLoading ? (
-        <div className="accounts-grid">
-          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-      ) : accounts.length === 0 ? (
-        <AccountsEmpty onAdd={openCreate} />
-      ) : (
-        <div className="accounts-grid">
-          {accounts.map(account => (
-            <AccountCard
-              key={account.id}
-              account={account}
-              onEdit={openEdit}
-              onArchive={handleArchive}
-              onRestore={handleRestore}
-              onDelete={handleDeleteInit}
-              onSetDefault={handleSetDefault}
-              onLedger={openLedger}
-              fmt={fmt}
-              fmtNative={fmtNative}
+      <div className="accounts-module accounts-page">
+        
+        {/* ── Page Top Level Header ── */}
+        <header className="accounts-page__header">
+          <div className="accounts-page__headline">
+            <span className="accounts-page__eyebrow">Financial Engine Balance Matrix</span>
+            <h1 className="accounts-page__title">Capital Profiles</h1>
+          </div>
+          <div className="accounts-page__actions">
+            <CurrencySelector
+              value={displayCurrency}
+              onChange={setDisplayCurrency}
+              currencies={SUPPORTED_CURRENCIES}
+              loading={ratesLoading}
             />
-          ))}
+            <button
+              className="btn btn--icon button-refresh-spin"
+              onClick={refresh}
+              disabled={isLoading}
+              title="Refresh Structural Assets"
+              aria-label="Refresh transactional account arrays"
+            >
+              ↻
+            </button>
+            <Button variant="primary" onClick={openCreate}>
+              + Initialize Account
+            </Button>
+          </div>
+        </header>
+
+        {/* ── Soft Resiliency Notices ── */}
+        {ratesError && (
+          <div className="alert alert--error animated-fade-in-down">
+            <span>⚠ Exchange Network Sync Stalled: Using local currency cache.</span>
+          </div>
+        )}
+
+        {/* ── Analytical Metrics Bar ── */}
+        <NetWorthStrip
+          totals={convertedTotals}
+          displayCurrency={displayCurrency}
+          fmtCompact={fmtCompact}
+          loading={stripLoading}
+        />
+
+        <SummaryChips accounts={accounts} />
+
+        {/* ── Layout Controls ── */}
+        <div className="accounts-page__filter-bar">
+          <div className="tab-group-container">
+            <button 
+              className={`tab-item ${activeTab === 'ACTIVE' ? 'tab-item--active' : ''}`}
+              onClick={() => setActiveTab('ACTIVE')}
+            >
+              Active Asset Ecosystem
+            </button>
+            <button 
+              className={`tab-item ${activeTab === 'ARCHIVED' ? 'tab-item--active' : ''}`}
+              onClick={() => setActiveTab('ARCHIVED')}
+            >
+              Cold Storage Records
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* ── Create / Edit Modal ───────────────────────────────────────────── */}
-      <AccountFormModal
-        open={formModal.open}
-        onClose={() => setFormModal({ open: false, initial: null })}
-        onSubmit={handleFormSubmit}
-        initial={formModal.initial}
-        loading={formLoading}
-        error={formError}
-      />
+        {/* ── Central Error Handling State ── */}
+        {isError && (
+          <div className="alert alert--error-critical container-bounce">
+            <span>⚠ Core Fetch Failure: {listError}</span>
+            <button onClick={refresh} className="alert-retry-action">
+              Retry Sync Lifecycle
+            </button>
+          </div>
+        )}
 
-      {/* ── Ledger Modal ─────────────────────────────────────────────────── */}
-      <LedgerModal
-        open={ledgerModal.open}
-        onClose={() => setLedgerModal({ open: false, account: null, op: 'deposit' })}
-        account={ledgerModal.account}
-        accounts={accounts}
-        initialOp={ledgerModal.op}
-        onSubmit={handleLedgerSubmit}
-        loading={ledgerOp.isLoading}
-        error={ledgerOp.error}
-      />
+        {/* ── Main Data Rendering Terminal ── */}
+        <main className="accounts-content-stage">
+          {isLoading ? (
+            <div className="accounts-grid">
+              {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          ) : filteredAccounts.length === 0 ? (
+            <AccountsEmpty onAdd={openCreate} context={activeTab} />
+          ) : (
+            <div className="accounts-grid animated-fade-in">
+              {filteredAccounts.map(account => (
+                <AccountCard
+                  key={account.id}
+                  account={account}
+                  onEdit={openEdit}
+                  onArchive={handleArchive}
+                  onRestore={handleRestore}
+                  onDelete={handleDeleteInit}
+                  onSetDefault={handleSetDefault}
+                  onLedger={openLedger}
+                  fmt={fmt}
+                  fmtNative={fmtNative}
+                />
+              ))}
+            </div>
+          )}
+        </main>
 
-      {/* ── Confirm Delete ───────────────────────────────────────────────── */}
-      <ConfirmDialog
-        open={confirmDelete.open}
-        onClose={() => setConfirmDelete({ open: false, account: null })}
-        onConfirm={handleDeleteConfirm}
-        title="Delete account"
-        message="This action is permanent and cannot be undone. The account must have a zero balance before deletion."
-        detail={confirmDelete.account ? `${confirmDelete.account.name} — ${confirmDelete.account.currency}` : undefined}
-        confirmLabel="Yes, delete"
-        loading={removeAsync.isLoading}
-      />
+        {/* ── Declarative Modal Control Layers ── */}
+        <AccountFormModal
+          open={formModal.open}
+          onClose={() => setFormModal({ open: false, initial: null })}
+          onSubmit={handleFormSubmit}
+          initial={formModal.initial}
+          loading={formLoading}
+          error={formError}
+        />
 
-      {/* ── Toasts ───────────────────────────────────────────────────────── */}
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
-    </div>
+        <LedgerModal
+          open={ledgerModal.open}
+          onClose={() => setLedgerModal({ open: false, account: null, op: 'deposit' })}
+          account={ledgerModal.account}
+          accounts={accounts}
+          initialOp={ledgerModal.op}
+          onSubmit={handleLedgerSubmit}
+          loading={ledgerOp.isLoading}
+          error={ledgerOp.error}
+        />
+
+        <ConfirmDialog
+          open={confirmDelete.open}
+          onClose={() => setConfirmDelete({ open: false, account: null })}
+          onConfirm={handleDeleteConfirm}
+          title="Archive Sequence Purge Request"
+          message="This system action deletes database entry constraints permanently. System controls enforce that accounts must settle to exactly a zero net baseline before destruction arrays execute."
+          detail={confirmDelete.account ? `${confirmDelete.account.name} — Holding Native (${confirmDelete.account.currency})` : undefined}
+          confirmLabel="Execute Clean Deletion"
+          loading={removeAsync.isLoading}
+        />
+
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </div>
     </DashboardLayout>
   );
 }

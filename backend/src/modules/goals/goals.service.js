@@ -2,12 +2,12 @@
 'use strict';
 
 const goalsRepository = require('./goals.repository');
-const { redis }       = require('../../config/redis.config');
-const { logger }      = require('../../config/logger.config');
+const { redis } = require('../../config/redis.config');
+const { logger } = require('../../config/logger.config');
 
 // ── Cache Configuration ───────────────────────────────────────────────────────
-const CACHE_TTL    = 600;                              // 10-minute window
-const cacheKey     = (userId) => `cache:goals:${userId}`;
+const CACHE_TTL = 600;                              // 10-minute window
+const cacheKey = (userId) => `cache:goals:${userId}`;
 const goalCacheKey = (goalId, userId) => `cache:goal:${userId}:${goalId}`;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ const goalCacheKey = (goalId, userId) => `cache:goal:${userId}:${goalId}`;
  * avoiding repetitive inline boilerplate across every method.
  */
 function createError(message, status = 400) {
-  const err  = new Error(message);
+  const err = new Error(message);
   err.status = status;
   return err;
 }
@@ -39,10 +39,10 @@ function createError(message, status = 400) {
  * and already-transformed objects alike.
  */
 function calculateGoalMetrics(goal) {
-  const currentAmount  = Number(goal.currentAmount  ?? goal.current_amount  ?? 0);
-  const targetAmount   = Number(goal.targetAmount   ?? goal.target_amount   ?? 0);
-  const allowOverflow  = !!(goal.allowOverflow       ?? goal.allow_overflow);
-  const deadline       = goal.deadline               ?? goal.targetDate;
+  const currentAmount = Number(goal.currentAmount ?? goal.current_amount ?? 0);
+  const targetAmount = Number(goal.targetAmount ?? goal.target_amount ?? 0);
+  const allowOverflow = !!(goal.allowOverflow ?? goal.allow_overflow);
+  const deadline = goal.deadline ?? goal.targetDate;
 
   // ── 1. Progress ────────────────────────────────────────────────────────────
   let progress = 0;
@@ -53,12 +53,12 @@ function calculateGoalMetrics(goal) {
   }
 
   // ── 2. Time-Based Metrics ──────────────────────────────────────────────────
-  let daysLeft             = null;
+  let daysLeft = null;
   let requiredDailySavings = null;
-  let isOverdue            = false;
+  let isOverdue = false;
 
   if (deadline) {
-    const today      = new Date();
+    const today = new Date();
     today.setHours(0, 0, 0, 0);
     const targetDate = new Date(deadline);
     targetDate.setHours(0, 0, 0, 0);
@@ -67,7 +67,7 @@ function calculateGoalMetrics(goal) {
 
     if (daysLeft < 0 && goal.status !== 'COMPLETED') {
       isOverdue = true;
-      daysLeft  = 0;             // never expose negative days to clients
+      daysLeft = 0;             // never expose negative days to clients
     }
 
     const remaining = targetAmount - currentAmount;
@@ -96,10 +96,10 @@ function enrichGoal(goal) {
   const metrics = calculateGoalMetrics(goal);
   return {
     ...goal,
-    progress:             metrics.progress,
-    daysLeft:             metrics.daysLeft,
+    progress: metrics.progress,
+    daysLeft: metrics.daysLeft,
     requiredDailySavings: metrics.requiredDailySavings,
-    status:               goal.status === 'ACTIVE' ? metrics.derivedStatus : goal.status,
+    status: goal.status === 'ACTIVE' ? metrics.derivedStatus : goal.status,
   };
 }
 
@@ -136,7 +136,7 @@ class GoalsService {
       // Non-fatal: fall through to DB
     }
 
-    const goals        = await goalsRepository.findAllByUser(userId);
+    const goals = await goalsRepository.findAllByUser(userId);
     const enrichedGoals = goals.map(enrichGoal);
 
     const response = {
@@ -196,14 +196,14 @@ class GoalsService {
    */
   async createGoal(userId, body) {
     // ── Input validation ──────────────────────────────────────────────────────
-    if (!userId)   throw createError('userId is required', 400);
+    if (!userId) throw createError('userId is required', 400);
     if (!body.name) throw createError('name is required', 400);
 
     if (body.targetAmount === undefined || body.targetAmount === null) {
       throw createError('targetAmount is required', 400);
     }
 
-    const targetAmount  = Math.floor(Number(body.targetAmount));
+    const targetAmount = Math.floor(Number(body.targetAmount));
     if (isNaN(targetAmount) || targetAmount <= 0) {
       throw createError('targetAmount must be a positive number', 400);
     }
@@ -214,15 +214,15 @@ class GoalsService {
 
     const payload = {
       userId,
-      name:           body.name.trim(),
-      icon:           body.icon           ?? null,
-      target_amount:  targetAmount,
+      name: body.name.trim(),
+      icon: body.icon ?? null,
+      target_amount: targetAmount,
       current_amount: currentAmount,
-      currency:       body.currency,
+      currency: body.currency,
       allow_overflow: !!body.allowOverflow,
-      deadline:       body.deadline ? new Date(body.deadline) : null,
+      deadline: body.deadline ? new Date(body.deadline) : null,
       // Auto-complete when initial deposit already satisfies the target
-      status:         currentAmount >= targetAmount ? 'COMPLETED' : 'ACTIVE',
+      status: currentAmount >= targetAmount ? 'COMPLETED' : 'ACTIVE',
     };
 
     const goal = await goalsRepository.create(payload);
@@ -248,9 +248,11 @@ class GoalsService {
    * FIX #8: Parameter order corrected to (goalId, userId, contributionPayload)
    * to match the controller call-site and repository conventions.
    */
-  async contribute(goalId, userId, contributionPayload) {
+async contribute(goalId, userId, contributionPayload) {
     const { source = 'manual', note = null } = contributionPayload ?? {};
-    const amount = Math.floor(Number(contributionPayload?.amount));
+    
+    // Parse input securely keeping fractional currency units intact
+    const amount = Number(contributionPayload?.amount);
 
     if (isNaN(amount) || amount <= 0) {
       throw createError('Contribution amount must be a positive number', 400);
@@ -259,40 +261,52 @@ class GoalsService {
     const goal = await goalsRepository.findById(goalId, userId);
     if (!goal) throw createError('Goal not found or unauthorized', 404);
 
+    // ── Extract numeric balances securely ─────────────────────────────────────
+    const currentAmount = Number(goal.currentAmount ?? goal.current_amount ?? 0);
+    const targetAmount  = Number(goal.targetAmount  ?? goal.target_amount  ?? 0);
+    const allowOverflow = !!(goal.allowOverflow      ?? goal.allow_overflow);
+
     // ── Lifecycle gates ───────────────────────────────────────────────────────
-    if (goal.status === 'COMPLETED') {
+    const currentStatus = (goal.status ?? goal.computed_status ?? '').toUpperCase();
+
+    // Only block if it's marked COMPLETED *AND* the money target is fully met
+    if (currentStatus === 'COMPLETED' && currentAmount >= targetAmount) {
       throw createError(
         'Completed goals cannot accept contributions unless explicitly reopened',
         400,
       );
     }
-    if (goal.status === 'PAUSED' || goal.status === 'FAILED') {
+    
+    if (currentStatus === 'PAUSED' || currentStatus === 'FAILED') {
       throw createError(
-        `Cannot contribute to a goal that is currently ${goal.status}`,
+        `Cannot contribute to a goal that is currently ${currentStatus}`,
         400,
       );
     }
 
-    // ── Overflow / cap logic ──────────────────────────────────────────────────
-    const currentAmount = Number(goal.currentAmount ?? goal.current_amount ?? 0);
-    const targetAmount  = Number(goal.targetAmount  ?? goal.target_amount  ?? 0);
-    const allowOverflow = !!(goal.allowOverflow      ?? goal.allow_overflow);
+    // ── Strict Overflow / Target Cap Logic ────────────────────────────────────
+    const potentialNewAmount = currentAmount + amount;
 
-    let actualContribution = amount;
-    let newAmount          = currentAmount + amount;
-
-    if (newAmount > targetAmount && !allowOverflow) {
-      actualContribution = targetAmount - currentAmount;
-      newAmount          = targetAmount;
-
-      // Guard: already fully funded (could happen under high concurrency)
-      if (actualContribution <= 0) {
+    // If the contribution exceeds the target amount and overflow is not allowed, throw an error
+    if (potentialNewAmount > targetAmount && !allowOverflow) {
+      const maxAllowedContribution = targetAmount - currentAmount;
+      
+      if (maxAllowedContribution <= 0) {
         throw createError('Goal is already fully funded and overflow is disabled', 400);
+      } else {
+        throw createError(
+          `Contribution exceeds target amount. Maximum allowed contribution remaining is ${goal.currency ?? 'Rs.'} ${maxAllowedContribution.toLocaleString()}`,
+          400,
+        );
       }
     }
 
+    // ── Calculate final numbers ───────────────────────────────────────────────
+    const newAmount = potentialNewAmount;
+    const actualContribution = amount;
+
     // ── Determine final status ────────────────────────────────────────────────
-    const finalStatus = newAmount >= targetAmount ? 'COMPLETED' : goal.status;
+    const finalStatus = newAmount >= targetAmount ? 'COMPLETED' : 'ACTIVE';
 
     // ── Persist updates ───────────────────────────────────────────────────────
     const updatedGoal = await goalsRepository.update(goalId, userId, {
@@ -313,7 +327,7 @@ class GoalsService {
     await this._invalidateUserCache(userId);
     await this._invalidateSingleCache(goalId, userId);
 
-    const justCompleted = finalStatus === 'COMPLETED' && goal.status !== 'COMPLETED';
+    const justCompleted = finalStatus === 'COMPLETED' && currentStatus !== 'COMPLETED';
 
     if (justCompleted) {
       logger.info({ userId, goalId }, 'Goal milestone target reached');
@@ -327,7 +341,7 @@ class GoalsService {
       message: `Successfully contributed ${updatedGoal.currency ?? 'Rs.'} ${actualContribution.toLocaleString()} toward your goal.`,
     };
   }
-
+  
   // ── UPDATE ─────────────────────────────────────────────────────────────────
 
   /**
@@ -380,9 +394,9 @@ class GoalsService {
     }
 
     // ── scalar fields ─────────────────────────────────────────────────────────
-    if (body.name          !== undefined) updatePayload.name          = body.name.trim();
-    if (body.icon          !== undefined) updatePayload.icon          = body.icon;
-    if (body.deadline      !== undefined) updatePayload.deadline      = body.deadline ? new Date(body.deadline) : null;
+    if (body.name !== undefined) updatePayload.name = body.name.trim();
+    if (body.icon !== undefined) updatePayload.icon = body.icon;
+    if (body.deadline !== undefined) updatePayload.deadline = body.deadline ? new Date(body.deadline) : null;
     if (body.allowOverflow !== undefined) updatePayload.allow_overflow = !!body.allowOverflow;
 
     const updated = await goalsRepository.update(goalId, userId, updatePayload);

@@ -33,6 +33,7 @@ const   goalsRoutes           = require('./modules/goals/goals.routes');
 //const   analyticsRoutes      = require('./modules/analytics/analytics.routes');
 const   recurringRoutes       = require('./modules/recurring/recurring.routes');
 const   accountsRouter        = require('./modules/accounts/accounts.routes');
+const   contactRoutes         = require("./modules/contact/contact.routes");
 
 
 const app = express();
@@ -129,6 +130,7 @@ app.use('/api/bills',         billsRouter);
 app.use('/api/goals',         goalsRoutes);
 //app.use('/api/analytics',     analyticsRoutes);
 app.use('/api/recurring',     recurringRoutes);
+app.use("/api/contact", contactRoutes);
 //app.use((err, req, res, next) => {
   //const statusCode = err.status || 500;
   //res.status(statusCode).json({

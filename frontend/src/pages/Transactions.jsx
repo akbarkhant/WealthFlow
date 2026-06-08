@@ -68,7 +68,7 @@ const Transactions = () => {
   const [typeFilter, setTypeFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
-  // Wire up backend support in findAll when sort control is needed server-side.
+  // Wire up presentation sorting control locally
   const [sortBy, setSortBy] = useState('date-desc');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -127,7 +127,6 @@ const Transactions = () => {
           search: searchQuery.trim() || undefined,
           type: typeFilter === 'all' ? undefined : typeFilter,
           categoryId: categoryIdFilter || undefined, // Ensures clean param omission
-          sortBy,
           startDate: currentPeriodValues.startDate,
           endDate: currentPeriodValues.endDate,
         }),
@@ -137,13 +136,17 @@ const Transactions = () => {
         getMonthlyReport({ month: currentPeriodValues.month, year: currentPeriodValues.year }),
       ]);
 
-      if (txResult && txResult.data) {
-        setTransactions(txResult.data);
+      // FIX: Drill into the service layer's response object structure securely
+      if (txResult) {
+        const extractedData = Array.isArray(txResult) ? txResult : (txResult.data || []);
+        const extractedMeta = txResult.meta || {};
+
+        setTransactions(extractedData);
         setPagination({
-          page: txResult.meta?.page || 1,
-          totalPages: Math.max(1, txResult.meta?.totalPages || 1),
-          total: txResult.meta?.total || 0,
-          hasMore: txResult.meta?.hasMore || false,
+          page: extractedMeta.page || 1,
+          totalPages: Math.max(1, extractedMeta.totalPages || 1),
+          total: extractedMeta.total || extractedData.length || 0,
+          hasMore: extractedMeta.hasMore || false,
         });
       }
 
@@ -152,7 +155,6 @@ const Transactions = () => {
 
       // Strict Normalization: Sanitizes backend responses stringifying data or changing casings
       const extractedIncome = monthly?.totalIncome ?? monthly?.income ?? monthly?.total_income ?? 0;
-
       const extractedExpenses = monthly?.totalExpenses ?? monthly?.expenses ?? monthly?.total_expenses ?? 0;
 
       setSummary({
@@ -165,11 +167,30 @@ const Transactions = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchQuery, typeFilter, categoryIdFilter, sortBy, currentPeriodValues]);
+  }, [currentPage, searchQuery, typeFilter, categoryIdFilter, currentPeriodValues]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Dynamic Frontend Sorting Engine
+  const sortedTransactions = useMemo(() => {
+    if (!transactions || transactions.length === 0) return [];
+
+    return [...transactions].sort((a, b) => {
+      switch (sortBy) {
+        case 'date-asc':
+          return new Date(a.date) - new Date(b.date);
+        case 'amount-desc':
+          return Number(b.amount || 0) - Number(a.amount || 0);
+        case 'amount-asc':
+          return Number(a.amount || 0) - Number(b.amount || 0);
+        case 'date-desc':
+        default:
+          return new Date(b.date) - new Date(a.date);
+      }
+    });
+  }, [transactions, sortBy]);
 
   const handleInputChange = (event) => {
     const { name, value } = event.target;
@@ -224,10 +245,9 @@ const Transactions = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-const handleFormSubmit = async (event) => {
+  const handleFormSubmit = async (event) => {
     event.preventDefault();
 
-    // Prevent double submission if already processing
     if (isSubmitting) return;
 
     setFormError('');
@@ -235,7 +255,6 @@ const handleFormSubmit = async (event) => {
 
     const amount = Number(formData.amount);
 
-    // Validation
     if (!formData.description.trim()) {
       setFormError('Description is required.');
       setIsSubmitting(false);
@@ -260,13 +279,11 @@ const handleFormSubmit = async (event) => {
       return;
     }
 
-    // Expense validations
     if (formData.type === 'expense') {
       const currentBalance =
         Number(summary?.totalIncome || 0) -
         Number(summary?.totalExpenses || 0);
 
-      // Hard prevention: block if overall balance is insufficient
       if (amount > currentBalance) {
         setFormError(
           `Insufficient funds. Available balance: ${money.format(currentBalance)}`
@@ -275,7 +292,6 @@ const handleFormSubmit = async (event) => {
         return;
       }
 
-      // Soft warning: category budget exceeded
       const selectedCategory = categories.find(
         (c) => c.id === formData.categoryId
       );
@@ -297,15 +313,6 @@ const handleFormSubmit = async (event) => {
               amount - remainingBudget
             )}`
           );
-
-          // If you want to BLOCK overspending instead:
-          // setFormError(
-          //   `This transaction exceeds the category budget by ${money.format(
-          //     amount - remainingBudget
-          //   )}`
-          // );
-          // setIsSubmitting(false);
-          // return;
         }
       }
     }
@@ -324,7 +331,6 @@ const handleFormSubmit = async (event) => {
       resetForm();
       setShowAddForm(false);
 
-      // Avoid double-fetches and race conditions
       if (currentPage === 1) {
         await loadData();
       } else {
@@ -340,11 +346,10 @@ const handleFormSubmit = async (event) => {
         'Failed to add transaction.'
       );
     } finally {
-      // Always re-enable the button regardless of success or failure
       setIsSubmitting(false);
     }
   };
-  
+
   const handleDeleteTransaction = async () => {
     if (!pendingDelete) return;
 
@@ -352,7 +357,6 @@ const handleFormSubmit = async (event) => {
       await deleteTransaction(pendingDelete.id);
       setPendingDelete(null);
 
-      // FIX #2: Same pattern — let the state change drive the reload.
       if (currentPage === 1) {
         loadData();
       } else {
@@ -510,7 +514,7 @@ const handleFormSubmit = async (event) => {
               value={sortBy}
               onChange={(event) => {
                 setSortBy(event.target.value);
-                setCurrentPage(1); // <-- Keeps the page view predictable
+                setCurrentPage(1);
               }}
             >
               <option value="date-desc">Newest first</option>
@@ -532,7 +536,7 @@ const handleFormSubmit = async (event) => {
           <ErrorMessage title="Transactions unavailable" message={error} onRetry={loadData} />
         )}
 
-        {!loading && !error && transactions.length === 0 && (
+        {!loading && !error && sortedTransactions.length === 0 && (
           <EmptyState
             icon={ReceiptText}
             title="No transactions found"
@@ -546,7 +550,7 @@ const handleFormSubmit = async (event) => {
           />
         )}
 
-        {!loading && !error && transactions.length > 0 && (
+        {!loading && !error && sortedTransactions.length > 0 && (
           <section className="table-card">
             <div className="table-scroll">
               <table className="data-table transactions-table">
@@ -560,7 +564,7 @@ const handleFormSubmit = async (event) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.map((item) => {
+                  {sortedTransactions.map((item) => {
                     const isIncome = item.type === 'income';
                     const initials = (item.description || 'TX').slice(0, 2).toUpperCase();
                     return (
@@ -619,10 +623,6 @@ const handleFormSubmit = async (event) => {
               <span className="pagination__meta">
                 Page {currentPage} of {totalPages} ({pagination.total} total)
               </span>
-              {/* FIX #5: Removed the !pagination.hasMore condition so the button
-                  is enabled based solely on page position. hasMore was causing
-                  the Next button to be permanently disabled when the API returned
-                  incomplete meta (e.g. during the month/year bug above). */}
               <button
                 className="btn btn-secondary"
                 type="button"
@@ -754,7 +754,7 @@ const handleFormSubmit = async (event) => {
                     <button
                       className="btn btn-primary"
                       type="submit"
-                      disabled={isSubmitting} // Disables HTML interaction and allows CSS styling
+                      disabled={isSubmitting}
                     >
                       {isSubmitting ? 'Saving...' : 'Save Transaction'}
                     </button>

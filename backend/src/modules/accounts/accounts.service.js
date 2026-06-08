@@ -2,6 +2,7 @@
 
 const repo = require('./accounts.repository');
 const { logger } = require('../../config/logger.config');
+const currencyService = require('../currencies/currencies.service');
 
 async function validateOwnership(accountId, userId) {
   const isOwner = await repo.verifyOwnership(accountId, userId);
@@ -13,10 +14,24 @@ async function validateOwnership(accountId, userId) {
   return true;
 }
 
+async function getExchangeRate(fromCurrency, toCurrency) {
+  try {
+    // Assuming you have a rates table or repository configuration
+    const rateRow = await repo.getExchangeRate({ fromCurrency, toCurrency });
+    if (!rateRow) {
+      throw new Error(`No conversion pathway found from ${fromCurrency} to ${toCurrency}.`);
+    }
+    return Number(rateRow.rate);
+  } catch (error) {
+    logger.error(`[EXCHANGE_RATE_FETCH_FAILURE]: ${error.message}`);
+    throw new Error('Currency conversion services are currently unavailable.');
+  }
+}
+
 async function createAccount(userId, accountData) {
   try {
     const coreList = await repo.findAllByUser(userId);
-    
+
     // Core Business Rule: Check for naming collisions within user context
     const isDuplicate = coreList.some(acc => acc.name.toLowerCase() === accountData.name.toLowerCase());
     if (isDuplicate) {
@@ -51,15 +66,15 @@ async function getAccountsByUser(userId) {
 }
 
 async function updateAccount({ accountId, userId, updateData }) {
-  
+
   // 1. DESTRUCTURE the variables here so they are passed as two separate parameters!
-  await validateOwnership(accountId, userId); 
-  
+  await validateOwnership(accountId, userId);
+
   // 2. Forward them perfectly mapped to your updated object-based repository
-  return await repo.updateAccount({ 
-    accountId, 
-    userId, 
-    data: updateData 
+  return await repo.updateAccount({
+    accountId,
+    userId,
+    data: updateData
   });
 }
 
@@ -73,26 +88,26 @@ async function archiveAccount({ accountId, userId }) {
     userId,
     data: { type: 'ARCHIVED' } // Or status: 'ARCHIVED' depending on your DB layout
   });
-} 
+}
 
 async function restoreAccount({ accountId, userId }) {
   // 1.Explicit destructuring prevents the object-to-NaN error!
   // Note: If you have a separate ownership bypass check for soft-deleted accounts, use that here.
-  
+
   // 2. Clear out the deleted_at flag by reusing our secure repository update
   return await repo.updateAccount({
     accountId,
     userId,
-    data: { 
+    data: {
       // This resets your soft-delete state back to zero
-      deleted_at: null 
+      deleted_at: null
     }
   });
 }
 
 async function setDefaultAccount({ accountId, userId }) {
   await validateOwnership(accountId, userId); // CORRECT: Passing individual strings/integers
-  
+
   await repo.clearDefaultFlag(userId);
   return await repo.updateAccount({
     accountId,
@@ -105,7 +120,7 @@ async function deposit(accountId, userId, amount) {
   await validateOwnership(accountId, userId);
   const account = await repo.findById(accountId);
   if (account.status !== 'ACTIVE') throw new Error('Cannot deposit funds into an inactive account.');
-  
+
   return await repo.mutateBalanceAtomically(accountId, Math.abs(amount));
 }
 
@@ -113,7 +128,7 @@ async function withdraw(accountId, userId, amount) {
   await validateOwnership(accountId, userId);
   const account = await repo.findById(accountId);
   if (account.status !== 'ACTIVE') throw new Error('Cannot withdraw funds from an inactive account.');
-  
+
   // Note: For loans/credit cards, balance represents current debt.
   if (account.type !== 'CREDIT_CARD' && account.type !== 'LOAN') {
     if (Number(account.balance) < amount) {
@@ -126,14 +141,37 @@ async function withdraw(accountId, userId, amount) {
 async function transferFunds(sourceId, targetId, userId, amount) {
   await validateOwnership(sourceId, userId);
   await validateOwnership(targetId, userId);
-  
+
   if (Number(sourceId) === Number(targetId)) {
     throw new Error('Source and target endpoints must be distinct account containers.');
   }
 
-  // Atomic operation orchestration
+  // 1. Fetch both account profiles to access their currency properties
+  const sourceAccount = await repo.findById(sourceId);
+  const targetAccount = await repo.findById(targetId);
+
+  if (!sourceAccount || !targetAccount) {
+    throw new Error('Transaction Rejected: One or both transaction endpoints could not be found.');
+  }
+
+  // 2. Default target amount to the base transfer amount
+  let finalTargetAmount = amount;
+
+  // 3. Check for currency mismatch (e.g., USD to PKR)
+  if (sourceAccount.currency !== targetAccount.currency) {
+
+
+    // Seamlessly handles checking local cache OR updating via the API behind the scenes
+    const exchangeRate = await currencyService.getExchangeRate(sourceAccount.currency, targetAccount.currency);
+    finalTargetAmount = amount * exchangeRate;
+
+    logger.info(`[TRANSFER_EXCHANGE]: Converted ${amount} ${sourceAccount.currency} to ${finalTargetAmount} ${targetAccount.currency} using rate: ${exchangeRate}`);
+  }
+
+  // 4. Execute atomic operations using the distinct values
   await withdraw(sourceId, userId, amount);
-  const targetUpdated = await deposit(targetId, userId, amount);
+  const targetUpdated = await deposit(targetId, userId, finalTargetAmount);
+
   return targetUpdated;
 }
 
@@ -159,7 +197,7 @@ async function calculateNetWorth(userId) {
 async function getDashboardMetrics(userId) {
   const accounts = await repo.findAllByUser(userId);
   const { totalAssets, totalLiabilities, netWorth } = await calculateNetWorth(userId);
-  
+
   return {
     netWorth,
     totalAssets,
@@ -202,9 +240,9 @@ async function buildAIContext(userId) {
 
 async function canDeleteAccount(accountId, userId) {
   await validateOwnership(accountId, userId);
-  
+
   const account = await repo.findById(accountId);
-  
+
   // ✅ FIX: Check if the account exists before trying to read its balance
   if (!account) {
     const error = new Error('The account you are trying to delete could not be found.');
@@ -216,7 +254,7 @@ async function canDeleteAccount(accountId, userId) {
   if (Number(account.balance) !== 0) {
     throw new Error('Cannot delete account records containing non-zero account balances.');
   }
-  
+
   return true;
 }
 

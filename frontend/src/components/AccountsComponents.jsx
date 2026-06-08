@@ -5,20 +5,18 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 // UTILS
 // ─────────────────────────────────────────────────────────────────────────────
 const ACCOUNT_TYPE_META = {
-  CASH:           { emoji: '💵', label: 'Cash' },
-  BANK:           { emoji: '🏦', label: 'Bank' },
-  SAVINGS:        { emoji: '🪙', label: 'Savings' },
-  CREDIT_CARD:    { emoji: '💳', label: 'Credit Card' },
-  LOAN:           { emoji: '📋', label: 'Loan' },
-  INVESTMENT:     { emoji: '📈', label: 'Investment' },
+  CASH: { emoji: '💵', label: 'Cash' },
+  BANK: { emoji: '🏦', label: 'Bank' },
+  SAVINGS: { emoji: '🪙', label: 'Savings' },
+  CREDIT_CARD: { emoji: '💳', label: 'Credit Card' },
+  LOAN: { emoji: '📋', label: 'Loan' },
+  INVESTMENT: { emoji: '📈', label: 'Investment' },
   DIGITAL_WALLET: { emoji: '📲', label: 'Digital Wallet' },
 };
 
 export const ACCOUNT_TYPES = Object.keys(ACCOUNT_TYPE_META);
-export const CURRENCIES     = ['PKR', 'USD', 'EUR', 'GBP', 'AED', 'SAR'];
+export const CURRENCIES = ['PKR', 'USD', 'EUR', 'GBP', 'AED', 'SAR'];
 
-// formatCurrency / formatCompact — kept for internal use (e.g. LedgerModal native display)
-// The page-level useCurrency hook provides fmt / fmtCompact for converted display values.
 export function formatCurrency(amount, currency = 'PKR') {
   const n = Number(amount || 0);
   try {
@@ -36,7 +34,7 @@ export function formatCompact(amount, currency = 'PKR') {
   const abs = Math.abs(n);
   const sign = n < 0 ? '−' : '';
   if (abs >= 1_000_000) return `${sign}${currency} ${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000)     return `${sign}${currency} ${(abs / 1_000).toFixed(1)}K`;
+  if (abs >= 1_000) return `${sign}${currency} ${(abs / 1_000).toFixed(1)}K`;
   return `${sign}${currency} ${abs.toFixed(2)}`;
 }
 
@@ -214,31 +212,28 @@ function ContextMenu({ items, onClose }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export function AccountCard({ account, onEdit, onArchive, onRestore, onDelete, onSetDefault, onLedger, fmt, fmtNative }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const meta     = ACCOUNT_TYPE_META[account.type] || { emoji: '💼', label: account.type };
-  const isDebt   = account.type === 'CREDIT_CARD' || account.type === 'LOAN';
-  const balance  = Number(account.balance || 0);
-  const limit    = Number(account.credit_limit || 0);
-  const util     = limit > 0 ? Math.min(100, (balance / limit) * 100) : 0;
+  const meta = ACCOUNT_TYPE_META[account.type] || { emoji: '💼', label: account.type };
+  const isDebt = account.type === 'CREDIT_CARD' || account.type === 'LOAN';
+  const balance = Number(account.balance || 0);
+  const limit = Number(account.credit_limit || 0);
+  const util = limit > 0 ? Math.min(100, (balance / limit) * 100) : 0;
   const isActive = account.status === 'ACTIVE';
 
-  // fmt    — converts balance from account.currency → displayCurrency and formats it
-  // fmtNative — formats in the account's own currency (no conversion) for subtitle
-  // Fall back to local formatCompact if the page hasn't wired useCurrency yet
   const displayBalance = fmt
     ? fmt(balance, account.currency)
     : formatCompact(balance, account.currency);
   const nativeBalance = fmtNative
     ? fmtNative(balance, account.currency)
     : null;
-  const showNative = fmtNative && fmt; // only show subtitle when we're actually converting
+  const showNative = fmtNative && fmt;
 
   const menuItems = [
-    { icon: '✏️', label: 'Edit account',       onClick: () => onEdit(account) },
-    { icon: '💸', label: 'Deposit',             onClick: () => onLedger(account, 'deposit'),  disabled: !isActive },
-    { icon: '📤', label: 'Withdraw',            onClick: () => onLedger(account, 'withdraw'), disabled: !isActive },
-    { icon: '🔄', label: 'Transfer',            onClick: () => onLedger(account, 'transfer'), disabled: !isActive },
+    { icon: '✏️', label: 'Edit account', onClick: () => onEdit(account) },
+    { icon: '💸', label: 'Deposit', onClick: () => onLedger(account, 'deposit'), disabled: !isActive },
+    { icon: '📤', label: 'Withdraw', onClick: () => onLedger(account, 'withdraw'), disabled: !isActive },
+    { icon: '🔄', label: 'Transfer', onClick: () => onLedger(account, 'transfer'), disabled: !isActive },
     'divider',
-    ...(account.is_default ? [] : [{ icon: '⭐', label: 'Set as default',  onClick: () => onSetDefault(account.id) }]),
+    ...(account.is_default ? [] : [{ icon: '⭐', label: 'Set as default', onClick: () => onSetDefault(account.id) }]),
     account.status === 'ARCHIVED'
       ? { icon: '♻️', label: 'Restore account', onClick: () => onRestore(account.id) }
       : { icon: '🗂️', label: 'Archive account', onClick: () => onArchive(account.id) },
@@ -251,7 +246,6 @@ export function AccountCard({ account, onEdit, onArchive, onRestore, onDelete, o
       className={`account-card${account.status === 'ARCHIVED' ? ' account-card--archived' : ''}${account.is_default ? ' account-card--default' : ''}`}
       data-type={account.type}
     >
-      {/* Top row */}
       <div className="account-card__top">
         <div className="account-card__icon-wrap" aria-hidden="true">
           {meta.emoji}
@@ -270,7 +264,6 @@ export function AccountCard({ account, onEdit, onArchive, onRestore, onDelete, o
         </div>
       </div>
 
-      {/* Balance */}
       <div className="account-card__balance-area">
         <div className="account-card__balance-label">
           {isDebt ? 'Amount Owed' : 'Balance'}
@@ -278,12 +271,10 @@ export function AccountCard({ account, onEdit, onArchive, onRestore, onDelete, o
         <div className={`account-card__balance${isDebt && balance > 0 ? ' account-card__balance--debt' : ''}`}>
           {displayBalance}
         </div>
-        {/* Native currency subtitle — only shown when display currency differs */}
         {showNative && account.currency !== (fmt._displayCurrency) && (
           <div className="account-card__balance-native">{nativeBalance}</div>
         )}
 
-        {/* Credit utilisation bar */}
         {account.type === 'CREDIT_CARD' && limit > 0 && (
           <div className="account-card__credit-bar-wrap">
             <div className="account-card__credit-bar-label">
@@ -300,7 +291,6 @@ export function AccountCard({ account, onEdit, onArchive, onRestore, onDelete, o
         )}
       </div>
 
-      {/* Footer */}
       <div className="account-card__footer">
         {account.account_number_masked ? (
           <span className="account-card__masked">{account.account_number_masked}</span>
@@ -323,12 +313,6 @@ export function AccountCard({ account, onEdit, onArchive, onRestore, onDelete, o
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NET WORTH STRIP
-// Props:
-//   totals        — { netWorth, totalAssets, totalLiabilities } already converted
-//                   to displayCurrency by the page (computed from accounts list)
-//   displayCurrency — ISO code of the chosen display currency
-//   fmtCompact    — (alreadyConvertedAmount) => string  (from useCurrency)
-//   loading       — boolean
 // ─────────────────────────────────────────────────────────────────────────────
 export function NetWorthStrip({ totals, displayCurrency = 'PKR', fmtCompact: fmt, loading }) {
   if (loading) return (
@@ -342,13 +326,12 @@ export function NetWorthStrip({ totals, displayCurrency = 'PKR', fmtCompact: fmt
     </div>
   );
 
-  const nw = totals?.netWorth         ?? 0;
-  const ta = totals?.totalAssets      ?? 0;
+  const nw = totals?.netWorth ?? 0;
+  const ta = totals?.totalAssets ?? 0;
   const tl = totals?.totalLiabilities ?? 0;
 
-  // fmt here receives a number already expressed in displayCurrency
   const display = fmt
-    ? (n) => fmt(n, displayCurrency)   // already converted — pass same currency to skip re-conversion
+    ? (n) => fmt(n, displayCurrency)
     : (n) => formatCompact(n, displayCurrency);
 
   const nwVariant = nw > 0 ? 'positive' : nw < 0 ? 'negative' : 'neutral';
@@ -386,9 +369,6 @@ export function NetWorthStrip({ totals, displayCurrency = 'PKR', fmtCompact: fmt
 export function SummaryChips({ summary, accounts }) {
   if (!summary && !accounts?.length) return null;
   const activeCount = accounts?.filter(a => a.status === 'ACTIVE').length ?? 0;
-  const creditUtil  = summary?.accountCount !== undefined
-    ? null  // from getDashboardMetrics, no direct util here — compute locally
-    : null;
 
   return (
     <div className="summary-chips">
@@ -426,38 +406,33 @@ export function AccountFormModal({ open, onClose, onSubmit, initial, loading, er
 
   useEffect(() => {
     if (open) setForm(initial ? {
-      name:                    initial.name || '',
-      type:                    initial.type || 'BANK',
-      currency:                initial.currency || 'PKR',
-      balance:                 initial.balance ?? '',
-      credit_limit:            initial.credit_limit ?? '',
-      institution_name:        initial.institution_name || '',
-      account_number_masked:   initial.account_number_masked || '',
+      name: initial.name || '',
+      type: initial.type || 'BANK',
+      currency: initial.currency || 'PKR',
+      balance: initial.balance ?? '',
+      credit_limit: initial.credit_limit ?? '',
+      institution_name: initial.institution_name || '',
+      account_number_masked: initial.account_number_masked || '',
     } : EMPTY_FORM);
   }, [open, initial]);
 
   const set = (field) => (e) => setForm(p => ({ ...p, [field]: e.target.value }));
 
-  const handleSubmit = () => {
-    // Joi uses Joi.number() for balance / credit_limit.
-    // Sending "" (empty string) causes a 400 — coerce to undefined so Joi
-    // falls back to its .default() values instead.
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
     const toNum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : undefined; };
-    // Strip blank optional strings so they don't clobber existing DB values
     const toStr = (v) => (v && v.trim() ? v.trim() : undefined);
 
     const payload = {
-      name:                  form.name,
-      type:                  form.type,
-      currency:              form.currency,
-      balance:               toNum(form.balance),
-      credit_limit:          toNum(form.credit_limit),
-      institution_name:      toStr(form.institution_name),
+      name: form.name,
+      type: form.type,
+      currency: form.currency,
+      balance: toNum(form.balance),
+      credit_limit: toNum(form.credit_limit),
+      institution_name: toStr(form.institution_name),
       account_number_masked: toStr(form.account_number_masked),
     };
 
-    // Drop undefined keys entirely — don't send them on create;
-    // COALESCE in the repo already handles absent fields on update.
     const clean = Object.fromEntries(
       Object.entries(payload).filter(([, v]) => v !== undefined)
     );
@@ -472,101 +447,171 @@ export function AccountFormModal({ open, onClose, onSubmit, initial, loading, er
       open={open}
       onClose={onClose}
       title={isEdit ? 'Edit Account' : 'New Account'}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button variant="primary" onClick={handleSubmit} loading={loading}>
-            {isEdit ? 'Save changes' : 'Create account'}
-          </Button>
-        </>
-      }
+      footer={null}
     >
-      {error && <div className="alert alert--error">⚠ {error}</div>}
+      <form id="account-core-form" onSubmit={handleFormSubmit}>
+        {error && <div className="alert alert--error">⚠ {error}</div>}
 
-      <div className="form-row">
-        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-          <label className="form-label">Account name <span>*</span></label>
-          <input className="form-input" value={form.name} onChange={set('name')} placeholder="e.g. HBL Checking" maxLength={100} />
-        </div>
-      </div>
-
-      <div className="form-row">
-        <div className="form-group">
-          <label className="form-label">Account type <span>*</span></label>
-          <div className="form-select-wrap">
-            <select className="form-select" value={form.type} onChange={set('type')}>
-              {ACCOUNT_TYPES.map(t => (
-                <option key={t} value={t}>{ACCOUNT_TYPE_META[t]?.label ?? t}</option>
-              ))}
-            </select>
+        <div className="form-row">
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="form-label">
+              Account name <span>*</span>
+            </label>
+            <input
+              className="form-input"
+              value={form.name}
+              onChange={set('name')}
+              placeholder="e.g. HBL Checking"
+              maxLength={100}
+              required
+            />
           </div>
         </div>
-        <div className="form-group">
-          <label className="form-label">Currency</label>
-          <div className="form-select-wrap">
-            <select className="form-select" value={form.currency} onChange={set('currency')}>
-              {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">
+              Account type <span>*</span>
+            </label>
+            <div className="form-select-wrap">
+              <select
+                className="form-select"
+                value={form.type}
+                onChange={set('type')}
+              >
+                {ACCOUNT_TYPES.map(t => (
+                  <option key={t} value={t}>
+                    {ACCOUNT_TYPE_META[t]?.label ?? t}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Currency</label>
+            <div className="form-select-wrap">
+              <select
+                className="form-select"
+                value={form.currency}
+                onChange={set('currency')}
+              >
+                {CURRENCIES.map(c => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
-      </div>
 
-      {!isEdit && (
-        <div className="form-group">
-          <label className="form-label">Opening balance</label>
-          <input className="form-input" type="number" min="0" step="0.01"
-            value={form.balance} onChange={set('balance')} placeholder="0.00" />
-          <span className="form-hint">Starting balance for this account</span>
-        </div>
-      )}
+        {!isEdit && (
+          <div className="form-group">
+            <label className="form-label">Opening balance</label>
+            <input
+              className="form-input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.balance}
+              onChange={set('balance')}
+              placeholder="0.00"
+            />
+            <span className="form-hint">
+              Starting balance for this account
+            </span>
+          </div>
+        )}
 
-      {isCreditCard && (
-        <div className="form-group">
-          <label className="form-label">Credit limit</label>
-          <input className="form-input" type="number" min="0" step="0.01"
-            value={form.credit_limit} onChange={set('credit_limit')} placeholder="0.00" />
-        </div>
-      )}
+        {isCreditCard && (
+          <div className="form-group">
+            <label className="form-label">Credit limit</label>
+            <input
+              className="form-input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.credit_limit}
+              onChange={set('credit_limit')}
+              placeholder="0.00"
+            />
+          </div>
+        )}
 
-      <div className="form-row">
-        <div className="form-group">
-          <label className="form-label">Institution</label>
-          <input className="form-input" value={form.institution_name} onChange={set('institution_name')}
-            placeholder="e.g. Meezan Bank" maxLength={100} />
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Institution</label>
+            <input
+              className="form-input"
+              value={form.institution_name}
+              onChange={set('institution_name')}
+              placeholder="e.g. Meezan Bank"
+              maxLength={100}
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Account # (masked)</label>
+            <input
+              className="form-input"
+              value={form.account_number_masked}
+              onChange={set('account_number_masked')}
+              placeholder="•••• 1234"
+              maxLength={30}
+            />
+          </div>
         </div>
-        <div className="form-group">
-          <label className="form-label">Account # (masked)</label>
-          <input className="form-input" value={form.account_number_masked} onChange={set('account_number_masked')}
-            placeholder="••••  1234" maxLength={30} />
+
+        <div className="form-actions">
+          <Button
+            variant="primary"
+            type="submit"
+            loading={loading}
+            className="create-account-btn"
+          >
+            {isEdit ? (
+              <>
+                <Save size={18} />
+                <span>Save Changes</span>
+              </>
+            ) : (
+              <>
+                <span>Create Account</span>
+              </>
+            )}
+          </Button>
         </div>
-      </div>
+      </form>
     </Modal>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LEDGER OPERATION MODAL  (deposit / withdraw / transfer)
+// LEDGER OPERATION MODAL
 // ─────────────────────────────────────────────────────────────────────────────
 const OP_META = {
-  deposit:  { label: 'Deposit',  icon: '💸', color: 'success', btnVariant: 'primary' },
-  withdraw: { label: 'Withdraw', icon: '📤', color: 'error',   btnVariant: 'danger'  },
-  transfer: { label: 'Transfer', icon: '🔄', color: 'tertiary',btnVariant: 'primary' },
+  deposit: { label: 'Deposit', icon: '💸', color: 'success', btnVariant: 'primary' },
+  withdraw: { label: 'Withdraw', icon: '📤', color: 'error', btnVariant: 'danger' },
+  transfer: { label: 'Transfer', icon: '🔄', color: 'tertiary', btnVariant: 'primary' },
 };
 
 export function LedgerModal({ open, onClose, account, accounts, initialOp = 'deposit', onSubmit, loading, error }) {
-  const [op, setOp]           = useState(initialOp);
-  const [amount, setAmount]   = useState('');
+  const [op, setOp] = useState(initialOp);
+  const [amount, setAmount] = useState('');
   const [targetId, setTargetId] = useState('');
 
   useEffect(() => { if (open) { setOp(initialOp); setAmount(''); setTargetId(''); } }, [open, initialOp]);
 
   const otherAccounts = accounts?.filter(a => a.id !== account?.id && a.status === 'ACTIVE') ?? [];
   const meta = OP_META[op];
+  const targetAccount = otherAccounts.find(a => a.id === targetId);
 
-  const handleSubmit = () => {
+  const handleLedgerSubmit = (e) => {
+    e.preventDefault();
     const num = parseFloat(amount);
     if (!num || num <= 0) return;
-    if (op === 'transfer') onSubmit(op, account.id, num, Number(targetId));
+    if (op === 'transfer') onSubmit(op, account.id, num, targetId);
     else onSubmit(op, account.id, num);
   };
 
@@ -580,7 +625,8 @@ export function LedgerModal({ open, onClose, account, accounts, initialOp = 'dep
           <Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button>
           <Button
             variant={meta?.btnVariant}
-            onClick={handleSubmit}
+            type="submit"
+            form="ledger-operation-form"
             loading={loading}
             disabled={!amount || (op === 'transfer' && !targetId)}
           >
@@ -589,73 +635,83 @@ export function LedgerModal({ open, onClose, account, accounts, initialOp = 'dep
         </>
       }
     >
-      {error && <div className="alert alert--error">⚠ {error}</div>}
+      <form id="ledger-operation-form" onSubmit={handleLedgerSubmit}>
+        {error && <div className="alert alert--error">⚠ {error}</div>}
 
-      {/* Op tabs */}
-      <div className="op-tabs">
-        {(['deposit', 'withdraw', 'transfer']).map(o => (
-          <button
-            key={o}
-            className={`op-tab op-tab--${o}${op === o ? ' op-tab--active' : ''}`}
-            onClick={() => setOp(o)}
-          >
-            <span className="op-tab__icon">{OP_META[o].icon}</span>
-            {OP_META[o].label}
-          </button>
-        ))}
-      </div>
+        {/* Op tabs */}
+        <div className="op-tabs">
+          {(['deposit', 'withdraw', 'transfer']).map(o => (
+            <button
+              type="button"
+              key={o}
+              className={`op-tab op-tab--${o}${op === o ? ' op-tab--active' : ''}`}
+              onClick={() => setOp(o)}
+            >
+              <span className="op-tab__icon">{OP_META[o].icon}</span>
+              {OP_META[o].label}
+            </button>
+          ))}
+        </div>
 
-      {/* Account context */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-        background: 'var(--color-surface-container-low)', borderRadius: 'var(--radius-md)' }}>
-        <span style={{ fontSize: 20 }}>{ACCOUNT_TYPE_META[account?.type]?.emoji ?? '💼'}</span>
-        <div>
-          <div style={{ fontSize: 'var(--acc-type-base)', fontWeight: 600, color: 'var(--color-on-surface)' }}>
-            {account?.name}
-          </div>
-          <div style={{ fontSize: 'var(--acc-type-xs)', color: 'var(--color-secondary)', fontFamily: 'var(--acc-font-mono)' }}>
-            Balance: {formatCurrency(account?.balance, account?.currency)}
+        {/* Account context */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+          background: 'var(--color-surface-container-low)', borderRadius: 'var(--radius-md)', marginBottom: 15
+        }}>
+          <span style={{ fontSize: 20 }}>{ACCOUNT_TYPE_META[account?.type]?.emoji ?? '💼'}</span>
+          <div>
+            <div style={{ fontSize: 'var(--acc-type-base)', fontWeight: 600, color: 'var(--color-on-surface)' }}>
+              {account?.name}
+            </div>
+            <div style={{ fontSize: 'var(--acc-type-xs)', color: 'var(--color-secondary)', fontFamily: 'var(--acc-font-mono)' }}>
+              Balance: {formatCurrency(account?.balance, account?.currency)}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Amount */}
-      <div className="form-group">
-        <label className="form-label">Amount <span style={{ color: 'var(--color-error)' }}>*</span></label>
-        <div className="amount-input-wrap">
-          <span className="amount-currency">{account?.currency ?? 'PKR'}</span>
-          <input
-            className="form-input"
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={amount}
-            onChange={e => setAmount(e.target.value)}
-            placeholder="0.00"
-            autoFocus
-          />
-        </div>
-      </div>
-
-      {/* Transfer target */}
-      {op === 'transfer' && (
+        {/* Amount */}
         <div className="form-group">
-          <label className="form-label">To account <span style={{ color: 'var(--color-error)' }}>*</span></label>
-          <div className="form-select-wrap">
-            <select className="form-select" value={targetId} onChange={e => setTargetId(e.target.value)}>
-              <option value="">Select destination…</option>
-              {otherAccounts.map(a => (
-                <option key={a.id} value={a.id}>
-                  {ACCOUNT_TYPE_META[a.type]?.emoji} {a.name} ({formatCompact(a.balance, a.currency)})
-                </option>
-              ))}
-            </select>
+          <label className="form-label">Amount <span style={{ color: 'var(--color-error)' }}>*</span></label>
+          <div className="amount-input-wrap">
+            <span className="amount-currency">{account?.currency ?? 'PKR'}</span>
+            <input
+              className="form-input"
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="0.00"
+              required
+              autoFocus
+            />
           </div>
-          {otherAccounts.length === 0 && (
-            <span className="form-hint">No other active accounts available.</span>
-          )}
         </div>
-      )}
+
+        {/* Transfer target */}
+        {op === 'transfer' && (
+          <div className="form-group">
+            <label className="form-label">To account <span style={{ color: 'var(--color-error)' }}>*</span></label>
+            <div className="form-select-wrap">
+              <select className="form-select" value={targetId} onChange={e => setTargetId(e.target.value)} required>
+                <option value="">Select destination…</option>
+                {otherAccounts.map(a => (
+                  <option key={a.id} value={a.id}>
+                    {ACCOUNT_TYPE_META[a.type]?.emoji} {a.name} ({formatCompact(a.balance, a.currency)})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {otherAccounts.length === 0 ? (
+              <span className="form-hint">No other active accounts available.</span>
+            ) : account && targetAccount && account.currency !== targetAccount.currency ? (
+              <span className="form-hint" style={{ color: 'var(--color-warning, #d97706)' }}>
+                ⚠️ Multi-currency transfer ({account.currency} → {targetAccount.currency}). Conversion rate will be applied.
+              </span>
+            ) : null}
+          </div>
+        )}
+      </form>
     </Modal>
   );
 }
@@ -673,5 +729,21 @@ export function AccountsEmpty({ onAdd }) {
       </p>
       <Button variant="primary" onClick={onAdd}>+ Add account</Button>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INTEGRATED CONTROLLER ACTION (NEW COMPONENT)
+// ─────────────────────────────────────────────────────────────────────────────
+export function CreateAccountAction({ onAdd }) {
+  return (
+    <Button
+      variant="primary"
+      onClick={onAdd}
+      className="accounts-action-trigger"
+    >
+      <span style={{ marginRight: '6px', fontSize: '1.1em', lineHeight: 0 }}>+</span>
+      New Account
+    </Button>
   );
 }

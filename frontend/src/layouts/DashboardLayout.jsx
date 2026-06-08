@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
@@ -52,18 +52,31 @@ const DashboardLayout = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth > 768);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // ✅ Moved inside component so it's always current
-  const { month, year } = getCurrentPeriod();
-  const period = getMonthDateRange(year, month);
+  // ── Stable Period Definition ────────────────────────────────────────────────
+  const { month: currentMonth, year: currentYear } = useMemo(() => getCurrentPeriod(), []);
+  
+  const period = useMemo(
+    () => getMonthDateRange(currentYear, currentMonth),
+    [currentYear, currentMonth]
+  );
 
-  const { data: monthlySummary } = useApi(
-    () => getMonthlyReport({ month: period.month, year: period.year }),
+  // ── Memoized Data Fetcher ──────────────────────────────────────────────────
+  // Wrapping this in useCallback prevents the function reference from changing on every render
+  const fetchMonthlyReport = useCallback(() => {
+    return getMonthlyReport({ month: period.month, year: period.year });
+  }, [period.month, period.year]);
+
+  const { data: monthlySummary, loading: isSummaryLoading } = useApi(
+    fetchMonthlyReport,
     [period.month, period.year]
   );
 
-  const netCashflow = Number(monthlySummary?.netSavings ?? 0);
+  // ── Safe Financial Conversions ─────────────────────────────────────────────
+  const totalIncome = Number(monthlySummary?.totalIncome ?? 0);
+  const totalExpenses = Number(monthlySummary?.totalExpenses ?? 0);
+  const netCashflow = Number(monthlySummary?.netSavings ?? (totalIncome - totalExpenses));
 
-  // ✅ Currency formatter respects user's currency
+  // Currency formatter localized cleanly to user profile definitions
   const currency = useMemo(
     () =>
       new Intl.NumberFormat('en-US', {
@@ -74,19 +87,19 @@ const DashboardLayout = ({ children }) => {
     [user?.currency]
   );
 
-  // ── Theme ────────────────────────────────────────────────────────
+  // ── Theme Management ───────────────────────────────────────────────────────
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // ── Close drawers on route change ────────────────────────────────
+  // ── Close Flyouts on Navigation ───────────────────────────────────────────
   useEffect(() => {
     if (window.innerWidth <= 768) setIsSidebarOpen(false);
     setIsProfileOpen(false);
   }, [location.pathname]);
 
-  // ── ESC key ──────────────────────────────────────────────────────
+  // ── Hotkey Listeners (ESC) ─────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
@@ -98,7 +111,7 @@ const DashboardLayout = ({ children }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // ✅ Close profile dropdown on outside click
+  // ── Click Outside Dropdown Dismissal ───────────────────────────────────────
   useEffect(() => {
     if (!isProfileOpen) return;
     const handler = (e) => {
@@ -108,7 +121,7 @@ const DashboardLayout = ({ children }) => {
     return () => document.removeEventListener('mousedown', handler);
   }, [isProfileOpen]);
 
-  // ✅ Responsive sidebar on window resize
+  // ── Responsive Layout Resize Tracking ──────────────────────────────────────
   useEffect(() => {
     const onResize = () => {
       setIsSidebarOpen(window.innerWidth > 768);
@@ -117,9 +130,10 @@ const DashboardLayout = ({ children }) => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // ── Derived display values ───────────────────────────────────────
+  // ── User Information Normalization ─────────────────────────────────────────
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
   const displayEmail = user?.email || '';
+  
   const initials = useMemo(
     () =>
       displayName
@@ -146,7 +160,7 @@ const DashboardLayout = ({ children }) => {
   return (
     <div className={`dashboard-shell ${!isSidebarOpen ? 'is-sidebar-closed' : ''}`}>
 
-      {/* Mobile scrim */}
+      {/* Mobile background backdrop click catcher */}
       <button
         className="sidebar-scrim"
         type="button"
@@ -154,7 +168,7 @@ const DashboardLayout = ({ children }) => {
         onClick={() => setIsSidebarOpen(false)}
       />
 
-      {/* ── Sidebar ────────────────────────────────────────────────── */}
+      {/* ── Sidebar Shell ─────────────────────────────────────────── */}
       <aside className="dashboard-sidebar" aria-label="Dashboard navigation">
         <div className="sidebar-brand-row">
           <Link to="/dashboard" className="sidebar-brand" aria-label="WealthFlow">
@@ -195,14 +209,23 @@ const DashboardLayout = ({ children }) => {
           })}
         </nav>
 
+        {/* ── Monthly Net Insights Widget ── */}
         <div className="sidebar-insight">
           <p>Monthly net</p>
-          <strong>{currency.format(netCashflow)}</strong>
-          <span>
-            Income {currency.format(Number(monthlySummary?.totalIncome ?? 0))}
-            {' · '}
-            Expenses {currency.format(Number(monthlySummary?.totalExpenses ?? 0))}
-          </span>
+          {isSummaryLoading ? (
+            <span className="insight-loader">Loading balances...</span>
+          ) : (
+            <>
+              <strong className={netCashflow >= 0 ? 'cashflow-positive' : 'cashflow-negative'}>
+                {currency.format(netCashflow)}
+              </strong>
+              <span>
+                Income {currency.format(totalIncome)}
+                {' · '}
+                Expenses {currency.format(totalExpenses)}
+              </span>
+            </>
+          )}
         </div>
 
         <div className="sidebar-user">
@@ -214,7 +237,7 @@ const DashboardLayout = ({ children }) => {
         </div>
       </aside>
 
-      {/* ── Main ───────────────────────────────────────────────────── */}
+      {/* ── Main Canvas View ──────────────────────────────────────── */}
       <div className="dashboard-main">
         <header className="dashboard-topbar">
           <div className="topbar-left">
@@ -243,7 +266,7 @@ const DashboardLayout = ({ children }) => {
           </div>
 
           <div className="topbar-actions">
-            {/* Theme toggle */}
+            {/* Theme Toggle */}
             <button
               className="icon-button"
               type="button"
@@ -253,10 +276,10 @@ const DashboardLayout = ({ children }) => {
               {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
             </button>
 
-            {/* Notification Bell */}
+            {/* Notifications System */}
             <NotificationBell />
 
-            {/* Profile Dropdown */}
+            {/* Profile Dropdown context menu */}
             <div className="dropdown">
               <button
                 className="profile-trigger"

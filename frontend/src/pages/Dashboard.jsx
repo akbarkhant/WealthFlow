@@ -99,10 +99,12 @@ const DashboardContent = () => {
 
   // Compile individual states from our concurrent context objects back into standard UI view models
   const summaryCards = useMemo(() => {
-    const reportData = monthlyReport?.data || monthlyReport;
+    
+    // Extract data directly matching your API payload keys
+    const reportData = monthlyReport?.data ? monthlyReport.data : monthlyReport;
 
-    const income = reportData?.income ?? 0;
-    const expenses = reportData?.expenses ?? 0;
+    const income = Number(reportData?.totalIncome || 0);
+    const expenses = Number(reportData?.totalExpenses || 0);
     const netSavings = income - expenses;
     const savingsRate = income > 0 ? (netSavings / income) * 100 : 0;
 
@@ -117,14 +119,14 @@ const DashboardContent = () => {
       {
         label: 'Monthly Income',
         value: currency.format(income),
-        detail: 'From reports API',
+        detail: 'Gross earnings tracked',
         tone: 'positive',
         icon: ArrowUpRight,
       },
       {
         label: 'Monthly Expenses',
         value: currency.format(expenses),
-        detail: 'From reports API',
+        detail: 'Total outward cashflow',
         tone: 'negative',
         icon: ArrowDownRight,
       },
