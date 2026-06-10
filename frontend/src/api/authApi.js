@@ -1,8 +1,6 @@
 import api from './client';
 
 export async function login(credentials) {
-  // If your api client doesn't automatically return response.data, 
-  // extract it here: const res = await api.post('/auth/login', credentials); return res.data;
   return api.post('/auth/login', credentials);
 }
 
@@ -11,25 +9,17 @@ export async function register(payload) {
 }
 
 export async function logout() {
-  const refreshToken = localStorage.getItem('refreshToken');
   try {
-    await api.post(
-      '/auth/logout',
-      refreshToken ? { refreshToken } : {},
-      { skipAuthRetry: true }
-    );
+    // The backend endpoint will automatically read your cookies and return 
+    // Set-Cookie commands with past expiration dates to clear them.
+    await api.post('/auth/logout', {}, { skipAuthRetry: true });
   } finally {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+    // Only clean up non-sensitive client UI visibility trackers
+    localStorage.removeItem('currentUser');
   }
 }
 
-export async function refresh(refreshToken) {
-  return api.post('/auth/refresh', { refreshToken });
-}
-
 export function getOAuthUrl(provider) {
-  // Match your exact client helper instance method
   return api.getOAuthUrl(provider);
 }
 

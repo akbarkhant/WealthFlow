@@ -1,6 +1,5 @@
 // repositories/contact.repository.js
-// repositories/contact.repository.js
-import db from "../../config/db.config.js"; 
+const { query } = require("../../config/db.config"); 
 
 class ContactRepository {
   /**
@@ -21,8 +20,8 @@ class ContactRepository {
     const values = [name, email, topic, budget || null, message];
     
     // Call the exported query function directly
-    const { rows } = await db.query(queryConfig, values);
-    return rows[0];
+    const result = await query(queryConfig, values);
+    return result.rows[0];
   }
 
   /**
@@ -39,9 +38,9 @@ class ContactRepository {
       `
     };
 
-    const { rows } = await db.query(queryConfig, [limit, offset]);
-    return rows;
+    const result = await query(queryConfig, [limit, offset]);
+    return result.rows;
   }
 }
 
-export default new ContactRepository();
+module.exports = new ContactRepository();

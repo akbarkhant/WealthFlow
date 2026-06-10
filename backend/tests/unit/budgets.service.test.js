@@ -2,7 +2,10 @@
 
 const budgetsService = require('../../src/modules/budgets/budget.service');
 
-describe('Budgets Service Tests', () => {
+// Skip DB tests if database is not available
+const describeIfDbAvailable = global.DB_AVAILABLE ? describe : describe.skip;
+
+describeIfDbAvailable('Budgets Service Tests', () => {
   // ─────────────────────────────────────────────
   // CREATE BUDGET
   // ─────────────────────────────────────────────

@@ -572,8 +572,7 @@ export function AccountFormModal({ open, onClose, onSubmit, initial, loading, er
           >
             {isEdit ? (
               <>
-                <Save size={18} />
-                <span>Save Changes</span>
+                <span> Save Changes</span>
               </>
             ) : (
               <>

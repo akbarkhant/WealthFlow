@@ -213,6 +213,20 @@ async function remove(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function recoverAll(req, res, next) {
+  try {
+    const restoredRows = await service.recoverAllAccounts(req.user.id);
+    return res.status(200).json({
+      success: true,
+      message: "Bulk conversion recovery operation finalized successfully.",
+      count: restoredRows.length,
+      data: restoredRows
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   create, 
   list, 
@@ -227,5 +241,6 @@ module.exports = {
   summary, 
   netWorth, 
   getAIContext, 
-  remove
+  remove,
+  recoverAll
 };

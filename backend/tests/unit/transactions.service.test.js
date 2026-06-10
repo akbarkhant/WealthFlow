@@ -1,8 +1,23 @@
 // tests/transactions.service.test.js
 
 const transactionsService = require('../../src/modules/transactions/transactions.service');
+const { query } = require('../../src/config/db.config');
 
-describe('Transactions Service Tests', () => {
+// Skip DB tests if database is not available
+const describeIfDbAvailable = global.DB_AVAILABLE ? describe : describe.skip;
+
+describeIfDbAvailable('Transactions Service Tests', () => {
+  const testUserId = '11111111-1111-1111-1111-111111111111';
+
+  beforeAll(async () => {
+    // Ensure test user exists to satisfy FK constraint
+    await query(
+      `INSERT INTO users (id, email, password_hash, name, currency, balance, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 100000, NOW(), NOW())
+       ON CONFLICT (id) DO UPDATE SET balance = 100000`,
+      [testUserId, 'test_tx@example.com', 'hash', 'Tx Test User', 'USD']
+    );
+  });
   // ─────────────────────────────────────────────
   // CREATE TRANSACTION
   // ─────────────────────────────────────────────
@@ -10,13 +25,13 @@ describe('Transactions Service Tests', () => {
   describe('create()', () => {
     it('should create a new transaction', async () => {
       const transactionData = {
-        userId: 1,
+        userId: testUserId,
         title: 'Groceries',
         type: 'expense',
         category: 'Food',
         amount: 2500,
         description: 'Weekly grocery shopping',
-        transactionDate: new Date(),
+        date: new Date(),
       };
 
       const transaction =
@@ -26,11 +41,11 @@ describe('Transactions Service Tests', () => {
 
       expect(transaction).toBeDefined();
 
-      expect(transaction.title).toBe(
-        transactionData.title
+      expect(transaction.description).toBe(
+        transactionData.description
       );
 
-      expect(transaction.amount).toBe(
+      expect(Number(transaction.amount)).toBe(
         transactionData.amount
       );
 
@@ -48,7 +63,7 @@ describe('Transactions Service Tests', () => {
     it('should return user transactions', async () => {
       const transactions =
         await transactionsService.list(
-          1
+          testUserId
         );
 
       expect(Array.isArray(transactions)).toBe(
@@ -65,13 +80,13 @@ describe('Transactions Service Tests', () => {
     it('should return transaction by id', async () => {
       const createdTransaction =
         await transactionsService.createTransaction({
-          userId: 1,
+          userId: testUserId,
           title: 'Fuel',
           type: 'expense',
           category: 'Transport',
           amount: 5000,
           description: 'Car fuel',
-          transactionDate: new Date(),
+          date: new Date(),
         });
 
       const transaction =
@@ -95,13 +110,13 @@ describe('Transactions Service Tests', () => {
     it('should update transaction details', async () => {
       const createdTransaction =
         await transactionsService.createTransaction({
-          userId: 1,
+          userId: testUserId,
           title: 'Internet Bill',
           type: 'expense',
           category: 'Utilities',
           amount: 3000,
           description: 'Monthly internet payment',
-          transactionDate: new Date(),
+          date: new Date(),
         });
 
       const updatedTransaction =
@@ -112,7 +127,7 @@ describe('Transactions Service Tests', () => {
           }
         );
 
-      expect(updatedTransaction.amount).toBe(
+      expect(Number(updatedTransaction.amount)).toBe(
         3500
       );
     });
@@ -126,13 +141,13 @@ describe('Transactions Service Tests', () => {
     it('should delete transaction successfully', async () => {
       const createdTransaction =
         await transactionsService.createTransaction({
-          userId: 1,
+          userId: testUserId,
           title: 'Movie Ticket',
           type: 'expense',
           category: 'Entertainment',
           amount: 1200,
           description: 'Cinema',
-          transactionDate: new Date(),
+          date: new Date(),
         });
 
       const result =

@@ -1,4 +1,3 @@
-// components/NotificationBell.jsx
 import { useEffect, useRef, useState } from 'react';
 import { useNotifications } from '../hooks/useNotification';
 import { useNotificationPush } from '../hooks/useNotificationPush'; // Import the push hook
@@ -6,30 +5,40 @@ import '../styles/components/Notificationbell.css';
 
 const TYPE_META = {
   budget_alert: { icon: '⚠️', color: '#b45309' },
-  broadcast:    { icon: '📢', color: '#005ac2' },
-  general:      { icon: '🔔', color: '#006c49' },
+  broadcast: { icon: '📢', color: '#005ac2' },
+  general: { icon: '🔔', color: '#006c49' },
 };
 
 function timeAgo(dateStr) {
   const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
-  if (diff < 60)   return 'just now';
+  if (diff < 60) return 'just now';
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
 // Minimal API mapping layer needed by useNotificationPush to speak with your router endpoints
+// Minimal API mapping layer needed by useNotificationPush to speak with your router endpoints
 const notificationApiClient = {
   getVapidPublicKey: () => fetch('/api/notifications/vapid-public-key').then(res => res.json()),
+
   saveSubscription: (payload) => fetch('/api/notifications/subscribe', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token')}` // Ensure auth header passes
+    },
+    body: JSON.stringify({ subscription: payload }) // Wrap correctly for controller destructuring
   }),
+
   removeSubscription: (payload) => fetch('/api/notifications/unsubscribe', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+    },
+    // 🟢 Extract the raw endpoint string so your backend controller parses it cleanly
+    body: JSON.stringify({ endpoint: payload?.endpoint || payload })
   })
 };
 
@@ -51,10 +60,10 @@ export default function NotificationBell() {
     unsubscribe,
   } = useNotificationPush(notificationApiClient);
 
-  const [open, setOpen]     = useState(false);
-  const panelRef            = useRef(null);
-  const bellRef             = useRef(null);
-  const loadedRef           = useRef(false);
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef(null);
+  const bellRef = useRef(null);
+  const loadedRef = useRef(false);
 
   // ── Load history once on first open ────────────────────────────
   useEffect(() => {
@@ -69,7 +78,7 @@ export default function NotificationBell() {
   useEffect(() => {
     const handler = (e) => {
       if (panelRef.current && !panelRef.current.contains(e.target) &&
-          bellRef.current  && !bellRef.current.contains(e.target)) {
+        bellRef.current && !bellRef.current.contains(e.target)) {
         setOpen(false);
       }
     };
@@ -88,7 +97,7 @@ export default function NotificationBell() {
 
   const handleSubscribeToggle = async () => {
     if (subscribed) await unsubscribe();
-    else            await subscribe();
+    else await subscribe();
   };
 
   return (
@@ -102,8 +111,8 @@ export default function NotificationBell() {
         aria-expanded={open}
       >
         <svg className="nb-bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
         {unreadCount > 0 && (
           <span className="nb-badge" aria-label={`${unreadCount} unread`}>
@@ -123,13 +132,15 @@ export default function NotificationBell() {
         <div className="nb-header">
           <div className="nb-header-left">
             <span className="nb-title">Notifications</span>
+            {/* 🟢 Line Added: Feature Coming Soon placeholder status tag */}
+            <span className="nb-count-pill" style={{ background: 'rgba(255,255,255,0.08)', color: '#a1a1aa', fontSize: '11px' }}>Coming Soon</span>
             {unreadCount > 0 && (
               <span className="nb-count-pill">{unreadCount} new</span>
             )}
           </div>
           <button className="nb-close" onClick={() => setOpen(false)} aria-label="Close">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M18 6 6 18M6 6l12 12"/>
+              <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
         </div>

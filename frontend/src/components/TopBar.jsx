@@ -1,15 +1,18 @@
-import './Topbar.css';
+import React from 'react';
+import { ArrowRight } from 'lucide-react';
+import '../styles/components/Topbar.css';
 
-const Topbar = () => {
+export default function TopBar() {
+  const handleNavigation = () => {
+    window.location.href = '/upcoming-features';
+  };
+
   return (
-    <header className="topbar">
-      <h2>Dashboard</h2>
-
-      <div className="topbar-user">
-        <span>Welcome Back</span>
-      </div>
-    </header>
+    <div className="uf-topbar" onClick={handleNavigation} role="button" tabIndex={0}>
+      <p className="uf-topbar-text">
+        ✨ New features coming soon
+      </p>
+      <ArrowRight size={16} className="uf-topbar-arrow" />
+    </div>
   );
-};
-
-export default Topbar;
+}

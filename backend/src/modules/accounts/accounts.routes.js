@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('./accounts.controller');
 const { authenticate } = require('../../middleware/authorize.middleware');
+const { readOperationLimiter } = require('../../middleware/rateLimiter.middleware');
 
 router.use(authenticate);
 
@@ -12,10 +13,12 @@ router.route('/')
   .post(ctrl.create)
   .get(ctrl.list);
 
-// Core analytical aggregates
-router.get('/summary', ctrl.summary);
-router.get('/net-worth', ctrl.netWorth);
-router.get('/ai-context', ctrl.getAIContext);
+// Core analytical aggregates (expensive operations)
+router.get('/summary', readOperationLimiter, ctrl.summary);
+router.get('/net-worth', readOperationLimiter, ctrl.netWorth);
+router.get('/ai-context', readOperationLimiter, ctrl.getAIContext);
+
+router.patch('/recover-all', ctrl.recoverAll);
 
 // Instance specific pathways
 router.route('/:id')

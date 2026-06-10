@@ -1,0 +1,332 @@
+/* ==========================================================================
+   0. Design Tokens & Core Engine
+   ========================================================================== */
+:root {
+  --bg-main: #0a0a0c;
+  --card-bg: rgba(16, 16, 20, 0.45);
+  --card-border: rgba(255, 255, 255, 0.05);
+  --card-border-hover: rgba(0, 175, 118, 0.35);
+  
+  --accent-primary: #00af76;
+  --accent-gradient: linear-gradient(90deg, #006c49 0%, #00af76 100%);
+  
+  --text-pure: #ffffff;
+  --text-main: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --text-dark: #52525b;
+  
+  --font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body {
+  background-color: var(--bg-main);
+  margin: 0;
+  /* Elite SaaS Font Smooth Rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==========================================================================
+   1. Container & Page Layout
+   ========================================================================== */
+.uf-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 7rem 2rem; /* Generous breathing room for premium editorial presentation */
+  min-height: 100vh;
+  color: var(--text-main);
+  font-family: var(--font-family);
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   2. Header & Subtitles
+   ========================================================================== */
+.uf-header {
+  text-align: center;
+  margin-bottom: 5.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.uf-badge {
+  background: rgba(0, 175, 118, 0.07);
+  color: var(--accent-primary);
+  padding: 0.45rem 1.2rem;
+  border-radius: 100px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid rgba(0, 175, 118, 0.2);
+  margin-bottom: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.uf-title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0 0 1.25rem 0;
+  background: linear-gradient(180deg, var(--text-pure) 20%, var(--text-muted) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.uf-subtitle {
+  max-width: 540px; /* Snugger line wrap formatting */
+  color: var(--text-muted);
+  font-size: 1.125rem;
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* ==========================================================================
+   3. Grid Architecture
+   ========================================================================== */
+.uf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 2.5rem; /* Expanded for clean grid separation */
+}
+
+/* ==========================================================================
+   4. Glassmorphism Feature Cards
+   ========================================================================== */
+.uf-card {
+  position: relative;
+  background: var(--card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--card-border);
+  border-radius: 24px; /* Slightly softer luxury rounding radius */
+  padding: 2.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  cursor: pointer;
+  
+  /* Reset stack states smoothly */
+  transform: translateY(0) scale(1);
+  /* Multi-layered premium card box shadow (Sharp inner glare lines) */
+  box-shadow: 
+    0 10px 30px -10px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.03);
+  transition: 
+    transform 0.6s var(--ease-premium), 
+    border-color 0.4s ease, 
+    box-shadow 0.6s var(--ease-premium);
+}
+
+/* Hover Interactive Elevation */
+.uf-card:hover {
+  transform: translateY(-8px);
+  border-color: var(--card-border-hover);
+  /* Luxury stacked ambient shadow expansion on hover */
+  box-shadow: 
+    0 30px 60px -15px rgba(0, 0, 0, 0.6), 
+    0 0 50px -10px rgba(0, 175, 118, 0.06),
+    inset 0 1px 1px rgba(255, 255, 255, 0.08); 
+}
+
+/* Micro Interaction: Scale down slightly when physically clicked/pressed */
+.uf-card:active {
+  transform: translateY(-4px) scale(0.98);
+  transition: transform 0.15s var(--ease-premium);
+}
+
+/* Card Header Configuration */
+.uf-card-top {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.uf-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  transition: transform 0.4s var(--ease-premium), background-color 0.4s ease;
+}
+
+.uf-card:hover .uf-icon-wrapper {
+  transform: scale(1.08) rotate(2deg);
+  background: rgba(0, 175, 118, 0.08);
+  border-color: rgba(0, 175, 118, 0.25);
+}
+
+.uf-card-category {
+  color: var(--text-dark);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  transition: color 0.3s ease;
+}
+
+.uf-card:hover .uf-card-category {
+  color: var(--accent-primary);
+}
+
+/* Typography Inside Cards */
+.uf-card-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.85rem 0;
+  color: var(--text-pure);
+  letter-spacing: -0.01em;
+}
+
+.uf-card-desc {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  margin: 0 0 3rem 0;
+  flex-grow: 1;
+}
+
+/* ==========================================================================
+   5. Custom Progress Indicators
+   ========================================================================== */
+.uf-progress-container {
+  margin-top: auto;
+}
+
+.uf-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.uf-status-text {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.uf-percentage {
+  color: var(--accent-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums; /* Protects UI text jitter when scaling up counts */
+}
+
+.uf-progress-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.uf-progress-bar {
+  height: 100%;
+  background: var(--accent-gradient);
+  border-radius: 100px;
+  transition: width 1.4s var(--ease-premium);
+}
+
+/* Subtle glow track strip behind progress */
+.uf-card:hover .uf-progress-track {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ==========================================================================
+   6. Dynamic Loading & Error UI States
+   ========================================================================== */
+.uf-loader-container,
+.uf-error-banner {
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 20px;
+  padding: 4rem 2.5rem;
+  text-align: center;
+  max-width: 420px;
+  margin: 4rem auto;
+  border: 1px solid var(--card-border);
+  box-shadow: 
+    0 40px 80px -20px rgba(0, 0, 0, 0.7),
+    inset 0 1px 1px rgba(255, 255, 255, 0.03);
+}
+
+.uf-error-banner {
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.03) 0%, transparent 100%);
+}
+
+/* Premium Spinner Execution */
+.uf-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 175, 118, 0.08);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  margin: 0 auto 1.5rem auto;
+  animation: uf-spin 0.85s cubic-bezier(0.4, 0.1, 0.3, 1) infinite;
+}
+
+@keyframes uf-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   7. Decorative Background Edge Radial Glows
+   ========================================================================== */
+.uf-card-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at top right, rgba(0, 175, 118, 0.12), transparent 45%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s var(--ease-premium);
+}
+
+.uf-card:hover .uf-card-glow {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   8. Responsive Media Breakpoints
+   ========================================================================== */
+@media (max-width: 768px) {
+  .uf-container {
+    padding: 4.5rem 1.5rem;
+  }
+  
+  .uf-header {
+    margin-bottom: 3.75rem;
+  }
+
+  .uf-title {
+    font-size: 2.5rem;
+  }
+  
+  .uf-grid {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+  
+  .uf-card {
+    padding: 2.25rem;
+  }
+}

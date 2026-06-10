@@ -4,9 +4,35 @@
  * extracting payloads, invoking the core authentication service logic, and 
  * returning standardized HTTP responses.
  */
+const jwt = require('jsonwebtoken');
 const authService = require('./auth.service');
 const { sendSuccess } = require('../../shared/ApiResponse');
 const { config } = require('../../config/index.config');
+
+/**
+ * Helper: Set secure authentication cookies (HttpOnly)
+ */
+function setAuthCookies(res, tokens) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  // ✅ Access Token Cookie (15 minutes)
+  res.cookie('accessToken', tokens.accessToken, {
+    httpOnly: true,                    // JS cannot access
+    secure: isProduction,              // HTTPS only in production
+    sameSite: 'Strict',                // CSRF protection
+    maxAge: 15 * 60 * 1000,            // 15 minutes
+    path: '/',
+  });
+
+  // ✅ Refresh Token Cookie (7 days)
+  res.cookie('refreshToken', tokens.refreshToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'Strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,   // 7 days
+    path: '/',
+  });
+}
 
 /**
  * Get current authenticated user profile
@@ -39,8 +65,15 @@ async function register(req, res, next) {
     // Pass user details payload to service layer to handle validation, hashing, and storage
     const tokens = await authService.register(req.body);
     
-    // Return standard 201 Created response containing access & refresh tokens
-    sendSuccess(res, tokens, 201);
+    // ✅ Set secure HttpOnly cookies
+    setAuthCookies(res, tokens);
+    
+    // ✅ Decode JWT to get user info (or call getMe with decoded user ID)
+    const decoded = jwt.decode(tokens.accessToken);
+    const user = await authService.getMe(decoded.sub);
+    
+    // ✅ Return only user data (tokens are in HttpOnly cookies)
+    sendSuccess(res, { user }, 201);
   } catch (err) {
     next(err);
   }
@@ -53,10 +86,17 @@ async function register(req, res, next) {
  */
 async function login(req, res, next) {
   try {
-    // 🔍 TEMPORARY TEST LOG
-    
     const tokens = await authService.login(req.body);
-    sendSuccess(res, tokens);
+    
+    // ✅ Set secure HttpOnly cookies
+    setAuthCookies(res, tokens);
+    
+    // ✅ Decode JWT to get user info
+    const decoded = jwt.decode(tokens.accessToken);
+    const user = await authService.getMe(decoded.sub);
+    
+    // ✅ Return only user data (tokens are in HttpOnly cookies)
+    sendSuccess(res, { user });
   } catch (err) {
     next(err);
   }
@@ -69,11 +109,29 @@ async function login(req, res, next) {
  */
 async function refresh(req, res, next) {
   try {
-    const { refreshToken } = req.body;
+    // ✅ Extract refreshToken from cookies instead of body
+    const { refreshToken } = req.cookies;
     
-    // Request a brand new pair of tokens from the service layer
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token not found',
+      });
+    }
+
     const tokens = await authService.refresh(refreshToken);
-    sendSuccess(res, tokens);
+    
+    // ✅ Clear old cookies and set new ones
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+    setAuthCookies(res, tokens);
+    
+    // ✅ Decode JWT to get user info
+    const decoded = require('jsonwebtoken').decode(tokens.accessToken);
+    const user = await authService.getMe(decoded.sub);
+    
+    // ✅ Return only user data
+    sendSuccess(res, { user });
   } catch (err) {
     next(err);
   }
@@ -86,14 +144,17 @@ async function refresh(req, res, next) {
  */
 async function logout(req, res, next) {
   try {
-    // Safely extract the raw Bearer token string from authorization headers
-    const authHeader = req.headers['authorization'] || '';
-    const accessToken = authHeader.replace('Bearer ', '');
+    // ✅ Extract tokens from cookies
+    const { accessToken, refreshToken } = req.cookies;
 
-    const { refreshToken } = req.body || {};
+    // Invalidate tokens if needed (e.g., add to blacklist)
+    if (accessToken || refreshToken) {
+      await authService.logout(accessToken, refreshToken);
+    }
 
-    // Blocklist or remove tokens from cache/database to prevent further use
-    await authService.logout(accessToken, refreshToken);
+    // ✅ Clear cookies
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
 
     sendSuccess(res, { message: 'Logged out successfully' });
   } catch (err) {
@@ -111,13 +172,30 @@ async function oauthCallback(req, res) {
   const tokens = req.user || {};
   const { FRONTEND_URL } = config;
 
-  // Construct secure redirect URL to handoff JWTs to client client-side state
-  const url = new URL('/auth/oauth/callback', FRONTEND_URL);
-  url.searchParams.set('accessToken', tokens.accessToken || '');
-  url.searchParams.set('refreshToken', tokens.refreshToken || '');
+  // ✅ Validate tokens exist
+  if (!tokens.accessToken) {
+    return res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
+  }
 
-  // Perform client redirection back to the user interface
-  res.redirect(url.toString());
+  // ✅ Set secure HttpOnly cookies (NOT in URL)
+  res.cookie('accessToken', tokens.accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict',
+    maxAge: 15 * 60 * 1000,
+    path: '/',
+  });
+
+  res.cookie('refreshToken', tokens.refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
+
+  // ✅ Redirect WITHOUT tokens in URL
+  res.redirect(`${FRONTEND_URL}/dashboard`);
 }
 
 async function verifyEmail(req, res, next) {

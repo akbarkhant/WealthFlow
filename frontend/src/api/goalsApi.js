@@ -31,12 +31,9 @@ const goalsApi = {
 
     const json = await response.json();
 
-    // If your global sendSuccess utility packs responses like { success: true, data: { items: [], total: 3 } }
-    // This safely normalizes it so that hook unpacking can parse it securely
     return json;
   },
 
-  // Inject currency into a goal node: POST /api/goals/:id/contribute
   contribute: async (goalId, amount) => {
     const response = await fetch(`${BASE_URL}/${goalId}/contribute`, {
       method: 'POST',
@@ -65,10 +62,6 @@ const goalsApi = {
     try {
       const response = await fetch(`${BASE_URL}/${goalId}`, {
         method: 'DELETE',
-        // FIX: Was localStorage.getItem('token') || sessionStorage.getItem('token')
-        // which used a different key ('token') than everywhere else ('accessToken'),
-        // so the header was always an empty Bearer token.
-        // Unified to use getAuthHeaders() for consistency.
         headers: getAuthHeaders(),
       });
       return await response.json();

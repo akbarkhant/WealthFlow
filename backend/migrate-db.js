@@ -4,6 +4,12 @@ async function migrate() {
   try {
     console.log('Starting schema migration...');
 
+    // Ensure pgcrypto extension for gen_random_uuid()
+    await pool.query(`
+      CREATE EXTENSION IF NOT EXISTS pgcrypto;
+    `);
+    console.log('✓ Ensured pgcrypto extension');
+
     // 1. Add avatar_url to oauth_accounts
     await pool.query(`
       ALTER TABLE oauth_accounts ADD COLUMN IF NOT EXISTS avatar_url TEXT;

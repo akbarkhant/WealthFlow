@@ -3,6 +3,7 @@ const router = express.Router();
 
 const controller = require('./users.controller');
 const { authenticate } = require('../../middleware/authorize.middleware');
+const { readOperationLimiter } = require('../../middleware/rateLimiter.middleware');
 
 // ==========================================
 // 🔹 IDENTITY ROUTES (SELF USER)
@@ -34,11 +35,11 @@ router.put('/me/email', controller.updateEmail);
 //router.put('/me/avatar', controller.updateAvatar);
 
 // ==========================================
-// 🔹 ANALYTICS ROUTES
+// 🔹 ANALYTICS ROUTES (rate limited)
 // ==========================================
 
-router.get('/me/activity', controller.getMyActivity);
-router.get('/me/stats', controller.getMyStats);
+router.get('/me/activity', authenticate, readOperationLimiter, controller.getMyActivity);
+router.get('/me/stats', authenticate, readOperationLimiter, controller.getMyStats);
 
 // ==========================================
 // 🔹 PREFERENCES ROUTES

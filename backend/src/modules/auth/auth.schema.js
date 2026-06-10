@@ -65,12 +65,12 @@ const loginSchema = z.object({
 
 /**
  * Schema for Token Refresh requests
- * Expects: refreshToken
+ * Expects: refreshToken (from HttpOnly cookies)
+ * ✅ refreshToken is now optional (read from cookies instead of body)
  */
 const refreshSchema = z.object({
-  // Ensures the rotation token payload is present and not an empty string
-  refreshToken: z.string().min(1),
-});
+  // Empty schema - refreshToken comes from HttpOnly cookies
+}).strict().passthrough();
 
 module.exports = {
   registerSchema,

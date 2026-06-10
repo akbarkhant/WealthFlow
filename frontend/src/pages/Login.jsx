@@ -14,7 +14,7 @@ const Login = () => {
       <div className="login-page page-fade-in">
         <header className="login-header">
           <Link to="/" className="login-brand">
-            <Wallet size={28} />
+            <Wallet className="login-brand__icon" size={28} />
             <span className="login-brand__name">WealthFlow</span>
           </Link>
         </header>
@@ -150,8 +150,12 @@ const Login = () => {
                   placeholder="••••••••"
                   value={state.password}
                   onChange={(e) => actions.setPassword(e.target.value)}
-                  onKeyUp={actions.handleKeyDown}
-                  onKeyDown={actions.handleKeyDown}
+                  onKeyDown={(e) => {
+                    // Only invoke the key handler if it's explicitly targeting this element
+                    if (actions.handleKeyDown) {
+                      actions.handleKeyDown(e);
+                    }
+                  }}
                   disabled={state.isFormDisabled}
                   required
                 />

@@ -5,7 +5,7 @@ export async function getMe() {
 }
 
 export async function updateMe(payload) {
-  return api.patch('/users/me', payload);
+  return api.put('/users/me', payload);
 }
 
 export async function deleteMe() {

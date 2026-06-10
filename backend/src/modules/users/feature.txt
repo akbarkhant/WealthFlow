@@ -1,7 +1,0 @@
-🔥 Level-up features:
-Audit logs (who changed password/email)
-Rate limiting login attempts
-Wallet transaction service (WITH locking)
-Admin RBAC system
-Full JWT auth service layer
-

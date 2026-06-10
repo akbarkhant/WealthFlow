@@ -1,0 +1,154 @@
+name: CI Build & Publish
+
+on:
+  push:
+    branches: [ main ]
+    tags:      
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/testdb
+      REDIS_URL: redis://:password@127.0.0.1:6379
+      JWT_ACCESS_SECRET: test_jwt_access
+      JWT_REFRESH_SECRET: test_jwt_refresh
+      GOOGLE_CLIENT_ID: test_google
+      GOOGLE_CLIENT_SECRET: test_google_secret
+      GITHUB_CLIENT_ID: test_github
+      GITHUB_CLIENT_SECRET: test_github_secret
+      SMTP_HOST: localhost
+      SMTP_PORT: 1025
+      SMTP_USER: ''
+      SMTP_PASS: ''
+      FRONTEND_URL: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test --silent
+
+      - name: Build frontend (verify)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+  build-and-push:
+    name: Build and publish Docker images
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/wealthflow-backend:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/wealthflow-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/wealthflow-frontend:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/wealthflow-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  migrate:
+    name: Run database migrations
+    needs: test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: testdb
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready -U postgres -d testdb
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+      REDIS_URL: redis://:password@127.0.0.1:6379
+      JWT_ACCESS_SECRET: test_jwt_access
+      JWT_REFRESH_SECRET: test_jwt_refresh
+      GOOGLE_CLIENT_ID: test_google
+      GOOGLE_CLIENT_SECRET: test_google_secret
+      GITHUB_CLIENT_ID: test_github
+      GITHUB_CLIENT_SECRET: test_github_secret
+      SMTP_HOST: localhost
+      SMTP_PORT: 1025
+      SMTP_USER: ''
+      SMTP_PASS: ''
+      FRONTEND_URL: http://localhost:5173
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install postgres client tools
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 -U postgres -d testdb && exit 0 || sleep 1;
+          done
+        env:
+          PGPASSWORD: postgres
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Run migrations
+        working-directory: backend
+        run: node migrate-db.js

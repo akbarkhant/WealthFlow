@@ -54,13 +54,7 @@ const upload = multer({
 
 // Middleware placeholders — replace with your actual auth + rate-limit middleware
 const { authenticate } = require('../../middleware/authorize.middleware');
-// Import your AI-specific rate limiter (20 req/hour per plan)
-let aiRateLimiter;
-try {
-  aiRateLimiter = require('../../shared/middleware/rateLimiter').aiRateLimiter;
-} catch {
-  aiRateLimiter = (req, res, next) => next(); // fallback: no-op
-}
+const { aiRateLimiter } = require('../../middleware/rateLimiter.middleware');
 
 const router = Router();
 
@@ -68,9 +62,9 @@ const router = Router();
 router.use(authenticate);
 
 // ─── Chat ────────────────────────────────────────────────────────────────────
-router.get   ('/chat/history',        controller.getChatHistory);
-router.delete('/chat/history',        controller.clearChatHistory);
-router.post  ('/chat',     aiRateLimiter, controller.chat);
+router.get   ('/chat/history',        aiRateLimiter, controller.getChatHistory);
+router.delete('/chat/history',        aiRateLimiter, controller.clearChatHistory);
+router.post  ('/chat',                aiRateLimiter, controller.chat);
 
 // ─── Async AI jobs ────────────────────────────────────────────────────────────
 router.post('/analyze',              aiRateLimiter, controller.analyze);
@@ -78,17 +72,17 @@ router.post('/suggest',              aiRateLimiter, controller.suggest);
 router.post('/insights/:year/:month', aiRateLimiter, controller.requestInsights);
 
 // ─── Job polling ──────────────────────────────────────────────────────────────
-router.get('/jobs/:jobId', controller.getJobStatus);
+router.get('/jobs/:jobId', aiRateLimiter, controller.getJobStatus);
 
 // ─── Insights history ─────────────────────────────────────────────────────────
-router.get  ('/insights',           controller.getInsightsHistory);
-router.patch('/insights/:id/apply', controller.markInsightApplied);
+router.get  ('/insights',           aiRateLimiter, controller.getInsightsHistory);
+router.patch('/insights/:id/apply', aiRateLimiter, controller.markInsightApplied);
 
 // ─── Reports ─────────────────────────────────────────────────────────────────
 router.post('/report/:month', aiRateLimiter, controller.getMonthlyReport);
 
 // ─── Receipt ─────────────────────────────────────────────────────────────────
-router.post('/receipt', upload.single('receipt'), controller.scanReceipt);
+router.post('/receipt', aiRateLimiter, upload.single('receipt'), controller.scanReceipt);
 
 // ─── Education ───────────────────────────────────────────────────────────────
 router.get('/education/topics',        controller.getEducationTopics);

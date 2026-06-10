@@ -1,26 +1,19 @@
-# ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY tsconfig.json ./
-COPY src ./src
-RUN npm run build
+FROM node:20-alpine
 
-# ── Stage 2: Production ───────────────────────────────────────────────────────
-FROM node:20-alpine AS production
 WORKDIR /app
 
+# Set production environment
 ENV NODE_ENV=production
 
-# Only install production deps
+# Install production dependencies
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-# Copy compiled output
-COPY --from=builder /app/dist ./dist
+# Copy application source
+COPY server.js ./
+COPY src ./src
 
-# Non-root user for security
+# Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && adduser -S nodeuser -u 1001
 USER nodeuser
 
@@ -29,4 +22,4 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget -qO- http://localhost:4000/health || exit 1
 
-CMD ["node", "dist/server.js"]
+CMD ["node", "server.js"]

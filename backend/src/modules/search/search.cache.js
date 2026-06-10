@@ -120,8 +120,12 @@ class SearchCacheEngine {
   }
 }
 
-// Export as a configurable class or a pre-configured Singleton instance
-export const searchCache = new SearchCacheEngine({
+const searchCache = new SearchCacheEngine({
   maxSize: 150,       // Track up to 150 unique command palette keystroke variations
   ttlMs: 3 * 60 * 1000 // Cache values stay fresh for 3 minutes before hitting the network again
 });
+
+module.exports = {
+  SearchCacheEngine,
+  searchCache
+};

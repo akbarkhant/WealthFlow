@@ -28,6 +28,7 @@ import { getCurrentPeriod, getMonthDateRange } from '../utils/dateRange';
 import { SearchBar } from '../components/SearchBar/SearchBar';
 import NotificationBell from '../components/Notificationbell';
 import './dash.css';
+import Topbar from '../components/TopBar';
 
 const navItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },

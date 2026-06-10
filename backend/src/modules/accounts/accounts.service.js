@@ -264,6 +264,15 @@ async function removeAccount(accountId, userId) {
   return await repo.deleteAccount(accountId, userId); // Pass userId for security context alignment
 }
 
+async function recoverAllAccounts(userId) {
+  try {
+    return await repo.restoreAllByUser(userId);
+  } catch (error) {
+    logger.error(`[ACCOUNTS_SERVICE_BULK_RECOVERY_ERROR]: ${error.message}`);
+    throw error;
+  }
+}
+
 module.exports = {
   createAccount,
   getAccountsByUser,
@@ -278,5 +287,6 @@ module.exports = {
   getDashboardMetrics,
   buildAIContext,
   removeAccount,
-  validateOwnership
+  validateOwnership,
+  recoverAllAccounts
 };

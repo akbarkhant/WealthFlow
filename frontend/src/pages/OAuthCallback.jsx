@@ -1,23 +1,36 @@
 import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getMe } from '../api/userApi';
 
 const OAuthCallback = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { login } = useAuth();
 
   useEffect(() => {
-    const accessToken = searchParams.get('accessToken');
-    const refreshToken = searchParams.get('refreshToken');
+    const finishOAuthFlow = async () => {
+      try {
+        // ✅ Backend has already set HttpOnly cookies during redirect
+        // Now fetch user data to verify authentication and populate context
+        const userData = await getMe();
+        
+        const user = userData?.user || userData?.data?.user || userData;
 
-    if (accessToken) {
-      login({ accessToken, refreshToken: refreshToken || '' });
-      navigate('/dashboard', { replace: true });
-    } else {
-      navigate('/login', { replace: true });
-    }
-  }, [searchParams, login, navigate]);
+        if (user && user.id) {
+          // ✅ Pass only user object (tokens are in HttpOnly cookies)
+          login(user);
+          navigate('/dashboard', { replace: true });
+        } else {
+          throw new Error('OAuth succeeded but user data is missing');
+        }
+      } catch (error) {
+        console.error('OAuth callback failed:', error);
+        navigate('/login?error=oauth_failed', { replace: true });
+      }
+    };
+
+    finishOAuthFlow();
+  }, [login, navigate]);
 
   return (
     <div className="auth-loading-screen">

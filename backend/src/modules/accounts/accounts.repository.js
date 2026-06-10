@@ -297,6 +297,97 @@ async function clearDefaultFlag(userId) {
   return await db.query(query, [userId]);
 }
 
+/**
+ * Context lookup: Fetches the primary fallback record explicitly flagged as default
+ * @param {string} userId - The unique UUID of the logged-in user
+ */
+async function findDefaultByUser(userId) {
+  const query = `
+    SELECT * FROM accounts
+    WHERE user_id = $1
+      AND is_default = TRUE
+      AND deleted_at IS NULL
+    LIMIT 1;
+  `;
+  
+  const result = await db.query(query, [userId]);
+  const rows = unpackRows(result);
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+/**
+ * Partial update engine: Explicitly changes the default status flag on a specific account
+ */
+async function setDefaultAccount(accountId, userId) {
+  const query = `
+    UPDATE accounts
+    SET is_default = TRUE,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+      AND user_id = $2
+      AND deleted_at IS NULL
+    RETURNING *;
+  `;
+  
+  const result = await db.query(query, [parseInt(accountId, 10), userId]);
+  const rows = unpackRows(result);
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+/**
+ * Status management: Updates an account's systemic status flag (e.g., 'ACTIVE', 'ARCHIVED')
+ */
+async function updateStatus(accountId, userId, status) {
+  const query = `
+    UPDATE accounts
+    SET status = $1,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $2
+      AND user_id = $3
+      AND deleted_at IS NULL
+    RETURNING *;
+  `;
+  
+  const cleanStatus = status.toUpperCase().trim();
+  const result = await db.query(query, [cleanStatus, parseInt(accountId, 10), userId]);
+  const rows = unpackRows(result);
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+/**
+ * Bulk recovery engine: Recovers all soft-deleted records for a user profile at once
+ */
+async function restoreAllByUser(userId) {
+  const query = `
+    UPDATE accounts
+    SET deleted_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE user_id = $1
+      AND deleted_at IS NOT NULL
+    RETURNING *;
+  `;
+  
+  const result = await db.query(query, [userId]);
+  const rows = unpackRows(result);
+  return Array.isArray(rows) ? rows : [];
+}
+
+/**
+ * Audit lookup: Fetches an account regardless of its soft-deleted state
+ */
+async function findWithDeleted(accountId, userId) {
+  const query = `
+    SELECT * FROM accounts
+    WHERE id = $1
+      AND user_id = $2;
+  `;
+  
+  const result = await db.query(query, [parseInt(accountId, 10), userId]);
+  const rows = unpackRows(result);
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+
 module.exports = {
   createAccount,
   findAllByUser,
@@ -311,5 +402,10 @@ module.exports = {
   getTotalLiabilities,
   mutateBalanceAtomically,
   restoreAccount,
-  clearDefaultFlag
+  clearDefaultFlag,
+  findDefaultByUser,    
+  setDefaultAccount,   
+  updateStatus,         
+  restoreAllByUser,    
+  findWithDeleted
 };

@@ -550,3 +550,13 @@ module.exports = {
   verifyEmail,
   resendVerification,
 };
+
+// Expose helper functions used by unit tests and other modules
+module.exports.hashPassword = hashPassword;
+module.exports.comparePassword = comparePassword;
+module.exports.signAccessToken = signAccessToken;
+module.exports.signRefreshToken = signRefreshToken;
+module.exports.generateAccessToken = generateAccessToken;
+module.exports.generateRefreshToken = generateRefreshToken;
+module.exports.verifyAccessToken = verifyAccessToken;
+module.exports.verifyRefreshToken = verifyRefreshToken;

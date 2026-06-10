@@ -25,6 +25,9 @@ Thumbs.db
 *.njsproj
 *.sln
 
+# Python virtualenv
+.venv/
+
 # Test coverage
 coverage/
 
@@ -38,3 +41,18 @@ infra/nginx/certs/
 *.tsbuildinfo
 
 appsettings.json
+DEPLOY.md
+DEPLOYMENT_READINESS.md
+PHASE1_TESTING_GUIDE.md
+RATE_LIMITING_IMPROVEMENTS.md
+SECURITY_AUDIT_REPORT.md
+SECURITY_BEFORE_AFTER.md
+SECURITY_DOCUMENTATION_INDEX.md
+SECURITY_EXECUTIVE_SUMMARY.md
+SECURITY_REMEDIATION_GUIDE.md
+STATUS_REPORT.md
+TLS_SETUP_GUIDE.md
+analyze_css_imports.py
+find_unused_css.py
+find_unused_frontend.py
+frontend_usage.json

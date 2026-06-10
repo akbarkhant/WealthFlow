@@ -8,19 +8,11 @@ export const setServerErrorHandler = (handler) => {
   onServerError = handler;
 };
 
-export const isAuthenticated = () => {
-  const token = localStorage.getItem('accessToken');
-  return Boolean(token && token !== 'null' && token !== 'undefined');
-};
-
-const clearTokens = () => {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-  localStorage.removeItem('currentUser');
-};
+// ✅ Removed isAuthenticated() - now checking via getMe() call instead
 
 const redirectToSessionExpired = () => {
-  clearTokens();
+  // ✅ DO NOT clear cookies - they are HttpOnly
+  localStorage.removeItem('currentUser');
   // Prevent infinite loops if an API call triggers on the session-expired page itself
   if (
     !window.location.pathname.includes('/session-expired') && 
@@ -31,16 +23,12 @@ const redirectToSessionExpired = () => {
 };
 
 const refreshAccessToken = async () => {
-  const refreshToken = localStorage.getItem('refreshToken');
-  if (!refreshToken || refreshToken === 'null') {
-    throw new Error('No refresh token available');
-  }
-
+  // ✅ Refresh token is in HttpOnly cookie, backend will handle it
   if (!refreshPromise) {
     refreshPromise = fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
+      credentials: 'include',  // ✅ Send cookies automatically
     })
       .then(async (response) => {
         const isJson = response.headers.get('content-type')?.includes('application/json');
@@ -50,18 +38,8 @@ const refreshAccessToken = async () => {
           throw new Error((data && data.message) || response.statusText);
         }
 
-        const payload = data && Object.prototype.hasOwnProperty.call(data, 'data') ? data.data : data;
-
-        if (!payload?.accessToken) {
-          throw new Error('Invalid refresh response structure');
-        }
-
-        localStorage.setItem('accessToken', payload.accessToken);
-        if (payload.refreshToken) {
-          localStorage.setItem('refreshToken', payload.refreshToken);
-        }
-
-        return payload.accessToken;
+        // ✅ Backend sets new accessToken cookie, we just verify success
+        return true;
       })
       .finally(() => {
         refreshPromise = null;
@@ -116,19 +94,6 @@ const handleResponse = async (response) => {
   return attachMeta(unwrapBody(data), meta);
 };
 
-const getHeaders = (isFormData = false) => {
-  const token = localStorage.getItem('accessToken');
-  const headers = {};
-
-  if (token && token !== 'undefined' && token !== 'null') {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  if (!isFormData) {
-    headers['Content-Type'] = 'application/json';
-  }
-  return headers;
-};
-
 const buildQuery = (params = {}) => {
   const qs = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -156,12 +121,19 @@ export const request = async (method, endpoint, body = null, options = {}) => {
     skipAuthRetry = false,
   } = options;
 
+  // ✅ Build headers without Authorization (cookies sent automatically)
+  const defaultHeaders = {};
+  if (!isFormData) {
+    defaultHeaders['Content-Type'] = 'application/json';
+  }
+
   const requestConfig = {
     method,
     headers: {
-      ...getHeaders(isFormData),
+      ...defaultHeaders,
       ...customHeaders,
     },
+    credentials: 'include',  // ✅ Send/receive cookies automatically
     ...(signal && { signal }),
   };
 
@@ -179,16 +151,11 @@ export const request = async (method, endpoint, body = null, options = {}) => {
     if (
       response.status === 401 &&
       !skipAuthRetry &&
-      !isAuthEndpoint &&
-      localStorage.getItem('refreshToken')
+      !isAuthEndpoint
     ) {
       try {
         await refreshAccessToken();
-        // Recalculate authentication headers with new token
-        requestConfig.headers = {
-          ...getHeaders(isFormData),
-          ...customHeaders,
-        };
+        // ✅ Retry with cookies automatically sent
         response = await doFetch();
       } catch (refreshError) {
         redirectToSessionExpired();
@@ -214,6 +181,7 @@ export const request = async (method, endpoint, body = null, options = {}) => {
 const api = {
   get: (endpoint, options = {}) => request('GET', endpoint, null, options),
   post: (endpoint, body, options = {}) => request('POST', endpoint, body, options),
+  put: (endpoint, body, options = {}) => request('PUT', endpoint, body, options),
   patch: (endpoint, body, options = {}) => request('PATCH', endpoint, body, options),
   delete: (endpoint, options = {}) => request('DELETE', endpoint, null, options),
   buildQuery,

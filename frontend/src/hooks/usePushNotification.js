@@ -13,10 +13,10 @@ const urlBase64ToUint8Array = (base64String) => {
 };
 
 const usePushNotification = () => {
-  const [isSubscribed, setIsSubscribed]   = useState(false);
-  const [isSupported, setIsSupported]     = useState(true);
-  const [isLoading, setIsLoading]         = useState(true);
-  const [error, setError]                 = useState(null);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isSupported, setIsSupported] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [swRegistration, setSwRegistration] = useState(null);
 
   // ─── Get user_id from localStorage ─────────────────────────────
@@ -32,7 +32,8 @@ const usePushNotification = () => {
       }
 
       try {
-        const registration = await navigator.serviceWorker.register('../../public/service-worker.js');
+        // 🟢 Fixed spacing syntax here
+        const registration = await navigator.serviceWorker.register('/sw.js');
         setSwRegistration(registration);
 
         // Check if already subscribed
@@ -40,7 +41,7 @@ const usePushNotification = () => {
         setIsSubscribed(!!existing);
       } catch (err) {
         setError('Service Worker registration failed.');
-        console.error(err);
+        console.error('[usePushNotification] Registration error:', err);
       } finally {
         setIsLoading(false);
       }
@@ -50,57 +51,67 @@ const usePushNotification = () => {
   }, []);
 
   // ─── 2. Subscribe ───────────────────────────────────────────────
-const subscribe = async () => {
-  setIsLoading(true);
-  setError(null);
-  try {
-    // Fetch VAPID public key from backend
-    const res = await fetch(`${API_BASE}/vapid-public-key`);
+  const subscribe = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // 🟢 DEFENSIVE GUARD: Ensure registration exists before invoking pushManager
+      if (!swRegistration) {
+        throw new Error('Push manager unavailable. Service worker failed to register.');
+      }
 
-    // ── FIX: catch non-OK responses before parsing ──
-    if (!res.ok) {
-      throw new Error(`Server returned ${res.status} — check that /api/notifications routes are registered in app.js`);
+      // Fetch VAPID public key from backend
+      const res = await fetch(`${API_BASE}/vapid-public-key`);
+
+      // Catch non-OK responses before parsing
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status} — check that /api/notifications routes are registered in app.js`);
+      }
+
+      const data = await res.json();
+
+      // Guard against missing key in response
+      if (!data.publicKey) {
+        throw new Error('VAPID public key missing from server response. Check your .env file.');
+      }
+
+      const subscription = await swRegistration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(data.publicKey),
+      });
+
+      await fetch(`${API_BASE}/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscription,
+          user_id: getUserId(),
+        }),
+      });
+
+      setIsSubscribed(true);
+    } catch (err) {
+      if (err.name === 'NotAllowedError') {
+        setError('Permission denied. Enable notifications in browser settings.');
+      } else {
+        setError(err.message || 'Failed to subscribe. Please try again.');
+      }
+      console.error('[usePushNotification] subscribe error:', err);
+    } finally {
+      setIsLoading(false);
     }
-
-    const data = await res.json();
-
-    // ── FIX: guard against missing key in response ──
-    if (!data.publicKey) {
-      throw new Error('VAPID public key missing from server response. Check your .env file.');
-    }
-
-    const subscription = await swRegistration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(data.publicKey),
-    });
-
-    await fetch(`${API_BASE}/subscribe`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subscription,
-        user_id: getUserId(),
-      }),
-    });
-
-    setIsSubscribed(true);
-  } catch (err) {
-    if (err.name === 'NotAllowedError') {
-      setError('Permission denied. Enable notifications in browser settings.');
-    } else {
-      setError(err.message || 'Failed to subscribe. Please try again.');
-    }
-    console.error('[usePushNotification] subscribe error:', err);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   // ─── 3. Unsubscribe ─────────────────────────────────────────────
   const unsubscribe = async () => {
     setIsLoading(true);
     setError(null);
     try {
+      // 🟢 DEFENSIVE GUARD: Avoid reading properties of null
+      if (!swRegistration) {
+        throw new Error('Push manager unavailable. Service worker missing.');
+      }
+
       const subscription = await swRegistration.pushManager.getSubscription();
 
       if (subscription) {
@@ -115,8 +126,8 @@ const subscribe = async () => {
 
       setIsSubscribed(false);
     } catch (err) {
-      setError('Failed to unsubscribe. Please try again.');
-      console.error(err);
+      setError(err.message || 'Failed to unsubscribe. Please try again.');
+      console.error('[usePushNotification] unsubscribe error:', err);
     } finally {
       setIsLoading(false);
     }

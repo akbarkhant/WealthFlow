@@ -1,8 +1,5 @@
 import api, { buildQuery } from './client';
 
-/**
- * Helper to generate ISO local date boundaries from month/year integers.
- */
 function getDateRangeStrings(month, year) {
   const targetYear = year ? parseInt(year, 10) : new Date().getFullYear();
   const targetMonth = month ? parseInt(month, 10) : new Date().getMonth() + 1;
@@ -14,9 +11,6 @@ function getDateRangeStrings(month, year) {
   return { startDate, endDate };
 }
 
-/**
- * Fetches the monthly total metrics report.
- */
 export async function getMonthlyReport({ month, year } = {}) {
   const { startDate, endDate } = getDateRangeStrings(month, year);
   const queryString = buildQuery({ startDate, endDate });
@@ -25,9 +19,6 @@ export async function getMonthlyReport({ month, year } = {}) {
   return api.get(`/transactions/reports/monthly${delimiter}${queryString}`);
 }
 
-/**
- * Fetches the specific category tracking weights for charts.
- */
 export async function getCategoryBreakdown({ month, year } = {}) {
   const { startDate, endDate } = getDateRangeStrings(month, year);
   const queryString = buildQuery({ startDate, endDate });
@@ -36,9 +27,6 @@ export async function getCategoryBreakdown({ month, year } = {}) {
   return api.get(`/transactions/reports/breakdown${delimiter}${queryString}`);
 }
 
-/**
- * Fetches historical annual layout patterns.
- */
 export async function getYearlyReport({ year } = {}) {
   const targetYear = year ? parseInt(year, 10) : new Date().getFullYear();
   

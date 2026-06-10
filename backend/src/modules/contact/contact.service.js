@@ -1,5 +1,5 @@
 // services/contact.service.js
-import contactRepository from "./contact.repository.js";
+const contactRepository = require("./contact.repository");
 
 class ContactService {
   /**
@@ -28,4 +28,4 @@ class ContactService {
   }
 }
 
-export default new ContactService();
+module.exports = new ContactService();

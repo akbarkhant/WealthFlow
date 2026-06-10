@@ -84,7 +84,7 @@ router.post('/refresh', authRateLimiter, validate(refreshSchema), controller.ref
 router.post('/logout', authenticate, controller.logout);
 
 // ==== verification ====================
-router.get('/verify-email', controller.verifyEmail);
+router.get('/verify-email', authRateLimiter, controller.verifyEmail);
 
 // ===== resend-verification link ========================
 router.post('/resend-verification', authRateLimiter, controller.resendVerification);
@@ -98,11 +98,13 @@ router.post('/reset-password',  authRateLimiter, controller.resetPassword);
 // Google OAuth
 router.get(
   '/google',
+  authRateLimiter,
   passport.authenticate('google', { scope: ['profile', 'email'], session: false })
 );
 
 router.get(
   '/google/callback',
+  authRateLimiter,
   passport.authenticate('google', { session: false, failureRedirect: '/login' }),
   controller.oauthCallback
 );
@@ -110,11 +112,13 @@ router.get(
 // GitHub OAuth
 router.get(
   '/github',
+  authRateLimiter,
   passport.authenticate('github', { scope: ['user:email'], session: false })
 );
 
 router.get(
   '/github/callback',
+  authRateLimiter,
   passport.authenticate('github', { session: false, failureRedirect: '/login' }),
   controller.oauthCallback
 );

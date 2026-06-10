@@ -14,16 +14,7 @@ import { getMe } from '../api/userApi';
 
 const AuthContext = createContext(null);
 
-const readStoredToken = () => {
-  const stored = localStorage.getItem('accessToken');
-
-  if (!stored || stored === 'undefined' || stored === 'null') {
-    return null;
-  }
-
-  return stored;
-};
-
+// ✅ Helper to read user info from localStorage (non-sensitive)
 const readStoredUser = () => {
   try {
     const storedUser = localStorage.getItem('currentUser');
@@ -45,20 +36,16 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(readStoredUser);
-  const [token, setToken] = useState(readStoredToken);
-  const [loading, setLoading] = useState(
-    !readStoredUser() && !!readStoredToken()
-  );
+  const [loading, setLoading] = useState(true);
 
   const clearSession = useCallback(() => {
     setUser(null);
-    setToken(null);
 
     // Clear Sentry user context
     Sentry.setUser(null);
 
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+    // ✅ DO NOT clear cookies - they are HttpOnly
+    // Browser will clear them automatically on logout
     localStorage.removeItem('currentUser');
   }, []);
 
@@ -83,20 +70,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, [clearSession]);
 
-  const login = useCallback((tokens, userObject = null) => {
-    if (!tokens?.accessToken) return;
-
-    localStorage.setItem('accessToken', tokens.accessToken);
-
-    if (tokens.refreshToken) {
-      localStorage.setItem(
-        'refreshToken',
-        tokens.refreshToken
-      );
-    }
-
-    setToken(tokens.accessToken);
-
+  const login = useCallback((userObject = null) => {
     if (userObject) {
       setUser(userObject);
 
@@ -133,15 +107,8 @@ export const AuthProvider = ({ children }) => {
     let isMounted = true;
 
     const syncUserSession = async () => {
-      if (!token) {
-        if (isMounted) {
-          setUser(null);
-          setLoading(false);
-        }
-        return;
-      }
-
       try {
+        // ✅ Try to fetch user - if 401, we're not authenticated
         const userData = await getMe();
 
         const verifiedUser =
@@ -189,9 +156,6 @@ export const AuthProvider = ({ children }) => {
           tags: {
             feature: 'auth-sync',
           },
-          extra: {
-            tokenExists: !!token,
-          },
         });
 
         if (error?.status === 401 && isMounted) {
@@ -209,7 +173,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       isMounted = false;
     };
-  }, [token, clearSession]);
+  }, [clearSession]);
 
   const updateUser = useCallback((userObject) => {
     setUser((prev) => {
@@ -244,21 +208,14 @@ export const AuthProvider = ({ children }) => {
   const value = useMemo(
     () => ({
       user,
-      token,
       loading,
       login,
       logout,
       updateUser,
-      isAuthenticated: Boolean(token),
+      clearSession,
+      isAuthenticated: !!user,
     }),
-    [
-      user,
-      token,
-      loading,
-      login,
-      logout,
-      updateUser,
-    ]
+    [user, loading, login, logout, updateUser, clearSession]
   );
 
   return (

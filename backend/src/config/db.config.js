@@ -250,6 +250,12 @@ function getPoolStats() {
   };
 }
 
+// ── Pool teardown (for tests) ─────────────────────────────────────────────────
+// Drains all connections so Jest (or other test runners) can exit cleanly.
+async function closePool() {
+  await pool.end();
+}
+
 // pool is intentionally not exported — all access goes through the helpers
 // above to keep connection handling centralised and auditable.
 // For advanced Postgres features (LISTEN/NOTIFY, COPY, cursors), add a
@@ -258,5 +264,6 @@ module.exports = {
   query, 
   withTransaction, 
   ping, 
-  getPoolStats 
+  getPoolStats,
+  closePool,
 };

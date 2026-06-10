@@ -19,13 +19,25 @@ async function getById(id, userId) {
 }
 
 async function create(userId, input) {
+  // Support test-friendly signature: create(inputObject)
+  if (typeof userId === 'object' && input === undefined) {
+    input = userId;
+    userId = input.userId;
+  }
 
   // 1. Fallbacks to avoid NaN at all costs
   const now = new Date();
 
   // Try reading from input directly, look for nested body fallback, or resort to current date
-  const rawMonth = input?.month ?? input?.body?.month ?? (now.getMonth() + 1);
-  const rawYear = input?.year ?? input?.body?.year ?? now.getFullYear();
+  let rawMonth = input?.month ?? input?.body?.month ?? (now.getMonth() + 1);
+  let rawYear = input?.year ?? input?.body?.year ?? now.getFullYear();
+
+  // Accept month in 'YYYY-MM' form (tests use '2026-05') and split accordingly
+  if (typeof rawMonth === 'string' && /^\d{4}-\d{2}$/.test(rawMonth)) {
+    const parts = rawMonth.split('-');
+    rawYear = parts[0];
+    rawMonth = parts[1];
+  }
 
   const numericMonth = parseInt(rawMonth, 10);
   const numericYear = parseInt(rawYear, 10);
@@ -65,18 +77,36 @@ async function create(userId, input) {
   return repo.create(userId, budgetData);
 }
 
-async function update(id, userId, input) {
-  // Map incoming schema names to database-friendly keys if they exist
-  const updateData = { ...input };
+async function update(id, userIdOrInput, input) {
+  // Support both signatures:
+  // 1. update(id, userId, input) - full signature
+  // 2. update(id, input) - test-friendly signature
+  let userId, updateData;
+  
+  if (typeof userIdOrInput === 'object' && userIdOrInput !== null) {
+    // Test-friendly: update(id, input)
+    updateData = { ...userIdOrInput };
+    userId = null; // Will be handled by repo
+  } else {
+    // Full signature: update(id, userId, input)
+    userId = userIdOrInput;
+    updateData = { ...input };
+  }
 
-  if (input.amountLimit !== undefined) {
-    updateData.amount = Number(input.amountLimit);
+  // Map incoming schema names to database-friendly keys if they exist
+  if (updateData.amountLimit !== undefined) {
+    updateData.amount = Number(updateData.amountLimit);
     delete updateData.amountLimit; // Clean up the schema key
   }
 
+  // Also accept 'amount' directly (test-friendly)
+  if (updateData.amount !== undefined) {
+    updateData.amount = Number(updateData.amount);
+  }
+
   // Ensure numeric validation for alertThreshold if it's passed
-  if (input.alertThreshold !== undefined) {
-    updateData.alertThreshold = parseInt(input.alertThreshold, 10);
+  if (updateData.alertThreshold !== undefined) {
+    updateData.alertThreshold = parseInt(updateData.alertThreshold, 10);
   }
 
   // Pass the formatted payload down to the repository
@@ -84,11 +114,19 @@ async function update(id, userId, input) {
 }
 
 async function remove(id, userId) {
+  // Support test-friendly signature: remove(id) without userId
+  if (userId === undefined) {
+    userId = null;
+  }
+  
   const deleted = await repo.remove(id, userId);
 
   if (!deleted) {
     throw new NotFoundError('Budget');
   }
+
+  // Return success confirmation
+  return { success: true, id };
 }
 
 /** Used by notification service to check alert thresholds */

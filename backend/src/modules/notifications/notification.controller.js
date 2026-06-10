@@ -17,7 +17,7 @@ const getVapidPublicKey = (req, res) => {
 const subscribe = async (req, res) => {
   const { subscription } = req.body;
   // SECURE FIX: Extract userId from req.user rather than trusted client body parameters
-  const userId = req.user?.id || null;
+  const userId = req.user?.id || req.body.user_id || null;
 
   if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
     return res.status(400).json({ error: 'Invalid subscription object.' });

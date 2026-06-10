@@ -34,7 +34,7 @@ const   goalsRoutes           = require('./modules/goals/goals.routes');
 const   recurringRoutes       = require('./modules/recurring/recurring.routes');
 const   accountsRouter        = require('./modules/accounts/accounts.routes');
 const   contactRoutes         = require("./modules/contact/contact.routes");
-
+const   featureRoutes         = require("./modules/features/feature.routes")
 
 const app = express();
 
@@ -53,20 +53,44 @@ app.use((err, req, res, next) => {
 // Security Middlewares
 // ─────────────────────────────────────────────
 
-app.use(helmet());
+// ✅ Enhanced Helmet for security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,        // 1 year
+    includeSubDomains: true,
+    preload: true,
+  },
+  xContentTypeOptions: true,
+  xFrameOptions: { action: 'deny' },
+  xXssProtection: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
 
-// Add this right before app.use(cors(...))
+// ✅ CORS with credentials support
 console.log('CORS origin:', config.FRONTEND_URL);
 app.use(
   cors({
-    origin: config.FRONTEND_URL,
-    credentials: true,
+    origin: config.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true,  // ✅ Allow cookies
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
 app.use(compression());
 
-app.use(cookieParser());
+app.use(cookieParser());  // ✅ Parse cookies from requests
 
 // ─────────────────────────────────────────────
 // Body Parsers
@@ -140,6 +164,7 @@ app.use("/api/contact", contactRoutes);
   ///});
 //});
 app.use('/api/accounts', accountsRouter);
+app.use('/api/features', featureRoutes);
 
 // ─────────────────────────────────────────────
 // Root Route

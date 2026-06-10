@@ -116,4 +116,98 @@ const searchRateLimiter = rateLimit({
   },
 });
 
-module.exports = { apiLimiter, authRateLimiter, searchRateLimiter };
+// ── AI Operations Rate Limiter (strict) ────────────────────────────────────────
+// Rate limit AI endpoints like chat, analysis, suggestions (resource-intensive)
+const aiRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,       // 1 hour
+  limit: 20,                      // 20 requests per hour per user
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRedisStore('ai'),
+  skip: skipInternalRequests,
+  keyGenerator: (req) => {
+    // Key on user ID if authenticated, otherwise by IP
+    return req.user?.id
+      ? `user:${req.user.id}`
+      : `ip:${getClientIp(req)}`;
+  },
+  handler: (req, res) => {
+    const requestId = req.headers['x-request-id'] || randomUUID();
+    res.setHeader('X-Request-Id', requestId);
+
+    logger.warn({
+      requestId,
+      userId: req.user?.id,
+      ip: getClientIp(req),
+    }, 'AI rate limit threshold triggered');
+
+    return res.status(429).json({
+      success: false,
+      message: 'AI operation limit reached. Please try again later.',
+      requestId,
+    });
+  },
+});
+
+// ── Public Endpoints Rate Limiter (strict) ────────────────────────────────────
+// For contact forms, feature endpoints, and other public endpoints
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,       // 15 minutes
+  limit: 10,                      // 10 requests per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRedisStore('public'),
+  skip: skipInternalRequests,
+  keyGenerator: (req) => getClientIp(req),
+  handler: (req, res) => {
+    const requestId = req.headers['x-request-id'] || randomUUID();
+    res.setHeader('X-Request-Id', requestId);
+
+    logger.warn({
+      requestId,
+      ip: getClientIp(req),
+      path: req.path,
+    }, 'Public endpoint rate limit threshold triggered');
+
+    return res.status(429).json({
+      success: false,
+      message: 'Too many requests to this endpoint. Please try again later.',
+      requestId,
+    });
+  },
+});
+
+// ── Read Operations Rate Limiter (medium) ──────────────────────────────────────
+// For protected read operations like account summaries, analytics
+const readOperationLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,        // 5 minutes
+  limit: 60,                      // 60 requests per 5 minutes per user
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: createRedisStore('read-ops'),
+  skip: skipInternalRequests,
+  keyGenerator: (req) => {
+    // Key on user ID if authenticated
+    return req.user?.id
+      ? `user:${req.user.id}`
+      : `ip:${getClientIp(req)}`;
+  },
+  handler: (req, res) => {
+    const requestId = req.headers['x-request-id'] || randomUUID();
+    res.setHeader('X-Request-Id', requestId);
+
+    logger.warn({
+      requestId,
+      userId: req.user?.id,
+      ip: getClientIp(req),
+    }, 'Read operation rate limit threshold triggered');
+
+    return res.status(429).json({
+      success: false,
+      message: 'Too many read operations. Please slow down.',
+      requestId,
+    });
+  },
+});
+
+module.exports = { apiLimiter, authRateLimiter, searchRateLimiter, aiRateLimiter, publicLimiter, readOperationLimiter };

@@ -6,6 +6,7 @@ import { login as loginApi, forgotPassword, getOAuthUrl } from '../api/authApi';
 export const useLoginForm = () => {
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
+  const initialFocusDone = useRef(false);
 
   // ── Core States ──────────────────────────────────────────────────
   const [email, setEmail] = useState(() => localStorage.getItem('wf_remembered_email') || '');
@@ -31,16 +32,22 @@ export const useLoginForm = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  // Autofocus Management
+  // Autofocus Management - Fixed dependency loop to prevent typing cursor jumps
   useEffect(() => {
-    if (view === 'login') {
+    if (view === 'login' && !initialFocusDone.current) {
       if (email) {
         passwordRef.current?.focus();
       } else {
         emailRef.current?.focus();
       }
+      initialFocusDone.current = true;
     }
-  }, [view, email]);
+    
+    // Reset focus tracker if switching views back and forth
+    if (view !== 'login') {
+      initialFocusDone.current = false;
+    }
+  }, [view]);
 
   // Debounced Email Validation
   useEffect(() => {
@@ -118,9 +125,8 @@ export const useLoginForm = () => {
         return;
       }
 
-      if (!response?.accessToken) {
-        throw new Error('Login succeeded but no access token was returned.');
-      }
+      // ✅ Backend now returns response.user instead of response with tokens
+      const user = response?.user || response;
 
       if (rememberMe) {
         localStorage.setItem('wf_remembered_email', email);
@@ -128,7 +134,8 @@ export const useLoginForm = () => {
         localStorage.removeItem('wf_remembered_email');
       }
 
-      login(response);
+      // ✅ Pass only user object (tokens are in HttpOnly cookies)
+      login(user);
       navigate('/dashboard', { replace: true });
 
     } catch (err) {
