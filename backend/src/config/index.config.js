@@ -1,9 +1,14 @@
-// index.config.js
-
+// src/config/index.config.js
 require('dotenv').config();
 
-function required(name) {
+function required(name, defaultValue = null) {
   const value = process.env[name];
+
+  // In test environment, allow missing variables with sensible defaults
+  if (!value && process.env.NODE_ENV === 'test') {
+    if (defaultValue !== null) return defaultValue;
+    return `test_${name.toLowerCase()}`;
+  }
 
   if (!value) {
     console.error(`❌ Missing environment variable: ${name}`);

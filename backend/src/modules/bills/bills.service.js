@@ -31,7 +31,7 @@ async function getAllBills(userId) {
   // Auto-flag overdue on the way out — no extra DB call needed
   const normalized = (rows ?? []).map(row => ({
     ...row,
-    status: isOverdue(row.dueDate, row.status) ? 'overdue' : row.status,
+    status: isOverdue(row.due_date, row.status) ? 'overdue' : row.status,
   }));
 
   return mapBills(normalized);
@@ -46,7 +46,7 @@ async function getBillById(billId, userId) {
 
   return mapBill({
     ...row,
-    status: isOverdue(row.dueDate, row.status) ? 'overdue' : row.status,
+    status: isOverdue(row.due_date, row.status) ? 'overdue' : row.status,
   });
 }
 
@@ -90,19 +90,19 @@ async function markAsPaid(billId, userId) {
 
   // If recurring, auto-create next bill
   if (existing.recurrence && existing.recurrence !== 'none') {
-    const nextDueDate = getNextDueDate(existing.dueDate, existing.recurrence);
+    const nextDueDate = getNextDueDate(existing.due_date, existing.recurrence);
 
     if (nextDueDate) {
       await repo.createBill(userId, {
-        name:        existing.name,
-        amount:      existing.amount,
-        currency:    existing.currency,
-        due_date:    nextDueDate,
-        recurrence:  existing.recurrence,
-        category_id: existing.categoryId,
-        status:      'unpaid',
-        notes:       existing.notes,
-        is_autopay:  existing.isAutopay,
+        name: existing.name,
+        amount: existing.amount,
+        currency: existing.currency,
+        due_date: nextDueDate,
+        recurrence: existing.recurrence,
+        category_id: existing.category_id,
+        status: 'unpaid',
+        notes: existing.notes,
+        is_autopay: existing.is_autopay,
       });
     }
   }

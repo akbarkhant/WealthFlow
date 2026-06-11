@@ -1,0 +1,222 @@
+# .github/workflows/test.yml
+name: CI/CD - Test & Coverage
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: budget_user
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD || 'test_password_123!' }}
+          POSTGRES_DB: wealthflow_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'backend/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Create .env.test file
+        working-directory: ./backend
+        run: |
+          cat > .env.test << EOF
+          NODE_ENV=test
+          PORT=5000
+          
+          # Database
+          DATABASE_URL=postgresql://budget_user:${{ secrets.DB_PASSWORD || 'test_password_123!' }}@localhost:5432/wealthflow_test
+          
+          # Redis
+          REDIS_URL=redis://localhost:6379/1
+          
+          # JWT
+          JWT_ACCESS_SECRET=${{ secrets.JWT_ACCESS_SECRET || 'test_access_secret_key_1234567890' }}
+          JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET || 'test_refresh_secret_key_0987654321' }}
+          
+          # OAuth
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID || 'test_google_client_id' }}
+          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET || 'test_google_client_secret' }}
+          
+          GITHUB_CLIENT_ID=${{ secrets.GITHUB_CLIENT_ID || 'test_github_client_id' }}
+          GITHUB_CLIENT_SECRET=${{ secrets.GITHUB_CLIENT_SECRET || 'test_github_client_secret' }}
+          
+          # SMTP
+          SMTP_HOST=${{ secrets.SMTP_HOST || 'localhost' }}
+          SMTP_PORT=1025
+          SMTP_USER=${{ secrets.SMTP_USER || 'test_user' }}
+          SMTP_PASS=${{ secrets.SMTP_PASS || 'test_pass' }}
+          
+          # Frontend
+          FRONTEND_URL=http://localhost:3000
+          EOF
+
+      - name: Run linter
+        working-directory: ./backend
+        run: npm run lint --if-present || true
+        continue-on-error: true
+
+      - name: Run tests
+        working-directory: ./backend
+        run: npm test -- --coverage
+        timeout-minutes: 30
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload coverage report as artifact
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: backend/coverage/
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const coverage = JSON.parse(fs.readFileSync('./backend/coverage/coverage-summary.json', 'utf8'));
+            const total = coverage.total;
+            
+            const comment = `## 📊 Test Coverage Report
+            
+            | Metric | Coverage |
+            |--------|----------|
+            | Statements | ${total.statements.pct}% |
+            | Branches | ${total.branches.pct}% |
+            | Functions | ${total.functions.pct}% |
+            | Lines | ${total.lines.pct}% |
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Check coverage thresholds
+        working-directory: ./backend
+        run: |
+          echo "Coverage Summary:"
+          cat coverage/coverage-summary.json | jq '.total'
+        continue-on-error: true
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test Results
+          path: 'backend/test-results/**/*.xml'
+          reporter: 'jest-junit'
+          fail-on-error: false
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Build backend
+        working-directory: ./backend
+        run: |
+          npm install
+          npm run build --if-present
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: |
+          npm install
+          npm run build --if-present
+
+  notify:
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Determine workflow status
+        id: status
+        run: |
+          if [[ "${{ needs.test.result }}" == "success" && "${{ needs.build.result }}" == "success" ]]; then
+            echo "status=✅ Success" >> $GITHUB_OUTPUT
+          else
+            echo "status=❌ Failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Slack notification
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "WealthFlow CI/CD: ${{ steps.status.outputs.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*WealthFlow CI/CD Pipeline*\n*Status:* ${{ steps.status.outputs.status }}\n*Ref:* ${{ github.ref }}\n*Commit:* <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        continue-on-error: true

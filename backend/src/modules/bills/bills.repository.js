@@ -280,6 +280,33 @@ async function deleteBill(billId, userId) {
   return result.rows[0] ?? null;
 }
 
+async function clearAll() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Safety Guard: Cannot execute clearAll() in production environments!');
+  }
+  const sql = `TRUNCATE TABLE bills RESTART IDENTITY CASCADE;`;
+  return await query(sql);
+}
+
+/**
+ * Helper to programmatically construct mock implementations if your Unit Suite requires 
+ * standalone, database-free repository stubs without invoking real DB connection footprints.
+ */
+function createMock() {
+  return {
+    findAllByUser: jest.fn(),
+    findById: jest.fn(),
+    findOverdue: jest.fn(),
+    findUpcoming: jest.fn(),
+    createBill: jest.fn(),
+    updateBill: jest.fn(),
+    markAsPaid: jest.fn(),
+    markAsUnpaid: jest.fn(),
+    deleteBill: jest.fn(),
+    clearAll: jest.fn()
+  };
+}
+
 module.exports = {
   findAllByUser,
   findById,
@@ -290,4 +317,6 @@ module.exports = {
   markAsPaid,
   markAsUnpaid,
   deleteBill,
+  clearAll,
+  createMock
 };

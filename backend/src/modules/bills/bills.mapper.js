@@ -1,26 +1,3 @@
-/*
- * Convert a database bill row into API response format.
- *
- * Expected row shape:
- * {
- *   id,
- *   userId,
- *   categoryId,
- *   categoryName,
- *   categoryIcon,
- *   name,
- *   amount,
- *   currency,
- *   dueDate,
- *   recurrence,
- *   status,
- *   notes,
- *   isAutopay,
- *   createdAt,
- *   updatedAt
- * }
- */
-
 function mapBill(row) {
   if (!row) {
     return null;
