@@ -111,7 +111,11 @@ export const useLoginForm = () => {
     setLoading(true);
 
     try {
-      const result = await loginApi({ email, password, rememberMe });
+      const result = await loginApi({
+        email: email.trim(),
+        password,
+        rememberMe,
+      });
       
       // Handle clients that place data keys underneath a default `.data` wrapper
       const response = result?.data !== undefined ? result.data : result;
@@ -125,7 +129,7 @@ export const useLoginForm = () => {
         return;
       }
 
-      // ✅ Backend now returns response.user instead of response with tokens
+      //  Backend now returns response.user instead of response with tokens
       const user = response?.user || response;
 
       if (rememberMe) {
@@ -134,7 +138,7 @@ export const useLoginForm = () => {
         localStorage.removeItem('wf_remembered_email');
       }
 
-      // ✅ Pass only user object (tokens are in HttpOnly cookies)
+      //  Pass only user object (tokens are in HttpOnly cookies)
       login(user);
       navigate('/dashboard', { replace: true });
 
@@ -148,6 +152,12 @@ export const useLoginForm = () => {
           replace: true,
           state: { email, fromLogin: true }
         });
+        return;
+      }
+
+      if (message.toLowerCase().includes('social login')) {
+        setError(message);
+        setShakeError(true);
         return;
       }
 

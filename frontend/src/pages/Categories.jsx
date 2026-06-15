@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Tags, Trash2, X } from 'lucide-react';
-import DashboardLayout from '../layouts/DashboardLayout';
 import { listCategories, createCategory, deleteCategory } from '../api/categoriesApi';
 import ErrorMessage from '../components/feedback/ErrorMessage';
 import EmptyState from '../components/feedback/EmptyState';
@@ -80,7 +79,6 @@ const Categories = () => {
   };
 
   return (
-    <DashboardLayout>
       <section className="page-stack categories-page">
         <div className="page-header">
           <div>
@@ -211,7 +209,6 @@ const Categories = () => {
           </div>
         )}
       </section>
-    </DashboardLayout>
   );
 };
 

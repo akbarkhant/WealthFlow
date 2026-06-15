@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Target, Trash2, X } from 'lucide-react';
-import DashboardLayout from '../layouts/DashboardLayout';
 import { listBudgets, createBudget, deleteBudget } from '../api/budgetsApi';
 import { listCategories } from '../api/categoriesApi';
 import ErrorMessage from '../components/feedback/ErrorMessage';
@@ -105,7 +104,6 @@ const Budgets = () => {
   };
 
   return (
-    <DashboardLayout>
       <section className="page-stack budgets-page">
         <div className="page-header">
           <div>
@@ -289,7 +287,6 @@ const Budgets = () => {
           </div>
         )}
       </section>
-    </DashboardLayout>
   );
 };
 

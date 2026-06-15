@@ -1,6 +1,7 @@
 // src/routes/AppRoutes.jsx
 import { Routes, Route, Outlet } from 'react-router-dom';
 import { lazy, Suspense } from "react";
+import DashboardLayout from '../layouts/DashboardLayout';
 
 // ── 1. Critical & Immediate Imports ──────────────────────────────
 import Home from '../pages/Home';
@@ -10,7 +11,7 @@ import NotFound from '../pages/NotFound';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useAuth } from '../context/AuthContext';
 import { NotificationProvider } from '../hooks/useNotification';
-import   UpcomingFeatures from '../pages/UpcomingFeatures'
+import UpcomingFeatures from '../pages/UpcomingFeatures'
 
 // ── 2. Lazy Loaded Components ────────────────────────────────────
 // Core Dynamic Dashboard & Dashboard Sub-routes
@@ -20,7 +21,7 @@ const Transactions = lazy(() => import('../pages/Transactions'));
 const Budgets = lazy(() => import('../pages/Budgets'));
 const Categories = lazy(() => import('../pages/Categories'));
 const Bills = lazy(() => import('../pages/Bills'));
-const AI = lazy(() => import('../pages/AI_Page')); 
+const AI = lazy(() => import('../pages/AI_Page'));
 const Reports = lazy(() => import('../pages/Reports'));
 const HistoryPage = lazy(() => import('../pages/HistoryPage'));
 const GoalsPage = lazy(() => import('../pages/GoalsPage'));
@@ -51,7 +52,7 @@ const Security = lazy(() => import('../pages/legal/Security'));
 // ── Authenticated Notification Wrapper ───────────────────────────
 const AuthenticatedNotificationWrapper = () => {
   const { user } = useAuth();
-  
+
   return (
     <NotificationProvider userId={user?.id}>
       <Outlet />
@@ -70,8 +71,8 @@ const AppRoutes = () => {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        
-        <Route path='/admin-dashboard' element={<AdminDashboard/>}/>
+
+        <Route path='/admin-dashboard' element={<AdminDashboard />} />
         <Route path="/features/budget-management" element={<BudgetingPage />} />
         <Route path="/features/security" element={<SecurityPage />} />
         <Route path='/features/analytics' element={<SmartAnalytics />} />
@@ -80,7 +81,7 @@ const AppRoutes = () => {
         <Route path="/solutions/personal-finance" element={<PersonalFinancePage />} />
         <Route path="/solutions/business-finance" element={<BusinessFinancePage />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
-        <Route path='/reset-password' element={<ResetPassword/>} />
+        <Route path='/reset-password' element={<ResetPassword />} />
         <Route path="/legal/privacy" element={<Privacy />} />
         <Route path="/legal/terms" element={<Terms />} />
         <Route path="/legal/security" element={<Security />} />
@@ -92,18 +93,24 @@ const AppRoutes = () => {
 
         {/* ── Protected & Notification Enabled Routes ────────────────── */}
         <Route element={<ProtectedRoute><AuthenticatedNotificationWrapper /></ProtectedRoute>}>
-          <Route path='/bills' element={<Bills />} />
-          <Route path="/ai" element={<AI />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path='/transactions' element={<Transactions />} />
-          <Route path='/budgets' element={<Budgets />} />
-          <Route path="/categories" element={<Categories />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/goals" element={<GoalsPage />} />
-          <Route path="/accounts" element={<AccountsPage />} />
+
+          {/* Wrap all private pages in a shared layout route */}
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path='/bills' element={<Bills />} />
+            <Route path="/ai" element={<AI />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path='/transactions' element={<Transactions />} />
+            <Route path='/budgets' element={<Budgets />} />
+            <Route path="/categories" element={<Categories />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/goals" element={<GoalsPage />} />
+            <Route path="/accounts" element={<AccountsPage />} />
+          </Route>
+
         </Route>
+
 
         {/* Catch-all */}
         <Route path="*" element={<NotFound />} />

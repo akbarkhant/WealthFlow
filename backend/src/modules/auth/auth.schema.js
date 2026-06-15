@@ -58,9 +58,12 @@ const GMAIL_SYNTAX_REGEX = /^(?=[a-z0-9.]{6,30}$)(?!.*\.\.)[a-z0-9](?:[a-z0-9.]*
 const loginSchema = z.object({
   // Matches registration sanitation for clean lookups
   email: z.string().email().toLowerCase().trim(),
-  
+
   // Simply verifies a password was provided (hashing and checking happens in the service layer)
   password: z.string().min(1),
+
+  // Optional UI flag — not used by the service layer
+  rememberMe: z.boolean().optional(),
 });
 
 /**

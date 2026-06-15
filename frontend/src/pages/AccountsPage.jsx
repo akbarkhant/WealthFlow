@@ -190,7 +190,6 @@ export default function AccountsPage() {
   const stripLoading = isLoading || (ratesLoading && !rates);
 
   return (
-    <DashboardLayout>
       <div className="accounts-module accounts-page">
         
         {/* ── Page Top Level Header ── */}
@@ -328,6 +327,5 @@ export default function AccountsPage() {
 
         <ToastContainer toasts={toasts} onRemove={removeToast} />
       </div>
-    </DashboardLayout>
   );
 }

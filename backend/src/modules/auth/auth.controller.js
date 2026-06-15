@@ -4,6 +4,7 @@
  * extracting payloads, invoking the core authentication service logic, and 
  * returning standardized HTTP responses.
  */
+require('dotenv').config();
 const jwt = require('jsonwebtoken');
 const authService = require('./auth.service');
 const { sendSuccess } = require('../../shared/ApiResponse');
@@ -15,20 +16,20 @@ const { config } = require('../../config/index.config');
 function setAuthCookies(res, tokens) {
   const isProduction = process.env.NODE_ENV === 'production';
   
-  // ✅ Access Token Cookie (15 minutes)
+  //  Access Token Cookie (15 minutes)
   res.cookie('accessToken', tokens.accessToken, {
     httpOnly: true,                    // JS cannot access
     secure: isProduction,              // HTTPS only in production
-    sameSite: 'Strict',                // CSRF protection
+    sameSite: 'lax',                   // Cross-origin friendly but CSRF protected
     maxAge: 15 * 60 * 1000,            // 15 minutes
     path: '/',
   });
 
-  // ✅ Refresh Token Cookie (7 days)
+  // Refresh Token Cookie (7 days)
   res.cookie('refreshToken', tokens.refreshToken, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'Strict',
+    sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,   // 7 days
     path: '/',
   });
@@ -68,11 +69,11 @@ async function register(req, res, next) {
     // ✅ Set secure HttpOnly cookies
     setAuthCookies(res, tokens);
     
-    // ✅ Decode JWT to get user info (or call getMe with decoded user ID)
+    // Decode JWT to get user info (or call getMe with decoded user ID)
     const decoded = jwt.decode(tokens.accessToken);
     const user = await authService.getMe(decoded.sub);
     
-    // ✅ Return only user data (tokens are in HttpOnly cookies)
+    //  Return only user data (tokens are in HttpOnly cookies)
     sendSuccess(res, { user }, 201);
   } catch (err) {
     next(err);
@@ -88,14 +89,14 @@ async function login(req, res, next) {
   try {
     const tokens = await authService.login(req.body);
     
-    // ✅ Set secure HttpOnly cookies
+    // Set secure HttpOnly cookies
     setAuthCookies(res, tokens);
     
-    // ✅ Decode JWT to get user info
+    // Decode JWT to get user info
     const decoded = jwt.decode(tokens.accessToken);
     const user = await authService.getMe(decoded.sub);
     
-    // ✅ Return only user data (tokens are in HttpOnly cookies)
+    // Return only user data (tokens are in HttpOnly cookies)
     sendSuccess(res, { user });
   } catch (err) {
     next(err);
@@ -109,7 +110,7 @@ async function login(req, res, next) {
  */
 async function refresh(req, res, next) {
   try {
-    // ✅ Extract refreshToken from cookies instead of body
+    // Extract refreshToken from cookies
     const { refreshToken } = req.cookies;
     
     if (!refreshToken) {
@@ -121,16 +122,14 @@ async function refresh(req, res, next) {
 
     const tokens = await authService.refresh(refreshToken);
     
-    // ✅ Clear old cookies and set new ones
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    //  Clear old cookies and set new ones
     setAuthCookies(res, tokens);
     
-    // ✅ Decode JWT to get user info
+    //  Decode JWT to get user info
     const decoded = require('jsonwebtoken').decode(tokens.accessToken);
     const user = await authService.getMe(decoded.sub);
     
-    // ✅ Return only user data
+    // Return only user data
     sendSuccess(res, { user });
   } catch (err) {
     next(err);
@@ -144,7 +143,7 @@ async function refresh(req, res, next) {
  */
 async function logout(req, res, next) {
   try {
-    // ✅ Extract tokens from cookies
+    // Extract tokens from cookies
     const { accessToken, refreshToken } = req.cookies;
 
     // Invalidate tokens if needed (e.g., add to blacklist)
@@ -152,9 +151,16 @@ async function logout(req, res, next) {
       await authService.logout(accessToken, refreshToken);
     }
 
-    // ✅ Clear cookies
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
+    // Clear cookies
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      path: '/',
+    };
+    res.clearCookie('accessToken', cookieOptions);
+    res.clearCookie('refreshToken', cookieOptions);
 
     sendSuccess(res, { message: 'Logged out successfully' });
   } catch (err) {
@@ -172,16 +178,16 @@ async function oauthCallback(req, res) {
   const tokens = req.user || {};
   const { FRONTEND_URL } = config;
 
-  // ✅ Validate tokens exist
+  // Validate tokens exist
   if (!tokens.accessToken) {
     return res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
   }
 
-  // ✅ Set secure HttpOnly cookies (NOT in URL)
+  // Set secure HttpOnly cookies (NOT in URL)
   res.cookie('accessToken', tokens.accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'Strict',
+    sameSite: 'lax',
     maxAge: 15 * 60 * 1000,
     path: '/',
   });
@@ -189,12 +195,12 @@ async function oauthCallback(req, res) {
   res.cookie('refreshToken', tokens.refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'Strict',
+    sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/',
   });
 
-  // ✅ Redirect WITHOUT tokens in URL
+  //  Redirect WITHOUT tokens in URL
   res.redirect(`${FRONTEND_URL}/dashboard`);
 }
 

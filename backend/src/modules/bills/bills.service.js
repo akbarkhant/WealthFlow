@@ -61,6 +61,10 @@ async function getUpcomingBills(userId) {
 }
 
 async function createBill(userId, data) {
+  data.currency = data.currency || 'USD';
+  data.recurrence = data.recurrence || 'none';
+  data.status = data.status || 'unpaid';
+  data.is_autopay = data.is_autopay ?? false;
   const row = await repo.createBill(userId, data);
   return mapBill(row);
 }
@@ -90,7 +94,7 @@ async function markAsPaid(billId, userId) {
 
   // If recurring, auto-create next bill
   if (existing.recurrence && existing.recurrence !== 'none') {
-    const nextDueDate = getNextDueDate(existing.due_date, existing.recurrence);
+    const nextDueDate = getNextDueDate(existing.dueDate, existing.recurrence);
 
     if (nextDueDate) {
       await repo.createBill(userId, {
@@ -99,10 +103,10 @@ async function markAsPaid(billId, userId) {
         currency: existing.currency,
         due_date: nextDueDate,
         recurrence: existing.recurrence,
-        category_id: existing.category_id,
+        category_id: existing.categoryId,
         status: 'unpaid',
         notes: existing.notes,
-        is_autopay: existing.is_autopay,
+        is_autopay: existing.isAutopay,
       });
     }
   }

@@ -8,10 +8,22 @@ export const setServerErrorHandler = (handler) => {
   onServerError = handler;
 };
 
-// ✅ Removed isAuthenticated() - now checking via getMe() call instead
+// Removed isAuthenticated() - now checking via getMe() call instead
+
+const createSessionExpiredError = (cause) => {
+  const err = new Error('Session expired');
+  err.status = 401;
+  err.isSessionExpired = true;
+  if (cause) err.cause = cause;
+  return err;
+};
+
+export const isSessionExpiredError = (err) =>
+  err?.isSessionExpired === true ||
+  (err?.status === 401 && err?.message === 'Session expired');
 
 const redirectToSessionExpired = () => {
-  // ✅ DO NOT clear cookies - they are HttpOnly
+  //  DO NOT clear cookies - they are HttpOnly
   localStorage.removeItem('currentUser');
   // Prevent infinite loops if an API call triggers on the session-expired page itself
   if (
@@ -23,12 +35,12 @@ const redirectToSessionExpired = () => {
 };
 
 const refreshAccessToken = async () => {
-  // ✅ Refresh token is in HttpOnly cookie, backend will handle it
+  //  Refresh token is in HttpOnly cookie, backend will handle it
   if (!refreshPromise) {
     refreshPromise = fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',  // ✅ Send cookies automatically
+      credentials: 'include',  //  Send cookies automatically
     })
       .then(async (response) => {
         const isJson = response.headers.get('content-type')?.includes('application/json');
@@ -38,7 +50,7 @@ const refreshAccessToken = async () => {
           throw new Error((data && data.message) || response.statusText);
         }
 
-        // ✅ Backend sets new accessToken cookie, we just verify success
+        //  Backend sets new accessToken cookie, we just verify success
         return true;
       })
       .finally(() => {
@@ -121,32 +133,35 @@ export const request = async (method, endpoint, body = null, options = {}) => {
     skipAuthRetry = false,
   } = options;
 
-  // ✅ Build headers without Authorization (cookies sent automatically)
-  const defaultHeaders = {};
-  if (!isFormData) {
-    defaultHeaders['Content-Type'] = 'application/json';
-  }
-
-  const requestConfig = {
-    method,
-    headers: {
-      ...defaultHeaders,
-      ...customHeaders,
-    },
-    credentials: 'include',  // ✅ Send/receive cookies automatically
-    ...(signal && { signal }),
-  };
-
-  if (body !== null && body !== undefined) {
-    requestConfig.body = isFormData ? body : JSON.stringify(body);
-  }
-
   const isAuthEndpoint = AUTH_ENDPOINTS.some((path) => endpoint.startsWith(path));
   const url = buildUrl(endpoint, params);
-  const doFetch = () => fetch(url, requestConfig);
+
+  // Dynamic configuration builder to ensure fresh headers and state evaluation on each invocation
+  const buildConfig = () => {
+    const defaultHeaders = {};
+    if (!isFormData) {
+      defaultHeaders['Content-Type'] = 'application/json';
+    }
+
+    const configObj = {
+      method,
+      headers: {
+        ...defaultHeaders,
+        ...customHeaders,
+      },
+      credentials: 'include',  // Send/receive cookies automatically
+      ...(signal && { signal }),
+    };
+
+    if (body !== null && body !== undefined) {
+      configObj.body = isFormData ? body : JSON.stringify(body);
+    }
+
+    return configObj;
+  };
 
   try {
-    let response = await doFetch();
+    let response = await fetch(url, buildConfig());
 
     if (
       response.status === 401 &&
@@ -155,20 +170,21 @@ export const request = async (method, endpoint, body = null, options = {}) => {
     ) {
       try {
         await refreshAccessToken();
-        // ✅ Retry with cookies automatically sent
-        response = await doFetch();
+        
+        // Yield execution context to let the browser process the incoming Set-Cookie headers
+        await new Promise((resolve) => setTimeout(resolve, 35));
+
+        // Reconstruct fetch parameters dynamically fresh after token refresh finishes
+        response = await fetch(url, buildConfig());
       } catch (refreshError) {
         redirectToSessionExpired();
-        const err = new Error('Session expired');
-        err.status = 401;
-        err.cause = refreshError;
-        throw err;
+        throw createSessionExpiredError(refreshError);
       }
     }
 
     if (response.status === 401 && !isAuthEndpoint) {
       redirectToSessionExpired();
-      throw new Error('Session expired');
+      throw createSessionExpiredError();
     }
 
     return await handleResponse(response);

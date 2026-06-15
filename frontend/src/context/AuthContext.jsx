@@ -11,10 +11,11 @@ import * as Sentry from '@sentry/react';
 
 import { logout as apiLogout } from '../api/authApi';
 import { getMe } from '../api/userApi';
+import { isSessionExpiredError } from '../api/client';
 
 const AuthContext = createContext(null);
 
-// ✅ Helper to read user info from localStorage (non-sensitive)
+// Helper to read user info from localStorage (non-sensitive)
 const readStoredUser = () => {
   try {
     const storedUser = localStorage.getItem('currentUser');
@@ -44,7 +45,7 @@ export const AuthProvider = ({ children }) => {
     // Clear Sentry user context
     Sentry.setUser(null);
 
-    // ✅ DO NOT clear cookies - they are HttpOnly
+    // DO NOT clear cookies - they are HttpOnly
     // Browser will clear them automatically on logout
     localStorage.removeItem('currentUser');
   }, []);
@@ -107,8 +108,19 @@ export const AuthProvider = ({ children }) => {
     let isMounted = true;
 
     const syncUserSession = async () => {
+      // 1. If no user info is saved locally, they aren't logged in.
+      // Don't ping the server and waste a request on boot.
+      const stored = localStorage.getItem('currentUser');
+      if (!stored) {
+        if (isMounted) {
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
-        // ✅ Try to fetch user - if 401, we're not authenticated
+        // Try to fetch user - your global axios/fetch interceptor should handle 
+        // 401 token refreshing transparently underneath this call.
         const userData = await getMe();
 
         const verifiedUser =
@@ -116,7 +128,7 @@ export const AuthProvider = ({ children }) => {
           userData?.data?.user ||
           userData;
 
-        if (isMounted) {
+        if (isMounted && verifiedUser) {
           setUser(verifiedUser);
 
           localStorage.setItem(
@@ -135,10 +147,7 @@ export const AuthProvider = ({ children }) => {
           });
 
           if (verifiedUser.role) {
-            Sentry.setTag(
-              'role',
-              verifiedUser.role
-            );
+            Sentry.setTag('role', verifiedUser.role);
           }
 
           Sentry.setContext('auth', {
@@ -147,18 +156,25 @@ export const AuthProvider = ({ children }) => {
           });
         }
       } catch (error) {
-        console.error(
-          'Session sync verification failed:',
-          error
-        );
+        console.error('Session sync verification failed:', error);
 
-        Sentry.captureException(error, {
-          tags: {
-            feature: 'auth-sync',
-          },
-        });
+        if (!isSessionExpiredError(error)) {
+          Sentry.captureException(error, {
+            tags: {
+              feature: 'auth-sync',
+            },
+          });
+        }
 
-        if (error?.status === 401 && isMounted) {
+        // Only wipe local session when auth is definitively unrecoverable.
+        const isUnrecoverable =
+          isSessionExpiredError(error) ||
+          error?.status === 401 ||
+          error?.status === 403 ||
+          error?.response?.status === 401 ||
+          error?.response?.status === 403;
+
+        if (isMounted && isUnrecoverable) {
           clearSession();
         }
       } finally {

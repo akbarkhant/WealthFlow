@@ -13,7 +13,6 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
-import DashboardLayout from '../layouts/DashboardLayout';
 import {
   listTransactions,
   createTransaction,
@@ -168,6 +167,8 @@ const Transactions = () => {
       setLoading(false);
     }
   }, [currentPage, searchQuery, typeFilter, categoryIdFilter, currentPeriodValues]);
+
+  console.log("RAW API TRANSACTION RESULT:", txResult);
 
   useEffect(() => {
     loadData();
@@ -380,7 +381,6 @@ const Transactions = () => {
   const totalPages = pagination.totalPages;
 
   return (
-    <DashboardLayout>
       <section className="page-stack transactions-page">
         <div className="page-header">
           <div>
@@ -821,7 +821,6 @@ const Transactions = () => {
           </div>
         )}
       </section>
-    </DashboardLayout>
   );
 };
 

@@ -12,7 +12,6 @@ import {
   ReceiptText,
   PiggyBank,
 } from 'lucide-react';
-import DashboardLayout from '../layouts/DashboardLayout';
 import { ReportProvider, useReports } from '../context/ReportContext';
 import { getCurrentPeriod, getMonthDateRange, periodFromDateInputs } from '../utils/dateRange';
 import { MetricCardSkeleton, ChartSkeleton } from '../components/feedback/LoadingSkeleton';
@@ -67,7 +66,7 @@ const DashboardContent = () => {
 
   // Trigger centralized data retrieval when period state adjustments occur
   useEffect(() => {
-    fetchDashboardData(period.month, period.year);
+    fetchDashboardData(period.month, period.year).catch(() => {});
   }, [period.month, period.year, fetchDashboardData]);
 
   useEffect(() => {
@@ -195,7 +194,6 @@ const DashboardContent = () => {
   };
 
   return (
-    <DashboardLayout>
       <section className="page-stack dashboard-page">
 
         {/* ── Page Header ── */}
@@ -542,7 +540,6 @@ const DashboardContent = () => {
         )}
 
       </section>
-    </DashboardLayout>
   );
 };
 

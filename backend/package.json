@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "test": " jest --silent",
     "test:watch": "NODE_ENV=test jest --watch",
-    "test:coverage": "NODE_ENV=test jest --coverage"
+    "test:coverage": "NODE_ENV=test jest --coverage",
+    "seed:dev-user": "node scripts/seed-dev-user.js"
   },
   "keywords": [],
   "author": "",

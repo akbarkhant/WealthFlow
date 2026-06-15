@@ -4,6 +4,7 @@
  * cryptography operations, user onboarding data seeding, and secure state storage.
  * Completely independent of HTTP routing engines.
  */
+require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
@@ -16,6 +17,24 @@ const { sendVerificationEmail, sendPasswordResetEmail } = require('../../config/
 const crypto = require('crypto');
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
+
+const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+
+/**
+ * Looks up a user by email using a case-insensitive match.
+ */
+async function findUserByEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+
+  const result = await query(
+    `SELECT id, email, password_hash, is_active
+     FROM users
+     WHERE LOWER(email) = $1`,
+    [normalizedEmail]
+  );
+
+  return result.rows?.[0] ?? result[0] ?? null;
+}
 
 /**
  * Generates a short-lived JSON Web Token for API resource access
@@ -31,7 +50,7 @@ function signAccessToken(userId, email) {
   };
 
   return jwt.sign(payload, config.JWT_ACCESS_SECRET, {
-    expiresIn: config.JWT_ACCESS_EXPIRES_IN,
+    expiresIn: '15m',  // Explicitly set to 15 minutes to match library specifications
   });
 }
 
@@ -50,7 +69,7 @@ function signRefreshToken(userId) {
     },
     config.JWT_REFRESH_SECRET,
     {
-      expiresIn: config.JWT_REFRESH_EXPIRES_IN,
+      expiresIn: '7d', // Explicitly set to 7 days to match library specifications
     }
   );
 
@@ -83,16 +102,15 @@ async function storeRefreshToken(client, userId, jti, tokenHash) {
  * @returns {Promise<Object>} Object containing fresh accessToken and refreshToken
  */
 async function register(input) {
+  const email = normalizeEmail(input.email);
 
-  console.log('--- REGISTER SERVICE TRACE ---');
-  console.log('Plaintext password to be hashed:', input.password);
   // 1. Run database operations inside the transaction
   const registrationData = await withTransaction(async (client) => {
-    
-    // Guard against email reuse
+
+    // Guard against email reuse (case-insensitive)
     const existing = await client.query(
-      'SELECT id FROM users WHERE email = $1',
-      [input.email]
+      'SELECT id FROM users WHERE LOWER(email) = $1',
+      [email]
     );
 
     if (existing.rows.length > 0) {
@@ -111,7 +129,7 @@ async function register(input) {
     await client.query(
       `INSERT INTO users (id, name, email, password_hash, currency, verification_token, verification_token_expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [userId, input.name, input.email, passwordHash, input.currency, verificationToken, verificationExpiresAt]
+      [userId, input.name, email, passwordHash, input.currency, verificationToken, verificationExpiresAt]
     );
 
     // Seed user profile defaults
@@ -125,25 +143,25 @@ async function register(input) {
 
     // Return only the values needed for tokens and emails out of the transaction
     return { userId, verificationToken };
-  }); // 🔓 Transaction safely closes and commits here!
+  }); //  Transaction safely closes and commits here!
 
   const { userId, verificationToken } = registrationData;
 
   // 2. Network and Token signing operations run safely outside the transaction block
   try {
     // If the SMTP provider is slow, it no longer delays or hangs database rows
-    await sendVerificationEmail(input.email, verificationToken);
+    await sendVerificationEmail(email, verificationToken);
   } catch (emailError) {
     // Log the error but don't crash registration; user can request a resend later
-    console.error(`⚠️ Failed to send verification email to ${input.email}:`, emailError);
+    console.error(`⚠️ Failed to send verification email to ${email}:`, emailError);
   }
 
   // Build and sign authorization session state
-  const accessToken = signAccessToken(userId, input.email);
+  const accessToken = signAccessToken(userId, email);
   const { token: refreshToken, jti } = signRefreshToken(userId);
 
   const tokenHash = await bcrypt.hash(refreshToken, 10);
-  
+
   // Store the refresh token using your standard query connection pool
   await withTransaction(async (client) => {
     await storeRefreshToken(client, userId, jti, tokenHash);
@@ -162,7 +180,8 @@ async function getMe(userId) {
     'SELECT id, name, email, currency, avatar_url, created_at FROM users WHERE id = $1',
     [userId]
   );
-  return result[0] || null;
+  const user = result.rows ? result.rows[0] : result[0];
+  return user || null;
 }
 
 /**
@@ -171,40 +190,32 @@ async function getMe(userId) {
  * @returns {Promise<Object>} Fresh token pair
  */
 async function login(input) {
-  console.log('--- [DEBUG] 1. Incoming Login Payload ---');
-  console.log('Email:', input.email);
-  console.log('Password exists:', !!input.password);
+  const email = normalizeEmail(input.email);
+  const password = input.password;
 
-  const result = await query(
-    'SELECT id, email, password_hash FROM users WHERE email = $1',
-    [input.email]
-  );
-
-  console.log('Query result:', JSON.stringify(result));
-  
-  // ✅ FIX: Extract from result.rows[0] instead of result[0]
-  const user = result.rows ? result.rows[0] : result[0]; 
-
-  // Protect account enumeration vectors by masking exact verification failures
-  if (!user) {
-    console.log(`--- [DEBUG] 2. Login Failed: No user found for email ${input.email} ---`);
+  if (!email || !password) {
     throw new UnauthorizedError('Invalid email or password');
   }
 
-  // Compare input string safely against database hashing block signature
-  const valid = await bcrypt.compare(
-    input.password,
-    user.password_hash
-  );
-  
-  
-  // 3. Log the precise outcome of the bcrypt operation
-  console.log('--- [DEBUG] 3. Bcrypt Comparison Result ---');
-  console.log('Stored Hash from DB:', user.password_hash);
-  console.log('Does password match hash?:', valid);
+  const user = await findUserByEmail(email);
+
+  if (!user) {
+    throw new UnauthorizedError('Invalid email or password');
+  }
+
+  if (user.is_active === false) {
+    throw new UnauthorizedError('This account has been deactivated. Please contact support.');
+  }
+
+  if (!user.password_hash) {
+    throw new UnauthorizedError(
+      'This account uses social login. Please sign in with Google or GitHub.'
+    );
+  }
+
+  const valid = await bcrypt.compare(password, user.password_hash);
 
   if (!valid) {
-    console.log(`--- [DEBUG] Login Failed: Incorrect password for ${input.email} ---`);
     throw new UnauthorizedError('Invalid email or password');
   }
 
@@ -215,10 +226,6 @@ async function login(input) {
 
     const tokenHash = await bcrypt.hash(refreshToken, 10);
     await storeRefreshToken(client, user.id, jti, tokenHash);
-
-    // 4. Log successful token creation
-    console.log('--- [DEBUG] 4. Login Successful, Tokens Generated ---');
-    console.log('JTI Reference ID:', jti);
 
     return { accessToken, refreshToken };
   });
@@ -240,16 +247,11 @@ async function refresh(rawRefreshToken) {
     throw new UnauthorizedError('Invalid or expired refresh token');
   }
 
-  // 2. Query in-memory distributed engine cache to verify token state hasn't been blocked
-  if (await isTokenBlacklisted(payload.jti)) {
-    throw new UnauthorizedError('Refresh token has been revoked');
-  }
-
   return withTransaction(async (client) => {
     // 3. Confirm target database references match valid authorization scopes
     const rows = await client.query(
-      `SELECT token_hash, user_id FROM refresh_tokens
-       WHERE id = $1 AND expires_at > NOW() AND revoked_at IS NULL`,
+      `SELECT token_hash, user_id, revoked_at FROM refresh_tokens
+       WHERE id = $1 AND expires_at > NOW()`,
       [payload.jti]
     );
 
@@ -259,6 +261,19 @@ async function refresh(rawRefreshToken) {
       throw new UnauthorizedError('Refresh token not found or expired');
     }
 
+    // Goal 2: Tolerate concurrent requests within a brief clock-skew window (15s)
+    if (stored.revoked_at) {
+      const revokedTime = new Date(stored.revoked_at).getTime();
+      if (Date.now() - revokedTime > 15000) {
+        throw new UnauthorizedError('Refresh token has been revoked');
+      }
+    } else {
+      // 2. Query in-memory distributed engine cache to verify token state hasn't been blocked
+      if (await isTokenBlacklisted(payload.jti)) {
+        throw new UnauthorizedError('Refresh token has been revoked');
+      }
+    }
+
     // 4. Double check token authenticity against database string verification hashes
     const valid = await bcrypt.compare(rawRefreshToken, stored.token_hash);
     if (!valid) {
@@ -266,13 +281,15 @@ async function refresh(rawRefreshToken) {
     }
 
     // 5. Mark used token as revoked to execute single-use token rotation patterns
-    await client.query(
-      'UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1',
-      [payload.jti]
-    );
+    if (!stored.revoked_at) {
+      await client.query(
+        'UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1',
+        [payload.jti]
+      );
 
-    // 6. Blacklist token globally inside cache memory to prevent session hijacking replays
-    await blacklistToken(payload.jti, 7 * 24 * 60 * 60);
+      // 6. Blacklist token globally inside cache memory to prevent session hijacking replays
+      await blacklistToken(payload.jti, 7 * 24 * 60 * 60);
+    }
 
     const userRows = await client.query(
       'SELECT email FROM users WHERE id = $1',
@@ -472,7 +489,7 @@ async function forgotPassword(email) {
   // Don't reveal whether the email exists or not
   if (!result[0]) return;
 
-  const code      = Math.floor(100000 + Math.random() * 900000).toString();
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
   await query(
@@ -517,23 +534,44 @@ const comparePassword = async (password, hashed) => {
 };
 
 const generateAccessToken = (user) => {
-  return jwt.sign(user, process.env.JWT_ACCESS_SECRET, {
+  const payload = {
+    sub: user.id || user.sub,
+    email: user.email,
+  };
+  return jwt.sign(payload, config.JWT_ACCESS_SECRET || process.env.JWT_ACCESS_SECRET, {
     expiresIn: '15m',
   });
 };
 
 const generateRefreshToken = (user) => {
-  return jwt.sign(user, process.env.JWT_REFRESH_SECRET, {
+  const payload = {
+    sub: user.id || user.sub,
+  };
+  return jwt.sign(payload, config.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET, {
     expiresIn: '7d',
   });
 };
 
+const generateTokens = (user) => {
+  const payload = {
+    sub: user.id || user.sub,
+    email: user.email,
+  };
+  const accessToken = jwt.sign(payload, config.JWT_ACCESS_SECRET || process.env.JWT_ACCESS_SECRET || 'access_secret', {
+    expiresIn: '15m',
+  });
+  const refreshToken = jwt.sign(payload, config.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET || 'refresh_secret', {
+    expiresIn: '7d',
+  });
+  return { accessToken, refreshToken };
+};
+
 const verifyAccessToken = (token) => {
-  return jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+  return jwt.verify(token, config.JWT_ACCESS_SECRET || process.env.JWT_ACCESS_SECRET);
 };
 
 const verifyRefreshToken = (token) => {
-  return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+  return jwt.verify(token, config.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET);
 };
 
 
@@ -545,8 +583,8 @@ module.exports = {
   refresh,
   logout,
   findOrCreateOAuthUser,
-  forgotPassword, 
-  resetPassword, 
+  forgotPassword,
+  resetPassword,
   verifyEmail,
   resendVerification,
 };
@@ -558,5 +596,6 @@ module.exports.signAccessToken = signAccessToken;
 module.exports.signRefreshToken = signRefreshToken;
 module.exports.generateAccessToken = generateAccessToken;
 module.exports.generateRefreshToken = generateRefreshToken;
+module.exports.generateTokens = generateTokens;
 module.exports.verifyAccessToken = verifyAccessToken;
 module.exports.verifyRefreshToken = verifyRefreshToken;

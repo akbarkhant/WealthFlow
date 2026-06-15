@@ -4,22 +4,28 @@ const {
   updateTransactionSchema,
   listTransactionsSchema,
 } = require('./transactions.schema');
-
 async function getAllTransactions(req, res, next) {
   try {
     const userId = req.user.id;
     const filters = listTransactionsSchema.parse(req.query);
     const result = await transactionsService.list(userId, filters);
 
+    const transactionsArray = Array.isArray(result) ? result : (result?.data || []);
+
     return res.status(200).json({
       success: true,
-      data: result.data,
-      meta: result.meta,
+      data: transactionsArray, // This delivers your array straight to the React app!
+      meta: {
+        page: filters.page || 1,
+        totalPages: 1, // Optional: Update this later if your service adds real pagination metadata
+        total: transactionsArray.length
+      },
     });
   } catch (error) {
     return next(error);
   }
 }
+
 
 async function getTransactionById(req, res, next) {
   try {

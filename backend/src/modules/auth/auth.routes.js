@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Router } = require('express');
 const passport = require('passport');
 const { Strategy: GoogleStrategy } = require('passport-google-oauth20');

@@ -18,7 +18,6 @@ import {
   Zap,
   PlayCircle,
 } from 'lucide-react';
-import DashboardLayout from '../layouts/DashboardLayout';
 import api from '../utils/api';
 import '../styles/pages/Bills.css';
 
@@ -283,7 +282,6 @@ const Bills = () => {
   );
 
   return (
-    <DashboardLayout>
       <section className="page-stack bills-page">
         <div className="page-header">
           <div>
@@ -562,7 +560,6 @@ const Bills = () => {
           </div>
         )}
       </section>
-    </DashboardLayout>
   );
 };
 

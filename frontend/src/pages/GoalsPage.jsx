@@ -4,7 +4,6 @@ import { MilestoneNode } from '../components/GoalPage/MilestoneNode';
 import { FuelDrawer } from '../components/GoalPage/FuelDrawer';
 import { SUPPORTED_CURRENCIES } from '../hooks/useCurrency';
 import { goalsApi } from '../api/goalsApi.js';
-import DashboardLayout from '../layouts/DashboardLayout';
 import '../styles/pages/GoalsPage.css';
 
 // FIX #2: Removed 'OVERDRIVE' — it is not a real backend status and will
@@ -130,19 +129,16 @@ export default function GoalsPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
         <div className="gp-loading-state">
           <div className="gp-loading-spinner" />
           <span>Loading your milestones…</span>
         </div>
-      </DashboardLayout>
     );
   }
 
   const currencyMeta = SUPPORTED_CURRENCIES.find(c => c.code === displayCurrency);
 
   return (
-    <DashboardLayout>
       <div className="gp-root">
 
         {/* ── Page header ── */}
@@ -314,7 +310,7 @@ export default function GoalsPage() {
         </main>
 
       </div>
-
+  )
       {/* ── Fuel drawer ── */}
       <FuelDrawer
         goal={selectedGoal}
@@ -433,8 +429,6 @@ export default function GoalsPage() {
           {toastMsg}
         </div>
       )}
-    </DashboardLayout>
-  );
 }
 
 function SummaryCard({ label, value, sublabel, accent, icon }) {

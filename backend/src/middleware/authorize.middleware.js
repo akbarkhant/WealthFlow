@@ -6,35 +6,42 @@ const { config } = require('../config/index.config');
 const { logger } = require('../config/logger.config');
 
 /**
+ * Resolve access token from Authorization header or HttpOnly cookie.
+ * Supports both legacy Bearer-header clients and cookie-based auth.
+ */
+function extractAccessToken(req) {
+  const authHeader = req.headers.authorization;
+
+  if (authHeader?.startsWith('Bearer ')) {
+    const parts = authHeader.split(' ');
+
+    if (parts.length === 2 && parts[0] === 'Bearer') {
+      const token = parts[1];
+      if (token && token !== 'undefined' && token !== 'null') {
+        return token;
+      }
+    }
+  }
+
+  if (req.cookies?.accessToken) {
+    return req.cookies.accessToken;
+  }
+
+  return null;
+}
+
+/**
  * Authentication Middleware
  * Verifies JWT access token
  */
 function authenticate(req, res, next) {
   try {
-    const authHeader = req.headers.authorization;
+    const token = extractAccessToken(req);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       return res.status(401).json({
         success: false,
         message: 'Access token missing',
-      });
-    }
-
-    const parts = authHeader.split(' ');
-
-    if (parts.length !== 2 || parts[0] !== 'Bearer') {
-      return res.status(401).json({
-        success: false,
-        message: 'Malformed authorization header',
-      });
-    }
-
-    const token = parts[1];
-
-    if (!token || token === 'undefined' || token === 'null') {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid token',
       });
     }
 

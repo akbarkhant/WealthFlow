@@ -12,7 +12,6 @@ import {
   Sun,
   UserRound,
 } from 'lucide-react';
-import DashboardLayout from '../layouts/DashboardLayout';
 import { useAuth } from '../context/AuthContext';
 import { updateMe } from '../api/userApi';
 import '../styles/pages/Settings.css';
@@ -129,7 +128,6 @@ const Settings = () => {
   };
 
   return (
-    <DashboardLayout>
       <section className="page-stack settings-page">
         <div className="page-header">
           <div>
@@ -362,7 +360,6 @@ const Settings = () => {
           </div>
         )}
       </section>
-    </DashboardLayout>
   );
 };
 

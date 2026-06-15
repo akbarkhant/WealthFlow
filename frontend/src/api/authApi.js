@@ -9,14 +9,9 @@ export async function register(payload) {
 }
 
 export async function logout() {
-  try {
-    // The backend endpoint will automatically read your cookies and return 
-    // Set-Cookie commands with past expiration dates to clear them.
-    await api.post('/auth/logout', {}, { skipAuthRetry: true });
-  } finally {
-    // Only clean up non-sensitive client UI visibility trackers
-    localStorage.removeItem('currentUser');
-  }
+  // Let the response bubble up naturally. 
+  // State and storage cleanup are handled completely by AuthProvider.clearSession()
+  return api.post('/auth/logout', {}, { skipAuthRetry: true });
 }
 
 export function getOAuthUrl(provider) {

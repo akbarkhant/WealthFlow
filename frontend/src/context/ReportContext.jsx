@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import reportsApi from '../api/reportsApi';
+import { isSessionExpiredError } from '../api/client';
 
 const ReportContext = createContext(null);
 
@@ -62,8 +63,13 @@ export function ReportProvider({ children }) {
 
         return { monthlyData, breakdownData, yearlyData, goalsData };
       } catch (err) {
-        setError(err.message || 'An error occurred while compiling reports');
-        throw err;
+        if (!isSessionExpiredError(err)) {
+          setError(err.message || 'An error occurred while compiling reports');
+        }
+        // Session expiry triggers a full-page redirect; avoid unhandled rejections.
+        if (!isSessionExpiredError(err)) {
+          throw err;
+        }
       } finally {
         setLoading(false);
         // Clear tracking once the request settles

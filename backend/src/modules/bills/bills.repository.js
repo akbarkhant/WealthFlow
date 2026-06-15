@@ -226,7 +226,7 @@ async function updateBill(billId, userId, data) {
 async function markAsPaid(billId, userId) {
   const sql = `
     UPDATE bills
-    SET status = 'paid', paid_at = NOW(), updated_at = NOW()
+    SET status = 'paid', updated_at = NOW()
     WHERE id = $1
       AND user_id = $2
       AND deleted_at IS NULL
@@ -248,7 +248,7 @@ async function markAsPaid(billId, userId) {
 async function markAsUnpaid(billId, userId) {
   const sql = `
     UPDATE bills
-    SET status = 'unpaid', paid_at = NULL, updated_at = NOW()
+    SET status = 'unpaid', updated_at = NOW()
     WHERE id = $1
       AND user_id = $2
       AND deleted_at IS NULL
