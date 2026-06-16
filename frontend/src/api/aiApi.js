@@ -1,5 +1,4 @@
-// frontend/src/api/aiApi.js
-import api from './client';
+import api, { API_URL } from './client';
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
 export const getChatHistory = () =>
@@ -9,19 +8,13 @@ export const clearChatHistory = () =>
   api.delete('/ai/chat/history');
 
 // Streaming chat — returns a raw fetch Response for chunk reading
-export const streamChat = async (message, history = []) => {
-  const token = localStorage.getItem('accessToken');
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-  return fetch(`${API_URL}/ai/chat`, {
-    method:  'POST',
-    headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
+export const streamChat = async (message, history = []) =>
+  fetch(`${API_URL}/ai/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ message, history }),
   });
-};
 
 // ── Analyze & Forecast ────────────────────────────────────────────────────────
 export const getAiAnalysis = () =>
@@ -49,19 +42,17 @@ export const getEducationTipByTopic = (topic) =>
 
 // ── Monthly PDF Report ────────────────────────────────────────────────────────
 export const downloadMonthlyReport = async (month) => {
-  const token    = localStorage.getItem('accessToken');
-  const API_URL  = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const response = await fetch(`${API_URL}/ai/report/${month}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    credentials: 'include',
   });
 
   if (!response.ok) throw new Error('Report generation failed');
 
-  const blob     = await response.blob();
-  const url      = URL.createObjectURL(blob);
-  const a        = document.createElement('a');
-  a.href         = url;
-  a.download     = `WealthFlow_Report_${month}.pdf`;
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `WealthFlow_Report_${month}.pdf`;
   a.click();
   URL.revokeObjectURL(url);
 };

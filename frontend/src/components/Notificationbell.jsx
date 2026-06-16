@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNotifications } from '../hooks/useNotification';
 import { useNotificationPush } from '../hooks/useNotificationPush'; // Import the push hook
+import { notificationFetch } from '../api/notificationsApi';
 import '../styles/components/Notificationbell.css';
 
 const TYPE_META = {
@@ -17,29 +18,21 @@ function timeAgo(dateStr) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// Minimal API mapping layer needed by useNotificationPush to speak with your router endpoints
-// Minimal API mapping layer needed by useNotificationPush to speak with your router endpoints
 const notificationApiClient = {
-  getVapidPublicKey: () => fetch('/api/notifications/vapid-public-key').then(res => res.json()),
+  getVapidPublicKey: () =>
+    notificationFetch('/vapid-public-key').then((res) => res.json()),
 
-  saveSubscription: (payload) => fetch('/api/notifications/subscribe', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('token')}` // Ensure auth header passes
-    },
-    body: JSON.stringify({ subscription: payload }) // Wrap correctly for controller destructuring
-  }),
+  saveSubscription: (payload) =>
+    notificationFetch('/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ subscription: payload }),
+    }),
 
-  removeSubscription: (payload) => fetch('/api/notifications/unsubscribe', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
-    },
-    // 🟢 Extract the raw endpoint string so your backend controller parses it cleanly
-    body: JSON.stringify({ endpoint: payload?.endpoint || payload })
-  })
+  removeSubscription: (payload) =>
+    notificationFetch('/unsubscribe', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint: payload?.endpoint || payload }),
+    }),
 };
 
 export default function NotificationBell() {

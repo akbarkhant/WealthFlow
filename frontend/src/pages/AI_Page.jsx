@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import api from '../api/client';
+import api, { API_URL } from '../api/client';
 import AiResponseDisplay from '../components/AI_Chat'; // Adjust this path if your components folder structure differs
 import '../styles/pages/AI_Page.css';
 
@@ -154,28 +154,64 @@ export default function AI() {
         if (!input.trim() || loading) return;
         const text = input.trim();
         setInput('');
+
+        // Optimistically update the UI with the user's message
         const updated = [...messages, { role: 'user', text }];
-        setMessages([...updated, { role: 'ai', text: '' }]);
+        setMessages([...updated, { role: 'ai', text: 'Thinking...' }]);
         setLoading(true);
 
-        try {
-            let transactions = [];
-            try {
-                const searchData = await api.get('/search', { params: { q: text } });
-                transactions = Array.isArray(searchData)
-                    ? searchData
-                    : Array.isArray(searchData?.results)
-                        ? searchData.results
-                        : [];
-            } catch { /* search failure doesn't block chat */ }
+        // Configuration for resilience
+        const MAX_TRIES = 3;
+        let attempt = 0;
+        let delay = 1000; // Start backoff delay at 1 second
 
-            let accumulated = '';
-            await readStream('/ai/chat', { message: text, transactions }, (chunk) => {
-                accumulated += chunk;
-                setMessages([...updated, { role: 'ai', text: accumulated }]);
-            });
-        } catch {
-            setMessages([...updated, { role: 'ai', text: 'Error reaching AI. Is Ollama running?' }]);
+        while (attempt < MAX_TRIES) {
+            attempt++;
+            try {
+                let accumulated = '';
+                let isFirstChunk = true;
+
+                // Stream the chat response through your backend controller
+                await readStream('/ai/chat', { message: text }, (chunk) => {
+                    if (isFirstChunk) {
+                        // Clear out the 'Thinking...' placeholder text on the very first byte
+                        isFirstChunk = false;
+                        accumulated = '';
+                    }
+                    accumulated += chunk;
+                    setMessages([...updated, { role: 'ai', text: accumulated }]);
+                });
+
+                // If the stream finishes successfully, break out of the retry loop completely
+                break;
+
+            } catch (error) {
+                console.warn(`[Chat Stream] Connection attempt ${attempt} failed.`, error);
+
+                // Check if we have remaining retries left
+                if (attempt < MAX_TRIES) {
+                    setMessages([...updated, { role: 'ai', text: `Connection unstable. Retrying (Attempt ${attempt + 1}/${MAX_TRIES})...` }]);
+
+                    // Wait out the backoff period before trying again (Exponential Backoff)
+                    await new Promise((resolve) => setTimeout(resolve, delay));
+                    delay *= 2; // Double the wait time for the next cycle (1s -> 2s -> 4s)
+                } else {
+                    // EXHAUSTED ALL RETRIES: Handle contextual errors cleanly for the user
+                    let localizedError = 'Unable to establish a secure stream channel with the AI engine.';
+
+                    if (error.status === 429 || error.message?.includes('429')) {
+                        localizedError = 'Gemini API rate limit exceeded. Please wait a moment before sending another message.';
+                    } else if (error.status === 503 || error.message?.includes('503')) {
+                        localizedError = 'The AI service is temporarily overloaded or down. Please try again shortly.';
+                    } else if (error.message?.includes('Session expired') || error.status === 401) {
+                        localizedError = 'Your security credentials have expired. Please refresh the window to log back in.';
+                    } else if (error.message) {
+                        localizedError = `Stream Interrupted: ${error.message}`;
+                    }
+
+                    setMessages([...updated, { role: 'ai', text: localizedError }]);
+                }
+            }
         }
 
         setLoading(false);
@@ -186,30 +222,137 @@ export default function AI() {
         setAnalysis('');
 
         try {
-            let accumulated = '';
-            await readStream('/ai/analyze', { expenses: JSON.parse(expenses) }, (chunk) => {
-                accumulated += chunk;
-                setAnalysis(accumulated);
+            // 1. Hit the async endpoint via your secure API client wrapper
+            const response = await api.post('/ai/analyze', {
+                expenses: JSON.parse(expenses)
             });
+
+            if (response?.jobId || response?.data?.jobId) {
+                const jobId = response.jobId || response.data.jobId;
+                setAnalysis('Analysis queued. Calculating metrics...');
+
+                // 2. Start polling for the worker queue to finish
+                pollJobStatus(jobId, setAnalysis);
+            } else {
+                setAnalysis('Failed to initialize analysis worker pipeline.');
+                setLoading(false);
+            }
         } catch (e) {
             setAnalysis(e.message?.includes('JSON') ? 'Invalid JSON format.' : 'Unable to reach the AI service.');
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
-    async function readStream(endpoint, body, onChunk) {
-        const token = localStorage.getItem('accessToken');
+    const runSuggest = async () => {
+        setLoading(true);
+        setSuggestions('');
 
-        const response = await fetch(`http://localhost:5000/api${endpoint}`, {
+        try {
+            // 1. Hit the async endpoint via your secure API client wrapper
+            const response = await api.post('/ai/suggest', {
+                income: Number(income),
+                expenses: JSON.parse(suggestExpenses),
+            });
+
+            if (response?.jobId || response?.data?.jobId) {
+                const jobId = response.jobId || response.data.jobId;
+                setSuggestions('Savings planner queued. Optimizing budgets...');
+
+                // 2. Start polling for the worker queue to finish
+                pollJobStatus(jobId, setSuggestions);
+            } else {
+                setSuggestions('Failed to initialize planning worker pipeline.');
+                setLoading(false);
+            }
+        } catch (e) {
+            setSuggestions(e.message?.includes('JSON') ? 'Invalid JSON format.' : 'Unable to reach the AI service.');
+            setLoading(false);
+        }
+    };
+
+    // Helper Polling Mechanism to safely track background task jobs
+    async function pollJobStatus(jobId, displayStateSetter) {
+        const maxAttempts = 30;
+        let attempts = 0;
+
+        const interval = setInterval(async () => {
+            attempts++;
+            try {
+                const job = await api.get(`/ai/jobs/${jobId}`);
+                const jobData = job?.data ?? job;
+
+                if (jobData?.status === 'completed') {
+                    clearInterval(interval);
+                    displayStateSetter(jobData.result || jobData.data || 'Task complete.');
+                    setLoading(false);
+                } else if (jobData?.status === 'failed') {
+                    clearInterval(interval);
+                    displayStateSetter('AI analysis task failed in the background queue.');
+                    setLoading(false);
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(interval);
+                    displayStateSetter('Task tracking timed out. Check back later.');
+                    setLoading(false);
+                }
+            } catch (err) {
+                clearInterval(interval);
+                displayStateSetter('Lost tracking connection to background worker.');
+                setLoading(false);
+            }
+        }, 1500); // Polls every 1.5 seconds
+    }
+
+    async function readStream(endpoint, body, onChunk) {
+        // 1. Build the exact full URL matching your api client logic
+        const url = `${API_URL}${endpoint}`;
+
+        // 2. Call global fetch directly, but with full credentials inclusion
+        let response = await fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify(body),
         });
 
+        // 3. REFRESH COUPLING INTERCEPTOR: If token expired, run your client's exact recovery loop
+        if (response.status === 401) {
+            try {
+                // Import and run your explicit refresh code block
+                const { request } = await import('../api/client');
+
+                // This hits /auth/refresh using your engine's logic
+                // We can invoke an arbitrary lightweight get to trigger the interceptor or call refresh directly if exported
+                await api.post('/auth/refresh', {});
+
+                // Yield execution context to let the browser process the incoming Set-Cookie headers
+                await new Promise((resolve) => setTimeout(resolve, 35));
+
+                // Re-fire the stream setup request fresh
+                response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(body),
+                });
+            } catch (refreshError) {
+                // If refresh fails, explicitly update localStorage state and force redirect
+                localStorage.removeItem('currentUser');
+                window.location.replace('/session-expired');
+                throw new Error('Session expired');
+            }
+        }
+
+        // 4. Final confirmation checks
+        if (!response.ok) {
+            if (response.status === 401) {
+                localStorage.removeItem('currentUser');
+                window.location.replace('/session-expired');
+            }
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `AI request failed (${response.status})`);
+        }
+
+        // 5. Process stream chunks safely
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
 
@@ -219,26 +362,6 @@ export default function AI() {
             onChunk(decoder.decode(value, { stream: true }));
         }
     }
-
-    const runSuggest = async () => {
-        setLoading(true);
-        setSuggestions('');
-
-        try {
-            let accumulated = '';
-            await readStream('/ai/suggest', {
-                income: Number(income),
-                expenses: JSON.parse(suggestExpenses),
-            }, (chunk) => {
-                accumulated += chunk;
-                setSuggestions(accumulated);
-            });
-        } catch (e) {
-            setSuggestions(e.message?.includes('JSON') ? 'Invalid JSON format.' : 'Unable to reach the AI service.');
-        }
-
-        setLoading(false);
-    };
 
     const hasRealMessages = messages.filter(m => m.role === 'user').length > 0;
 

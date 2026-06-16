@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-
-const API_BASE = '/api/notifications';
+import { notificationFetch } from '../api/notificationsApi';
 
 // ─── Helper: convert VAPID key ────────────────────────────────────
 const urlBase64ToUint8Array = (base64String) => {
@@ -19,9 +18,6 @@ const usePushNotification = () => {
   const [error, setError] = useState(null);
   const [swRegistration, setSwRegistration] = useState(null);
 
-  // ─── Get user_id from localStorage ─────────────────────────────
-  const getUserId = () => localStorage.getItem('user_id');
-
   // ─── 1. Register service worker on mount ───────────────────────
   useEffect(() => {
     const init = async () => {
@@ -32,11 +28,9 @@ const usePushNotification = () => {
       }
 
       try {
-        // 🟢 Fixed spacing syntax here
         const registration = await navigator.serviceWorker.register('/sw.js');
         setSwRegistration(registration);
 
-        // Check if already subscribed
         const existing = await registration.pushManager.getSubscription();
         setIsSubscribed(!!existing);
       } catch (err) {
@@ -55,22 +49,18 @@ const usePushNotification = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // 🟢 DEFENSIVE GUARD: Ensure registration exists before invoking pushManager
       if (!swRegistration) {
         throw new Error('Push manager unavailable. Service worker failed to register.');
       }
 
-      // Fetch VAPID public key from backend
-      const res = await fetch(`${API_BASE}/vapid-public-key`);
+      const res = await notificationFetch('/vapid-public-key');
 
-      // Catch non-OK responses before parsing
       if (!res.ok) {
         throw new Error(`Server returned ${res.status} — check that /api/notifications routes are registered in app.js`);
       }
 
       const data = await res.json();
 
-      // Guard against missing key in response
       if (!data.publicKey) {
         throw new Error('VAPID public key missing from server response. Check your .env file.');
       }
@@ -80,14 +70,14 @@ const usePushNotification = () => {
         applicationServerKey: urlBase64ToUint8Array(data.publicKey),
       });
 
-      await fetch(`${API_BASE}/subscribe`, {
+      const saveRes = await notificationFetch('/subscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subscription,
-          user_id: getUserId(),
-        }),
+        body: JSON.stringify({ subscription }),
       });
+
+      if (!saveRes.ok) {
+        throw new Error('Failed to save push subscription on the server.');
+      }
 
       setIsSubscribed(true);
     } catch (err) {
@@ -107,7 +97,6 @@ const usePushNotification = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // 🟢 DEFENSIVE GUARD: Avoid reading properties of null
       if (!swRegistration) {
         throw new Error('Push manager unavailable. Service worker missing.');
       }
@@ -117,11 +106,14 @@ const usePushNotification = () => {
       if (subscription) {
         await subscription.unsubscribe();
 
-        await fetch(`${API_BASE}/unsubscribe`, {
+        const res = await notificationFetch('/unsubscribe', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ endpoint: subscription.endpoint }),
         });
+
+        if (!res.ok) {
+          throw new Error('Failed to remove push subscription on the server.');
+        }
       }
 
       setIsSubscribed(false);
@@ -135,11 +127,8 @@ const usePushNotification = () => {
 
   // ─── 4. Toggle ──────────────────────────────────────────────────
   const toggle = () => {
-    if (isSubscribed) {
-      unsubscribe();
-    } else {
-      subscribe();
-    }
+    const action = isSubscribed ? unsubscribe() : subscribe();
+    action.catch(() => {});
   };
 
   return { isSubscribed, isSupported, isLoading, error, toggle };

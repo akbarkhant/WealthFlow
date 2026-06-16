@@ -64,7 +64,7 @@ export default function GoalsPage() {
   // `derivedStatus` always produced 0 results for every non-'all' selection.
   const filtered = useMemo(() => {
     if (activeFilter === 'all') return goals;
-    return goals.filter(g => g.status === activeFilter);
+    return goals.filter((g) => (g.derivedStatus ?? g.status) === activeFilter);
   }, [goals, activeFilter]);
 
   const showToast = (msg, type = 'success') => {
@@ -114,16 +114,11 @@ export default function GoalsPage() {
     if (!confirmDelete) return;
 
     try {
-      const result = await goalsApi.delete(goalId);
-      if (result.success) {
-        // FIX #1: removeGoalFromState is now properly destructured from useGoals above
-        removeGoalFromState(goalId);
-        showToast('Goal successfully deleted', 'success');
-      } else {
-        showToast(result.message || 'Failed to delete goal', 'error');
-      }
+      await goalsApi.delete(goalId);
+      removeGoalFromState(goalId);
+      showToast('Goal successfully deleted', 'success');
     } catch (err) {
-      showToast('An unexpected error occurred', 'error');
+      showToast(err.message || 'Failed to delete goal', 'error');
     }
   };
 

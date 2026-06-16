@@ -11,7 +11,8 @@ import NotFound from '../pages/NotFound';
 import ProtectedRoute from '../components/ProtectedRoute';
 import { useAuth } from '../context/AuthContext';
 import { NotificationProvider } from '../hooks/useNotification';
-import UpcomingFeatures from '../pages/UpcomingFeatures'
+import UpcomingFeatures from '../pages/UpcomingFeatures';
+import { ReportProvider } from '../context/ReportContext';
 
 // ── 2. Lazy Loaded Components ────────────────────────────────────
 // Core Dynamic Dashboard & Dashboard Sub-routes
@@ -95,7 +96,7 @@ const AppRoutes = () => {
         <Route element={<ProtectedRoute><AuthenticatedNotificationWrapper /></ProtectedRoute>}>
 
           {/* Wrap all private pages in a shared layout route */}
-          <Route element={<DashboardLayout />}>
+          <Route element={<ReportProvider><DashboardLayout /></ReportProvider>}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path='/bills' element={<Bills />} />
             <Route path="/ai" element={<AI />} />

@@ -59,16 +59,10 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
       setLoading(true);
       setError(null);
       const result = await goalsApi.getAll();
-
-      if (result.success) {
-        // 🟢 FIXED: Safely extract array regardless of backend payload structure
-        const targetData = result.data?.items ?? result.data ?? [];
-        setGoals(Array.isArray(targetData) ? targetData : []);
-      } else {
-        setError(result.message ?? 'Failed to sync with goals infrastructure.');
-      }
-    } catch {
-      setError('Network error: Could not reach backend server.');
+      const targetData = result?.items ?? result?.data?.items ?? (Array.isArray(result) ? result : []);
+      setGoals(Array.isArray(targetData) ? targetData : []);
+    } catch (err) {
+      setError(err.message || 'Network error: Could not reach backend server.');
     } finally {
       setLoading(false);
     }
@@ -184,18 +178,11 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
 
     // ── API call ──
     try {
-      const result = await goalsApi.contribute(goalId, parsedAmt, note);
-
-      if (result.success) {
-        await fetchGoals();
-        return result;
-      }
-
-      setError(result.message ?? 'Transaction rejected by database engine.');
-      return result;
-
-    } catch {
-      const msg = 'Network connection lost during transaction.';
+      await goalsApi.contribute(goalId, parsedAmt, note);
+      await fetchGoals();
+      return { success: true };
+    } catch (err) {
+      const msg = err.message || 'Network connection lost during transaction.';
       setError(msg);
       return { success: false, message: msg };
     }
@@ -216,7 +203,7 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
     }
 
     try {
-      const result = await goalsApi.create({
+      await goalsApi.create({
         name: goalPayload.name,
         target_amount: Number(goalPayload.target_amount),
         currency: goalPayload.currency ?? 'USD',
@@ -224,17 +211,10 @@ export function useGoals({ defaultCurrency = 'USD' } = {}) {
         allowOverflow: !!goalPayload.allowOverflow,
         deadline: goalPayload.deadline ?? null
       });
-
-      if (result.success) {
-        await fetchGoals();
-        return result;
-      }
-
-      setError(result.message ?? 'Failed to initialize financial goal.');
-      return result;
-
-    } catch {
-      const msg = 'Network connection lost while creating goal.';
+      await fetchGoals();
+      return { success: true };
+    } catch (err) {
+      const msg = err.message || 'Network connection lost while creating goal.';
       setError(msg);
       return { success: false, message: msg };
     }

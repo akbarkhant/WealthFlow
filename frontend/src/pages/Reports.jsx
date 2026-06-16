@@ -5,9 +5,6 @@ import {
   PieChart,
   RefreshCw,
 } from 'lucide-react';
-
-import DashboardLayout from '../layouts/DashboardLayout';
-// FIX #1: Use reportsApi instead of the raw api client with manual URL strings
 import reportsApi from '../api/reportsApi';
 import '../styles/pages/Reports.css';
 
@@ -102,7 +99,6 @@ const Reports = () => {
   };
 
   return (
-    <DashboardLayout>
       <div className="reports-page">
 
         {/* Header */}
@@ -176,7 +172,6 @@ const Reports = () => {
         )}
 
       </div>
-    </DashboardLayout>
   );
 };
 

@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import reportsApi from '../api/reportsApi';
+import { listBudgets } from '../api/budgetsApi';
+import { mapBudgetForUi } from '../services/mappers';
 import { isSessionExpiredError } from '../api/client';
 
 const ReportContext = createContext(null);
@@ -9,7 +11,7 @@ export function ReportProvider({ children }) {
   const [monthlyReport, setMonthlyReport] = useState(null);
   const [breakdown,     setBreakdown]     = useState(null);
   const [yearlyReport,  setYearlyReport]  = useState(null);
-  const [goals,         setGoals]         = useState([]);
+  const [budgets,       setBudgets]       = useState([]);
 
   // UX State Indicators
   const [loading, setLoading] = useState(false);
@@ -40,28 +42,22 @@ export function ReportProvider({ children }) {
 
     const executionPromise = (async () => {
       try {
-        const [monthlyData, breakdownData, yearlyData, goalsData] = await Promise.all([
+        const [monthlyData, breakdownData, yearlyData, budgetsData] = await Promise.all([
           reportsApi.getMonthly(month, year),
           reportsApi.getBreakdown(month, year),
           reportsApi.getYearly(year),
-          reportsApi.getGoals(),
+          listBudgets({ month, year }),
         ]);
 
-        // FIX #6: Was Array.isArray(goalsData) then Object.values(goalsData) —
-        // Object.values on { success: true, data: { items: [], total: N } }
-        // returns [true, { items: [], total: N }], not the goals array.
-        // The backend wraps goals in data.items per the sendSuccess utility.
-        const normalizedGoals =
-          goalsData?.data?.items   ??   // standard sendSuccess shape
-          goalsData?.items         ??   // already-unwrapped shape
-          (Array.isArray(goalsData) ? goalsData : []);
+        const normalizedBudgets = (Array.isArray(budgetsData) ? budgetsData : [])
+          .map(mapBudgetForUi);
 
         setMonthlyReport(monthlyData);
         setBreakdown(breakdownData);
         setYearlyReport(yearlyData);
-        setGoals(normalizedGoals);
+        setBudgets(normalizedBudgets);
 
-        return { monthlyData, breakdownData, yearlyData, goalsData };
+        return { monthlyData, breakdownData, yearlyData, budgetsData };
       } catch (err) {
         if (!isSessionExpiredError(err)) {
           setError(err.message || 'An error occurred while compiling reports');
@@ -90,7 +86,7 @@ export function ReportProvider({ children }) {
     setMonthlyReport(null);
     setBreakdown(null);
     setYearlyReport(null);
-    setGoals([]);
+    setBudgets([]);
     inflightRequests.current.clear();
   }, []);
 
@@ -98,7 +94,7 @@ export function ReportProvider({ children }) {
     monthlyReport,
     breakdown,
     yearlyReport,
-    goals,
+    budgets,
     loading,
     error,
     fetchDashboardData,

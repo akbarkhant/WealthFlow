@@ -12,7 +12,7 @@ import {
   ReceiptText,
   PiggyBank,
 } from 'lucide-react';
-import { ReportProvider, useReports } from '../context/ReportContext';
+import { useReports } from '../context/ReportContext';
 import { getCurrentPeriod, getMonthDateRange, periodFromDateInputs } from '../utils/dateRange';
 import { MetricCardSkeleton, ChartSkeleton } from '../components/feedback/LoadingSkeleton';
 import ErrorMessage from '../components/feedback/ErrorMessage';
@@ -53,7 +53,7 @@ const DashboardContent = () => {
     monthlyReport,
     breakdown,
     yearlyReport,
-    goals,
+    budgets,
     loading,
     error,
     fetchDashboardData
@@ -67,7 +67,8 @@ const DashboardContent = () => {
   // Trigger centralized data retrieval when period state adjustments occur
   useEffect(() => {
     fetchDashboardData(period.month, period.year).catch(() => {});
-  }, [period.month, period.year, fetchDashboardData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period.month, period.year]);
 
   useEffect(() => {
     const loadTransactions = async () => {
@@ -80,8 +81,6 @@ const DashboardContent = () => {
           endDate,
         });
 
-        console.log('Transactions API Result:', result);
-
         setRecentTransactions(result.data || []);
       } catch (err) {
         console.error('Failed to load transactions:', err);
@@ -93,7 +92,7 @@ const DashboardContent = () => {
   }, [startDate, endDate]);
 
   const handleManualRefetch = () => {
-    fetchDashboardData(period.month, period.year, true);
+    fetchDashboardData(period.month, period.year, true).catch(() => {});
   };
 
   // Compile individual states from our concurrent context objects back into standard UI view models
@@ -147,12 +146,13 @@ const DashboardContent = () => {
       ? yearlyReport
       : (yearlyReport?.months || []);
 
-    const formattedData = rawMonths.map(item => ({
+    const formattedData = rawMonths.map((item) => ({
       ...item,
-      // Convert numerical 1-indexed months (e.g., 5) to short labels (e.g., 'May')
       month: typeof item.month === 'number'
         ? MONTH_NAMES[item.month - 1] || `M${item.month}`
-        : item.month
+        : item.month,
+      income: Number(item.totalIncome ?? item.income ?? 0),
+      expense: Number(item.totalExpenses ?? item.expense ?? 0),
     }));
 
     // Filter based on the selected premium segmented-control timeline toggle
@@ -181,10 +181,10 @@ const DashboardContent = () => {
 
   const budgetsAtRiskData = useMemo(
     () =>
-      Array.isArray(goals)
-        ? goals.filter(goal => Number(goal?.usedPercent || 0) >= 90)
+      Array.isArray(budgets)
+        ? budgets.filter((budget) => Number(budget?.usedPercent || 0) >= 90)
         : [],
-    [goals]
+    [budgets]
   );
 
   const applyCurrentMonth = () => {
@@ -543,12 +543,9 @@ const DashboardContent = () => {
   );
 };
 
-// Index shell safely injects the shared Provider boundary condition context context
 const Dashboard = () => {
   return (
-    <ReportProvider>
       <DashboardContent />
-    </ReportProvider>
   );
 };
 

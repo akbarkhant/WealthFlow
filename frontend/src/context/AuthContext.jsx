@@ -108,19 +108,7 @@ export const AuthProvider = ({ children }) => {
     let isMounted = true;
 
     const syncUserSession = async () => {
-      // 1. If no user info is saved locally, they aren't logged in.
-      // Don't ping the server and waste a request on boot.
-      const stored = localStorage.getItem('currentUser');
-      if (!stored) {
-        if (isMounted) {
-          setLoading(false);
-        }
-        return;
-      }
-
       try {
-        // Try to fetch user - your global axios/fetch interceptor should handle 
-        // 401 token refreshing transparently underneath this call.
         const userData = await getMe();
 
         const verifiedUser =
@@ -128,7 +116,7 @@ export const AuthProvider = ({ children }) => {
           userData?.data?.user ||
           userData;
 
-        if (isMounted && verifiedUser) {
+        if (isMounted && verifiedUser?.id) {
           setUser(verifiedUser);
 
           localStorage.setItem(
@@ -154,6 +142,8 @@ export const AuthProvider = ({ children }) => {
             userId: verifiedUser.id,
             email: verifiedUser.email,
           });
+        } else if (isMounted) {
+          clearSession();
         }
       } catch (error) {
         console.error('Session sync verification failed:', error);

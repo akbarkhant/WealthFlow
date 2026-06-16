@@ -116,12 +116,8 @@ export const useLoginForm = () => {
         password,
         rememberMe,
       });
-      
-      // Handle clients that place data keys underneath a default `.data` wrapper
-      const response = result?.data !== undefined ? result.data : result;
 
-      // Check if user status flag marks them as unverified
-      if (response?.isUnverified || response?.status === 'UNVERIFIED') {
+      if (result?.isUnverified || result?.status === 'UNVERIFIED') {
         navigate('/verify-email', {
           replace: true,
           state: { email, fromLogin: true }
@@ -129,8 +125,7 @@ export const useLoginForm = () => {
         return;
       }
 
-      //  Backend now returns response.user instead of response with tokens
-      const user = response?.user || response;
+      const user = result?.user ?? result;
 
       if (rememberMe) {
         localStorage.setItem('wf_remembered_email', email);

@@ -1,7 +1,6 @@
 // hooks/useNotifications.js
 import { createContext, useContext, useEffect, useReducer, useCallback, useRef } from 'react';
-
-const BASE_URL = import.meta.env.VITE_API_URL ?? '/api/notifications';
+import { notificationFetch } from '../api/notificationsApi';
 
 // ─── Context ──────────────────────────────────────────────────────
 const NotificationCtx = createContext(null);
@@ -60,7 +59,7 @@ function reducer(state, action) {
 let _vapidKey = null;
 async function getVapidKey() {
   if (_vapidKey) return _vapidKey;
-  const res  = await fetch(`${BASE_URL}/vapid-public-key`);
+  const res  = await notificationFetch('/vapid-public-key');
   if (!res.ok) throw new Error(`VAPID key fetch failed with status ${res.status}`);
   const json = await res.json();
   _vapidKey  = json.publicKey;
@@ -121,10 +120,9 @@ export function NotificationProvider({ children }) {
       });
 
       // SECURE FIX: Removed payload user_id body dependency — handle implicitly on server via authorization token session state maps
-      const res = await fetch(`${BASE_URL}/subscribe`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ subscription }),
+      const res = await notificationFetch('/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ subscription }),
       });
 
       if (!res.ok) throw new Error('Failed to register subscription endpoints on remote cluster backend service layer.');
@@ -144,10 +142,9 @@ export function NotificationProvider({ children }) {
       const subscription = await swReg.current.pushManager.getSubscription();
       if (subscription) {
         await subscription.unsubscribe();
-        await fetch(`${BASE_URL}/unsubscribe`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ endpoint: subscription.endpoint }),
+        await notificationFetch('/unsubscribe', {
+          method: 'POST',
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
         });
       }
       dispatch({ type: 'SET', payload: { subscribed: false, subscribing: false } });
@@ -166,7 +163,7 @@ export function NotificationProvider({ children }) {
 
     try {
       // SECURE FIX: Changed from `/history/${userId}` to implicit token path matching `/history`
-      const res  = await fetch(`${BASE_URL}/history?limit=${limit}&offset=${offset}`);
+      const res = await notificationFetch(`/history?limit=${limit}&offset=${offset}`);
       if (!res.ok) throw new Error(`Server returned error status context: ${res.status}`);
       const json = await res.json();
 
@@ -194,7 +191,7 @@ export function NotificationProvider({ children }) {
 
     try {
       // SECURE FIX: Changed from `/preferences/${userId}` to implicit path `/preferences`
-      const res  = await fetch(`${BASE_URL}/preferences`);
+      const res = await notificationFetch('/preferences');
       if (!res.ok) throw new Error(`Server returned error status context: ${res.status}`);
       const json = await res.json();
       
@@ -220,10 +217,9 @@ export function NotificationProvider({ children }) {
 
     try {
       // SECURE FIX: Changed from `/preferences/${userId}` to implicit path `/preferences`
-      const res = await fetch(`${BASE_URL}/preferences`, {
-        method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ type, enabled }),
+      const res = await notificationFetch('/preferences', {
+        method: 'PATCH',
+        body: JSON.stringify({ type, enabled }),
       });
       if (!res.ok) throw new Error('Failed preference serialization synchronization updates execution.');
     } catch (err) {

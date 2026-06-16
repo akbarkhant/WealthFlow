@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import {
   ChevronDown,
   LayoutDashboard,
@@ -22,13 +22,10 @@ import {
   Landmark,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useApi } from '../hooks/useApi';
-import { getMonthlyReport } from '../api/chartsApi';
-import { getCurrentPeriod, getMonthDateRange } from '../utils/dateRange';
+import { useReports } from '../context/ReportContext';
 import { SearchBar } from '../components/SearchBar/SearchBar';
 import NotificationBell from '../components/Notificationbell';
 import './dash.css';
-import Topbar from '../components/TopBar';
 
 const navItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -44,7 +41,7 @@ const navItems = [
   { name: 'Settings', path: '/settings', icon: Settings },
 ];
 
-const DashboardLayout = ({ children }) => {
+const DashboardLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -53,29 +50,14 @@ const DashboardLayout = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth > 768);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  // ── Stable Period Definition ────────────────────────────────────────────────
-  const { month: currentMonth, year: currentYear } = useMemo(() => getCurrentPeriod(), []);
-  
-  const period = useMemo(
-    () => getMonthDateRange(currentYear, currentMonth),
-    [currentYear, currentMonth]
-  );
-
-  // ── Memoized Data Fetcher ──────────────────────────────────────────────────
-  // Wrapping this in useCallback prevents the function reference from changing on every render
-  const fetchMonthlyReport = useCallback(() => {
-    return getMonthlyReport({ month: period.month, year: period.year });
-  }, [period.month, period.year]);
-
-  const { data: monthlySummary, loading: isSummaryLoading } = useApi(
-    fetchMonthlyReport,
-    [period.month, period.year]
-  );
+  // ── Context Data Layer Integration ──────────────────────────────────────────
+  const { monthlyReport, loading: isSummaryLoading } = useReports();
+  const reportData = monthlyReport?.data ? monthlyReport.data : monthlyReport;
 
   // ── Safe Financial Conversions ─────────────────────────────────────────────
-  const totalIncome = Number(monthlySummary?.totalIncome ?? 0);
-  const totalExpenses = Number(monthlySummary?.totalExpenses ?? 0);
-  const netCashflow = Number(monthlySummary?.netSavings ?? (totalIncome - totalExpenses));
+  const totalIncome = Number(reportData?.totalIncome ?? 0);
+  const totalExpenses = Number(reportData?.totalExpenses ?? 0);
+  const netCashflow = Number(reportData?.netSavings ?? (totalIncome - totalExpenses));
 
   // Currency formatter localized cleanly to user profile definitions
   const currency = useMemo(
@@ -321,7 +303,9 @@ const DashboardLayout = ({ children }) => {
           </div>
         </header>
 
-        <main className="dashboard-content">{children}</main>
+        <main className="dashboard-content">
+          <Outlet />
+        </main>
       </div>
     </div>
   );
