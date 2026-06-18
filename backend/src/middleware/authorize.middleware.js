@@ -67,6 +67,7 @@ function authenticate(req, res, next) {
     next();
   } catch (err) {
     logger.error({ err }, 'Authentication error');
+    console.log("JWT VERIFY ERROR:", err.message);
 
     return res.status(401).json({
       success: false,

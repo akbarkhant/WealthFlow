@@ -2,6 +2,7 @@ const searchService = require('./search.service');
 const searchLogger = require('./search.logger');
 
 async function handleSearch(req, res, next) {
+  console.log("👉 Search route successfully reached! Query:", req.validatedSearchQuery);
   const requestId = req.searchRequestId;
   const userId = req.user?.sub;
   const { q: queryText } = req.validatedSearchQuery;

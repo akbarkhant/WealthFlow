@@ -61,3 +61,12 @@ export async function updateTransaction(id, payload) {
 export async function deleteTransaction(id) {
   return api.delete(`/transactions/${id}`);
 }
+
+/**
+ * Bulk-import transactions parsed from an XLSX file.
+ * @param {Array<{date, amount, merchant, category, notes}>} transactions
+ * @returns {{ imported, duplicates, failed, message }}
+ */
+export async function importTransactions(transactions) {
+  return api.post('/transactions/import', { transactions });
+}

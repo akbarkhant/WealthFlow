@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/react';
 
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext';
+import { TransactionProvider } from './context/TransactionContext';
 import { setServerErrorHandler } from './api/client';
 
 import './index.css';
@@ -31,14 +32,16 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <Sentry.ErrorBoundary fallback={<h1>Something went wrong</h1>}>
       <BrowserRouter>
         <AuthProvider>
-          <Theme
-            appearance="light"
-            accentColor="green"
-            grayColor="slate"
-            radius="large"
-          >
-            <App />
-          </Theme>
+          <TransactionProvider>
+            <Theme
+              appearance="light"
+              accentColor="green"
+              grayColor="slate"
+              radius="large"
+            >
+              <App />
+            </Theme>
+          </TransactionProvider>
         </AuthProvider>
       </BrowserRouter>
     </Sentry.ErrorBoundary>

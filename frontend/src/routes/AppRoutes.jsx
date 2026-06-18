@@ -2,6 +2,7 @@
 import { Routes, Route, Outlet } from 'react-router-dom';
 import { lazy, Suspense } from "react";
 import DashboardLayout from '../layouts/DashboardLayout';
+import { TransactionProvider } from '../context/TransactionContext';
 
 // ── 1. Critical & Immediate Imports ──────────────────────────────
 import Home from '../pages/Home';
@@ -17,6 +18,7 @@ import { ReportProvider } from '../context/ReportContext';
 // ── 2. Lazy Loaded Components ────────────────────────────────────
 // Core Dynamic Dashboard & Dashboard Sub-routes
 const Dashboard = lazy(() => import("../pages/Dashboard"));
+const ImportPage = lazy(()=> import("../pages/ImportPage"))
 const Settings = lazy(() => import("../pages/Settings"));
 const Transactions = lazy(() => import('../pages/Transactions'));
 const Budgets = lazy(() => import('../pages/Budgets'));
@@ -95,8 +97,8 @@ const AppRoutes = () => {
         {/* ── Protected & Notification Enabled Routes ────────────────── */}
         <Route element={<ProtectedRoute><AuthenticatedNotificationWrapper /></ProtectedRoute>}>
 
-          {/* Wrap all private pages in a shared layout route */}
-          <Route element={<ReportProvider><DashboardLayout /></ReportProvider>}>
+          {/* Wrap all private pages in a shared layout route AND TransactionProvider */}
+          <Route element={<ReportProvider><TransactionProvider><DashboardLayout /></TransactionProvider></ReportProvider>}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path='/bills' element={<Bills />} />
             <Route path="/ai" element={<AI />} />
@@ -108,6 +110,8 @@ const AppRoutes = () => {
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/goals" element={<GoalsPage />} />
             <Route path="/accounts" element={<AccountsPage />} />
+            <Route path="/import-page" element={<ImportPage />} />
+
           </Route>
 
         </Route>

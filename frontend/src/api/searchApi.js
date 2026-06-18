@@ -40,7 +40,6 @@ function normalizeSearchError(error) {
 
   return normalized;
 }
-
 export async function fetchSearchResults(query, signal) {
   const sanitizedQuery = query.trim();
 
@@ -57,13 +56,17 @@ export async function fetchSearchResults(query, signal) {
   const requestId = createRequestId();
 
   try {
+    // This will correctly map to: http://localhost:5000/api/search?q=Wal
     const payload = await api.get('/search', {
-      params: { q: sanitizedQuery },
+      params: { q: sanitizedQuery }, // Uses 'q' as your searchRouter expects
       signal,
+      // 🔴 THE CRITICAL FIX FOR HTTPONLY COOKIES:
+      // This forces the browser to attach session cookies automatically to localhost:5000
+      withCredentials: true, 
       headers: { 'X-Request-Id': requestId },
     });
 
-    const results = Array.isArray(payload?.results) ? payload.results : [];
+    const results = Array.isArray(payload) ? payload : (payload?.results || []);
 
     return {
       success: payload?.success ?? true,

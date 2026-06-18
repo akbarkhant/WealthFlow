@@ -12,48 +12,33 @@ const { config } = require('../src/config/index.config');
 // Middlewares
 const requestLogger = require('./middleware/requestLogger.middleware');
 const notFound = require('./middleware/notFound.middleware');
-const {
-  errorHandler,
-  registerProcessHandlers,
-} = require('./middleware/errorHandler.middleware');
+const { errorHandler } = require('./middleware/errorHandler.middleware');
 const { apiLimiter } = require('./middleware/rateLimiter.middleware');
 
 // Routes
-const   authRoutes            = require('./modules/auth/auth.routes');
-const   budgetsRouter         = require('./modules/budgets/budget.routes');
-const   transactionsRouter    = require('./modules/transactions/transactions.routes');
-const   usersRouter           = require('./modules/users/users.routes');
-const { categoriesRouter }    = require('./modules/categories/categories.routes');
-const { reportsRouter }       = require('./modules/reports/reports.routes');
-const   notificationRouter    = require('./modules/notifications/notification.routes');
-const   searchRouter          = require('./modules/search/search.routes');
-const   aiRoutes              = require('./modules/ai/ai.routes')
-const   billsRouter           = require('./modules/bills/bills.routes');
-const   goalsRoutes           = require('./modules/goals/goals.routes');
-//const   analyticsRoutes      = require('./modules/analytics/analytics.routes');
-const   recurringRoutes       = require('./modules/recurring/recurring.routes');
-const   accountsRouter        = require('./modules/accounts/accounts.routes');
-const   contactRoutes         = require("./modules/contact/contact.routes");
-const   featureRoutes         = require("./modules/features/feature.routes")
+const authRoutes = require('./modules/auth/auth.routes');
+const budgetsRouter = require('./modules/budgets/budget.routes');
+const transactionsRouter = require('./modules/transactions/transactions.routes');
+const usersRouter = require('./modules/users/users.routes');
+const { categoriesRouter } = require('./modules/categories/categories.routes');
+const { reportsRouter } = require('./modules/reports/reports.routes');
+const notificationRouter = require('./modules/notifications/notification.routes');
+const searchRouter = require('./modules/search/search.routes');
+const aiRoutes = require('./modules/ai/ai.routes');
+const billsRouter = require('./modules/bills/bills.routes');
+const goalsRoutes = require('./modules/goals/goals.routes');
+const recurringRoutes = require('./modules/recurring/recurring.routes');
+const accountsRouter = require('./modules/accounts/accounts.routes');
+const contactRoutes = require('./modules/contact/contact.routes');
+const featureRoutes = require('./modules/features/feature.routes');
+const importRouter = require('./modules/import/import.routes');
 
 const app = express();
 
-app.use((err, req, res, next) => {
-
-  Sentry.captureException(err);
-
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message
-  });
-});
-
-
 // ─────────────────────────────────────────────
-// Security Middlewares
+// Security & Basic Config
 // ─────────────────────────────────────────────
 
-// ✅ Enhanced Helmet for security headers
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -61,135 +46,79 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", "http://localhost:5000", config.FRONTEND_URL],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
     },
   },
-  hsts: {
-    maxAge: 31536000,        // 1 year
-    includeSubDomains: true,
-    preload: true,
-  },
-  xContentTypeOptions: true,
-  xFrameOptions: { action: 'deny' },
-  xXssProtection: true,
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
-// ✅ CORS with credentials support
-console.log('CORS origin:', config.FRONTEND_URL);
-app.use(
-  cors({
-    origin: config.FRONTEND_URL || 'http://localhost:5173',
-    credentials: true,  // ✅ Allow cookies
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
+app.use(cors({
+  origin: config.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+}));
 
 app.use(compression());
-
-app.use(cookieParser());  // ✅ Parse cookies from requests
+app.use(cookieParser()); // Must be before routes
 
 // ─────────────────────────────────────────────
-// Body Parsers
+// Body Parsers & Logging
 // ─────────────────────────────────────────────
 
 app.use(express.json({ limit: '10mb' }));
-
-app.use(
-  express.urlencoded({
-    extended: true,
-    limit: '10mb',
-  })
-);
-
-// ─────────────────────────────────────────────
-// Logging
-// ─────────────────────────────────────────────
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 if (config.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
 app.use(requestLogger);
-
-// ─────────────────────────────────────────────
-// Rate Limiting
-// ─────────────────────────────────────────────
-
 app.use(apiLimiter);
-
-// ─────────────────────────────────────────────
-// Health Check
-// ─────────────────────────────────────────────
-
-app.get('/health', (req, res) => {
-  return res.status(200).json({
-    success: true,
-    message: 'Server is running',
-    environment: config.NODE_ENV,
-    timestamp: new Date().toISOString(),
-  });
-});
 
 // ─────────────────────────────────────────────
 // API Routes
 // ─────────────────────────────────────────────
 
+app.get('/health', (req, res) => {
+  res.status(200).json({ success: true, message: 'Server is running' });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/budgets', budgetsRouter);
-app.use(
-  '/api/transactions',
-  transactionsRouter
-);
-app.use('/api/users',         usersRouter);            // user    Routes
-app.use('/api/categories',    categoriesRouter); // category Routes
-app.use('/api/reports',       reportsRouter);      // report Routes
-app.use('/api/search',        searchRouter);      // search  Routes
-app.use('/api/notifications', notificationRouter); //
-app.use('/api/ai',            aiRoutes)
-app.use('/api/bills',         billsRouter);
-app.use('/api/goals',         goalsRoutes);
-//app.use('/api/analytics',     analyticsRoutes);
-app.use('/api/recurring',     recurringRoutes);
-app.use("/api/contact", contactRoutes);
-//app.use((err, req, res, next) => {
-  //const statusCode = err.status || 500;
-  //res.status(statusCode).json({
-    //success: false,
-    //message: err.message || "Internal Server Runtime Exception",
-    //stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-  ///});
-//});
+app.use('/api/transactions', transactionsRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/categories', categoriesRouter);
+app.use('/api/reports', reportsRouter);
+app.use('/api/search', searchRouter);
+app.use('/api/notifications', notificationRouter);
+app.use('/api/ai', aiRoutes);
+app.use('/api/bills', billsRouter);
+app.use('/api/goals', goalsRoutes);
+app.use('/api/recurring', recurringRoutes);
+app.use('/api/contact', contactRoutes);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/features', featureRoutes);
-
-// ─────────────────────────────────────────────
-// Root Route
-// ─────────────────────────────────────────────
+app.use('/api/transactions/import', importRouter);
 
 app.get('/', (req, res) => {
-  return res.status(200).json({
-    success: true,
-    message:
-      'Budget Management System API',
-    version: '1.0.0',
-  });
+  res.status(200).json({ success: true, message: 'Budget Management System API' });
 });
 
 // ─────────────────────────────────────────────
-// 404 Middleware
+// Error Handling (Must be last)
 // ─────────────────────────────────────────────
 
 app.use(notFound);
 
-// ─────────────────────────────────────────────
-// Global Error Handler
-// ─────────────────────────────────────────────
+// Sentry error capturing
+app.use((err, req, res, next) => {
+  Sentry.captureException(err);
+  next(err);
+});
 
+// Final Error Handler
 app.use(errorHandler);
-
 
 module.exports = app;

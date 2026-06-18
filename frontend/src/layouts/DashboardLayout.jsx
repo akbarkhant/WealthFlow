@@ -20,6 +20,7 @@ import {
   Sun,
   Goal,
   Landmark,
+  Import,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useReports } from '../context/ReportContext';
@@ -38,6 +39,7 @@ const navItems = [
   { name: 'History', path: '/history', icon: History },
   { name: 'Goals', path: '/goals', icon: Goal },
   { name: 'Accounts', path: '/accounts', icon: Landmark },
+  { name: 'Import Data', path: '/import-page', icon: Import },
   { name: 'Settings', path: '/settings', icon: Settings },
 ];
 

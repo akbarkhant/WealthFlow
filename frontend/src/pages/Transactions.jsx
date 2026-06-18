@@ -26,6 +26,7 @@ import { getCurrentPeriod, getMonthDateRange } from '../utils/dateRange';
 import { TableRowSkeleton } from '../components/feedback/LoadingSkeleton';
 import ErrorMessage from '../components/feedback/ErrorMessage';
 import EmptyState from '../components/feedback/EmptyState';
+import { useTransactionRefresh } from '../context/TransactionContext';
 import '../styles/pages/Transactions.css';
 
 const PAGE_SIZE = 7;
@@ -76,6 +77,9 @@ const Transactions = () => {
   const [formError, setFormError] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ============ ADD THIS: Register loadData with TransactionContext ============
+  const { registerRefetch } = useTransactionRefresh();
 
   // monthly-report API calls receive the params they actually need.
   const currentPeriodValues = useMemo(() => {
@@ -170,10 +174,14 @@ const Transactions = () => {
     }
   }, [currentPage, searchQuery, typeFilter, categoryIdFilter, currentPeriodValues]);
 
-
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // ============ ADD THIS: Register loadData with context so import can trigger refresh ============
+  useEffect(() => {
+    registerRefetch(loadData);
+  }, [loadData, registerRefetch]);
 
   // Dynamic Frontend Sorting Engine
   const sortedTransactions = useMemo(() => {

@@ -488,11 +488,6 @@ async function create(userId, input, amountInBaseCurrency, outerClient = null) {
     throw new Error('"amount" must be a finite positive number.');
   }
 
-  // 2. Inject the 2 to 4 second variable exchange rate network delay
-  const randomDelay = Math.floor(Math.random() * (4000 - 2000 + 1)) + 2000;
-  console.log(`[Exchange Rate] Simulating network lookup delay of ${randomDelay}ms...`);
-  await sleep(randomDelay);
-
   // 3. Setup structural transaction primitives
   const id = uuidv4();
   const delta = balanceDelta(input.type, Number(amountInBaseCurrency));

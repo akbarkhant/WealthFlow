@@ -36,13 +36,16 @@ function attachRateLimitRequestIP(req, _res, next) {
   next();
 }
 
-
 router.get(
   '/',
+  (req, res, next) => { console.log("Step 1: Route Hit!"); next(); },
   attachSearchContext,
+  (req, res, next) => { console.log("Step 2: Context Attached!"); next(); },
   protect,
+  (req, res, next) => { console.log("Step 3: Passed Auth Guard!"); next(); },
   attachRateLimitRequestIP,
   searchRateLimiter,
+  (req, res, next) => { console.log("Step 4: Passed Rate Limiter!"); next(); },
   validateSearchQuery,
   controller.handleSearch,
 );
