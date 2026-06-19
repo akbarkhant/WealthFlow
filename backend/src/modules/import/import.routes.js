@@ -10,6 +10,7 @@ const router = express.Router();
 /**
  * POST /api/transactions/import
  * Import multiple transactions in bulk from a parsed XLSX file.
+ * Includes proper duplicate detection before attempting inserts.
  *
  * Body: {
  *   transactions: [
@@ -41,15 +42,11 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     // ── Batch-resolve category names → UUIDs ────────────────────────────────
-    // Fetch ALL categories for this user once (avoids N DB round-trips).
     const userCategories = await categoriesRepository.findAll(userId);
-
-    // Build a case-insensitive name → id map
     const categoryMap = new Map(
       userCategories.map((c) => [c.name.toLowerCase(), c.id])
     );
 
-    // Fallback: first expense category, then any category
     const fallbackCategoryId =
       userCategories.find((c) => c.type === 'expense')?.id ||
       userCategories[0]?.id ||
@@ -59,27 +56,68 @@ router.post('/', authenticate, async (req, res) => {
     const userRecord = await transactionRepository.findUserById(userId);
     const userCurrency = userRecord?.currency || 'USD';
 
-    // ── Map each imported row to a service-ready payload ────────────────────
     // Build a map from category name → full category object (for type lookup)
     const categoryObjectMap = new Map(
       userCategories.map((c) => [c.name.toLowerCase(), c])
     );
 
-    const mapped = transactions.map((t) => {
-      const categoryName = (t.category || '').trim().toLowerCase();
+    // ── Fetch all existing transactions for duplicate detection ──────────────
+    // We need to check against existing transactions to avoid duplicates
+    const existingTransactions = await transactionRepository.findAllUnpaginated(userId);
 
-      // Resolve the full category object so we can read its 'type' (income/expense)
+    // Create a set of duplicate signatures for quick lookup
+    // Signature = date|amount|description (case-insensitive)
+    const existingSignatures = new Set(
+      existingTransactions.map((tx) => {
+        const dateStr = typeof tx.date === 'string' 
+          ? tx.date.split('T')[0]  // Handle ISO date string
+          : new Date(tx.date).toISOString().split('T')[0];
+        return `${dateStr}|${tx.amount}|${tx.description.toLowerCase()}`;
+      })
+    );
+
+    // ── Classify each imported row ───────────────────────────────────────────
+    const mapped = [];
+    let duplicateCount = 0;
+    let failedValidation = 0;
+
+    for (const t of transactions) {
+      // Validate required fields
+      if (!t.date || t.amount === undefined || !t.merchant || !t.category) {
+        failedValidation++;
+        continue;
+      }
+
+      const categoryName = (t.category || '').trim().toLowerCase();
       const resolvedCategory = categoryObjectMap.get(categoryName);
       const resolvedCategoryId = resolvedCategory?.id || fallbackCategoryId;
 
-      // Priority: category's DB type → explicit type from file → 'expense' default
-      // This is what fixes "Salary" rows (category type='income') showing as negative.
+      if (!resolvedCategoryId) {
+        failedValidation++;
+        continue;
+      }
+
       const resolvedType =
         resolvedCategory?.type ||
         (t.type ? t.type.toLowerCase() : null) ||
         'expense';
 
-      return {
+      // Create signature for duplicate detection
+      // Match against existing transactions
+      const dateStr = typeof t.date === 'string'
+        ? t.date.split('T')[0]
+        : new Date(t.date).toISOString().split('T')[0];
+      
+      const signature = `${dateStr}|${Number(t.amount)}|${(t.merchant || '').toLowerCase()}`;
+
+      // Check if this exact transaction already exists
+      if (existingSignatures.has(signature)) {
+        duplicateCount++;
+        continue; // Skip this duplicate
+      }
+
+      // Add to processed list for insertion
+      mapped.push({
         description: (t.merchant || t.description || 'Imported').trim(),
         amount: t.amount,
         type: resolvedType,
@@ -88,10 +126,22 @@ router.post('/', authenticate, async (req, res) => {
         categoryId: resolvedCategoryId,
         notes: t.notes || null,
         isRecurring: false,
-      };
-    });
+      });
+    }
 
-    // ── Bulk-create via existing service (handles balance + budget alerts) ──
+    // ── If no valid transactions to import, return early ─────────────────────
+    if (mapped.length === 0) {
+      return res.status(200).json({
+        success: true,
+        imported: 0,
+        duplicates: duplicateCount,
+        failed: failedValidation,
+        total: transactions.length,
+        message: `Import completed: 0 imported, ${duplicateCount} duplicates, ${failedValidation} validation errors`,
+      });
+    }
+
+    // ── Bulk-create via existing service ────────────────────────────────────
     const result = await transactionService.bulkCreateTransactions(userId, mapped);
 
     const successful = Array.isArray(result) ? result : (result.successful || []);
@@ -100,8 +150,9 @@ router.post('/', authenticate, async (req, res) => {
     return res.status(200).json({
       success: true,
       imported: successful.length,
-      duplicates: 0,
-      failed: failedItems.length,
+      duplicates: duplicateCount,
+      failed: failedValidation + failedItems.length,
+      total: transactions.length,
       message: `Successfully imported ${successful.length} of ${transactions.length} transactions`,
     });
 

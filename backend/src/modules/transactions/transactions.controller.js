@@ -10,22 +10,23 @@ async function getAllTransactions(req, res, next) {
     const filters = listTransactionsSchema.parse(req.query);
     const result = await transactionsService.list(userId, filters);
 
+    // Use the meta from the service (it has the correct total and pagination)
     const transactionsArray = Array.isArray(result) ? result : (result?.data || []);
+    const meta = result?.meta || {
+      page: filters.page || 1,
+      totalPages: 1,
+      total: transactionsArray.length
+    };
 
     return res.status(200).json({
       success: true,
-      data: transactionsArray, // This delivers your array straight to the React app!
-      meta: {
-        page: filters.page || 1,
-        totalPages: 1, // Optional: Update this later if your service adds real pagination metadata
-        total: transactionsArray.length
-      },
+      data: transactionsArray,
+      meta,  //Use the correct meta from service!
     });
   } catch (error) {
     return next(error);
   }
 }
-
 
 async function getTransactionById(req, res, next) {
   try {

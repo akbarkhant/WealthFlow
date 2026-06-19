@@ -400,8 +400,7 @@ async function remove(id, userId) {
 /* ────────────────────────────────────────────────────────────────────────── */
 
 async function list(userId, query) {
-  const result = await transactionRepository.findAll(userId, query);
-  return result?.data ?? result;
+  return await transactionRepository.findAll(userId, query);
 }
 
 async function listPaginated(userId, query) {
