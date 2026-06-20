@@ -21,6 +21,7 @@ const Dashboard = lazy(() => import("../pages/Dashboard"));
 const ImportPage = lazy(()=> import("../pages/ImportPage"))
 const Settings = lazy(() => import("../pages/Settings"));
 const Transactions = lazy(() => import('../pages/Transactions'));
+const TransactionDetail = lazy(() => import('../pages/TransactionDetail'));
 const Budgets = lazy(() => import('../pages/Budgets'));
 const Categories = lazy(() => import('../pages/Categories'));
 const Bills = lazy(() => import('../pages/Bills'));
@@ -107,10 +108,10 @@ const AppRoutes = () => {
             <Route path='/budgets' element={<Budgets />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/settings" element={<Settings />} />
-            <Route path="/history" element={<HistoryPage />} />
             <Route path="/goals" element={<GoalsPage />} />
             <Route path="/accounts" element={<AccountsPage />} />
-            <Route path="/import-page" element={<ImportPage />} />
+            <Route path='/transactions/:id' element={<TransactionDetail />} />
+            <Route path="/transactions/import-page" element={<ImportPage />} />
 
           </Route>
 

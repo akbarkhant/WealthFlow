@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
   AlertCircle,
   CheckCircle2,
@@ -27,6 +27,7 @@ import { TableRowSkeleton } from '../components/feedback/LoadingSkeleton';
 import ErrorMessage from '../components/feedback/ErrorMessage';
 import EmptyState from '../components/feedback/EmptyState';
 import { useTransactionRefresh } from '../context/TransactionContext';
+import ImportButton from '../components/ImportData/ImportButton';
 import '../styles/pages/Transactions.css';
 
 const PAGE_SIZE = 7;
@@ -78,7 +79,7 @@ const Transactions = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ============ ADD THIS: Register loadData with TransactionContext ============
+  // Register loadData with TransactionContext
   const { registerRefetch } = useTransactionRefresh();
 
   // monthly-report API calls receive the params they actually need.
@@ -178,7 +179,7 @@ const Transactions = () => {
     loadData();
   }, [loadData]);
 
-  // ============ ADD THIS: Register loadData with context so import can trigger refresh ============
+  // Register loadData with context so import can trigger refresh
   useEffect(() => {
     registerRefetch(loadData);
   }, [loadData, registerRefetch]);
@@ -400,10 +401,17 @@ const Transactions = () => {
           </p>
         </div>
 
-        <button className="btn btn-primary" type="button" onClick={() => setShowAddForm(true)}>
-          <Plus size={18} />
-          New Transaction
-        </button>
+        <div className="page-header-actions">
+          <ImportButton
+            variant="secondary"
+            label="Import Data"
+            showIcon={true}
+          />
+          <button className="btn btn-primary" type="button" onClick={() => setShowAddForm(true)}>
+            <Plus size={18} />
+            New Transaction
+          </button>
+        </div>
       </div>
 
       <div className="transaction-summary-grid">
@@ -580,12 +588,19 @@ const Transactions = () => {
                     <tr key={item.id}>
                       <td className="timestamp">{item.date}</td>
                       <td>
-                        <div className="merchant">
-                          <span className={`merchant-logo ${isIncome ? 'income' : 'expense'}`}>
-                            {initials}
-                          </span>
-                          <span>{item.description}</span>
-                        </div>
+                        {/* 💡 LINKED DESCRIPTION ROW FOR NAVIGATION */}
+                        <Link 
+                          to={`/transactions/${item.id}`} 
+                          className="transaction-link"
+                          style={{ textDecoration: 'none', color: 'inherit' }}
+                        >
+                          <div className="merchant">
+                            <span className={`merchant-logo ${isIncome ? 'income' : 'expense'}`}>
+                              {initials}
+                            </span>
+                            <span>{item.description}</span>
+                          </div>
+                        </Link>
                       </td>
                       <td>
                         <span

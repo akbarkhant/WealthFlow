@@ -1,0 +1,257 @@
+/* Custom properties configured for theme matching */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.4);
+  --glass-shadow: rgba(31, 38, 135, 0.06);
+  --text-primary: #1e293b;
+  --text-muted: #64748b;
+  --emerald-accent: #059669;
+  --emerald-glow: rgba(5, 150, 105, 0.15);
+  --rose-accent: #dc2626;
+  --rose-glow: rgba(220, 38, 38, 0.1);
+}
+
+/* Dark mode fallback adjustment automatically detected via layout variables if active */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass-bg: rgba(30, 41, 59, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shadow: rgba(0, 0, 0, 0.3);
+    --text-primary: #f8fafc;
+    --text-muted: #94a3b8;
+  }
+}
+
+.detail-page-wrapper {
+  max-width: 760px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+  font-family: inherit;
+}
+
+/* Back navigation button row setup */
+.detail-breadcrumb {
+  margin-bottom: 1.25rem;
+}
+
+.btn-icon-back {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.925rem;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-icon-back:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(4px);
+}
+
+/* Dynamic Frosted Glass Container Card */
+.glass-detail-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: 2.5rem;
+  box-shadow: 0 8px 32px 0 var(--glass-shadow);
+  transition: transform 0.3s ease;
+}
+
+/* Main Display Top Row Layout */
+.detail-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.header-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.detail-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+/* Presentation Amount Styling Details */
+.detail-amount {
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-amount.positive {
+  color: var(--emerald-accent);
+  text-shadow: 0 4px 20px var(--emerald-glow);
+}
+
+.detail-amount.negative {
+  color: var(--text-primary);
+}
+
+/* Segment separators styling details */
+.divider-line {
+  border: 0;
+  height: 1px;
+  background: var(--glass-border);
+  margin: 2rem 0;
+}
+
+/* Two column matrix metadata structure */
+.detail-attribute-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1xl);
+  grid-template-columns: calc(50% - 1rem) calc(50% - 1rem);
+  gap: 2rem;
+}
+
+@media (max-width: 560px) {
+  .detail-attribute-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+.attribute-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.attribute-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.attribute-value {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.security-hash {
+  font-family: monospace;
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+/* Status badge pills inside details layout view */
+.type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.3rem 0.65rem;
+  border-radius: 20px;
+  width: max-content;
+}
+
+.type-pill.income {
+  background: var(--emerald-glow);
+  color: var(--emerald-accent);
+  border: 1px solid rgba(5, 150, 105, 0.2);
+}
+
+.type-pill.expense {
+  background: rgba(100, 116, 139, 0.1);
+  color: var(--text-muted);
+  border: 1px solid rgba(100, 116, 139, 0.15);
+}
+
+.category-tag-pill {
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--glass-border);
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+/* Detail view footer structural layout actions */
+.detail-card-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.audit-note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 400px;
+}
+
+.btn-destructive-action {
+  background: var(--rose-glow);
+  border: 1px solid rgba(220, 38, 26, 0.2);
+  color: var(--rose-accent);
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s linear;
+}
+
+.btn-destructive-action:hover {
+  background: var(--rose-accent);
+  color: #ffffff;
+  box-shadow: 0 4px 12px var(--rose-glow);
+}
+
+/* Empty states and loader placeholders classes execution layout */
+.detail-loading-container, .detail-error-card {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  max-width: 500px;
+  margin: 4rem auto;
+  backdrop-filter: blur(8px);
+}
+
+.detail-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--glass-border);
+  border-top-color: var(--text-muted);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 1rem auto;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

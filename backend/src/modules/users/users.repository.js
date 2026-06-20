@@ -1,7 +1,7 @@
 const { query } = require('../../config/db.config');
 
 // ==========================================
-// 🔹 USER CRUD
+//  USER CRUD
 // ==========================================
 
 /**
@@ -83,7 +83,7 @@ async function deleteUser(id) {
 }
 
 // ==========================================
-// 🔹 PROFILE FIELDS
+//  PROFILE FIELDS
 // ==========================================
 
 async function updateName(id, name) {
@@ -127,7 +127,7 @@ async function updateTimezone(id, timezone) {
 }
 
 // ==========================================
-// 🔹 SECURITY FIELDS
+//  SECURITY FIELDS
 // ==========================================
 
 async function updatePasswordHash(id, password_hash) {
@@ -179,7 +179,7 @@ async function clearVerificationToken(id) {
 }
 
 // ==========================================
-// 🔹 ACCOUNT STATE
+// ACCOUNT STATE
 // ==========================================
 
 async function setActiveStatus(id, is_active) {
@@ -219,7 +219,7 @@ async function restoreUser(id) {
 }
 
 // ==========================================
-// 🔹 BALANCE / FINANCE
+// BALANCE / FINANCE
 // ==========================================
 
 /**

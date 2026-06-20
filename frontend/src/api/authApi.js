@@ -1,4 +1,4 @@
-import api from './client';
+import api from './client';   
 
 export async function login(credentials) {
   return api.post('/auth/login', credentials);
@@ -24,4 +24,13 @@ export async function forgotPassword(email) {
 
 export async function resetPassword(code, newPassword) {
   return api.post('/auth/reset-password', { code, newPassword });
+}
+
+export async function checkAuthSession() {
+  try {
+    const user = await api.get('/auth/me');
+    return { authenticated: true, user };
+  } catch (err) {
+    return { authenticated: false };
+  }
 }

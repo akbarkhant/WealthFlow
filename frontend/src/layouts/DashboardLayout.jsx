@@ -36,10 +36,9 @@ const navItems = [
   { name: 'Bills', path: '/bills', icon: ReceiptText },
   { name: 'AI-Assistant', path: '/ai', icon: Bot },
   { name: 'Reports', path: '/reports', icon: FileChartColumn },
-  { name: 'History', path: '/history', icon: History },
+  //{ name: 'History', path: '/history', icon: History },
   { name: 'Goals', path: '/goals', icon: Goal },
   { name: 'Accounts', path: '/accounts', icon: Landmark },
-  { name: 'Import Data', path: '/import-page', icon: Import },
   { name: 'Settings', path: '/settings', icon: Settings },
 ];
 

@@ -1,0 +1,229 @@
+/* ============ IMPORT BUTTON BASE ============ */
+.import-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.import-button:active {
+  transform: scale(0.98);
+}
+
+/* ============ BUTTON VARIANTS ============ */
+
+/* Primary Variant */
+.import-button-primary {
+  background-color: #059669;
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.15);
+}
+
+.import-button-primary:hover:not(:disabled) {
+  background-color: #047857;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+  transform: translateY(-2px);
+}
+
+.import-button-primary:focus {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+}
+
+.import-button-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Secondary Variant */
+.import-button-secondary {
+  background-color: #f0fdf4;
+  color: #059669;
+  border: 2px solid #059669;
+}
+
+.import-button-secondary:hover:not(:disabled) {
+  background-color: #dbeafe;
+  border-color: #047857;
+  color: #047857;
+  transform: translateY(-2px);
+}
+
+.import-button-secondary:focus {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+}
+
+.import-button-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Outline Variant */
+.import-button-outline {
+  background-color: transparent;
+  color: #059669;
+  border: 2px solid #059669;
+}
+
+.import-button-outline:hover:not(:disabled) {
+  background-color: #f0fdf4;
+  border-color: #047857;
+  color: #047857;
+  transform: translateY(-2px);
+}
+
+.import-button-outline:focus {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+}
+
+.import-button-outline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Icon-Only Variant */
+.import-button-icon {
+  background-color: transparent;
+  color: #059669;
+  border: 2px solid #059669;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  gap: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.import-button-icon:hover:not(:disabled) {
+  background-color: #f0fdf4;
+  border-color: #047857;
+  color: #047857;
+  transform: scale(1.05);
+}
+
+.import-button-icon:focus {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+}
+
+.import-button-icon:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.import-button-icon span {
+  display: none;
+}
+
+/* ============ BUTTON SIZES ============ */
+
+.import-button-small {
+  padding: 0.5rem 0.875rem;
+  font-size: 12px;
+  gap: 0.375rem;
+}
+
+.import-button-medium {
+  padding: 0.75rem 1.25rem;
+  font-size: 14px;
+  gap: 0.5rem;
+}
+
+.import-button-large {
+  padding: 1rem 1.75rem;
+  font-size: 16px;
+  gap: 0.625rem;
+  font-weight: 700;
+}
+
+/* ============ FULL WIDTH ============ */
+.import-button-full-width {
+  width: 100%;
+}
+
+/* ============ STATES ============ */
+.import-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.import-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* ============ RIPPLE EFFECT ============ */
+.import-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s ease, height 0.6s ease;
+}
+
+.import-button:active:not(:disabled)::after {
+  width: 300px;
+  height: 300px;
+}
+
+/* ============ RESPONSIVE ============ */
+@media (max-width: 768px) {
+  .import-button {
+    padding: 0.625rem 1rem;
+    font-size: 13px;
+  }
+
+  .import-button-small {
+    padding: 0.45rem 0.75rem;
+    font-size: 11px;
+  }
+
+  .import-button-large {
+    padding: 0.875rem 1.5rem;
+    font-size: 15px;
+  }
+
+  .import-button-icon {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* ============ ANIMATION PREFERENCES ============ */
+@media (prefers-reduced-motion: reduce) {
+  .import-button {
+    transition: none;
+  }
+
+  .import-button:hover {
+    transform: none;
+  }
+
+  .import-button::after {
+    transition: none;
+  }
+
+  .import-button:active::after {
+    width: 0;
+    height: 0;
+  }
+}

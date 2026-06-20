@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
 // ==========================================
-// 🔹 IDENTITY (SELF-SERVICE)
+// IDENTITY (SELF-SERVICE)
 // ==========================================
 
 async function getMe(userId) {
@@ -27,7 +27,7 @@ async function deleteMe(userId) {
 }
 
 // ==========================================
-// 🔹 ADMIN FUNCTIONS
+// ADMIN FUNCTIONS
 // ==========================================
 
 async function getUserById(userId) {
@@ -43,7 +43,7 @@ async function deleteUserById(userId) {
 }
 
 // ==========================================
-// 🔹 SECURITY (CRITICAL LOGIC)
+// SECURITY (CRITICAL LOGIC)
 // ==========================================
 
 async function hashPassword(password) {
@@ -80,7 +80,7 @@ async function updateEmail(userId, newEmail) {
 }
 
 // ==========================================
-// 🔹 MEDIA / AVATAR
+//  MEDIA / AVATAR
 // ==========================================
 
 async function validateImageUpload(file) {
@@ -132,7 +132,7 @@ async function getMyStats(userId) {
 }
 
 // ==========================================
-// 🔹 PREFERENCES SYSTEM
+//  PREFERENCES SYSTEM
 // ==========================================
 
 async function updatePreferences(userId, preferences) {

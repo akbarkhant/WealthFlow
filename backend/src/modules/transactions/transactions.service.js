@@ -396,7 +396,7 @@ async function remove(id, userId) {
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
-/* 🔍 READ & ANALYTICS PIPELINES (READ-ONLY POOL DISPATCH)                    */
+/*  READ & ANALYTICS PIPELINES (READ-ONLY POOL DISPATCH)                    */
 /* ────────────────────────────────────────────────────────────────────────── */
 
 async function list(userId, query) {

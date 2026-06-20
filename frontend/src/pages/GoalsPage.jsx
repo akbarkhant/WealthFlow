@@ -124,18 +124,18 @@ export default function GoalsPage() {
 
   if (loading) {
     return (
-        <div className="gp-loading-state">
-          <div className="gp-loading-spinner" />
-          <span>Loading your milestones…</span>
-        </div>
+      <div className="gp-loading-state">
+        <div className="gp-loading-spinner" />
+        <span>Loading your milestones…</span>
+      </div>
     );
   }
 
   const currencyMeta = SUPPORTED_CURRENCIES.find(c => c.code === displayCurrency);
 
   return (
+    <>
       <div className="gp-root">
-
         {/* ── Page header ── */}
         <header className="gp-header">
           <div className="gp-header-left">
@@ -270,7 +270,6 @@ export default function GoalsPage() {
               onClick={() => setActiveFilter(f.key)}
             >
               {f.label}
-              {/* FIX #4: Count on g.status (not g.derivedStatus) to match enriched data shape */}
               {f.key !== 'all' && (
                 <span className="gp-filter-count">
                   {goals.filter(g => g.status === f.key).length}
@@ -292,8 +291,6 @@ export default function GoalsPage() {
               <MilestoneNode
                 key={goal.id}
                 goal={goal}
-                // FIX #5: Was goal.derivedStatus (always undefined) — pass goal.status
-                // which is what enrichGoal actually sets on the returned object.
                 derivedStatus={goal.status}
                 displayCurrency={displayCurrency}
                 fmtNative={fmtNative}
@@ -303,9 +300,8 @@ export default function GoalsPage() {
             ))
           )}
         </main>
-
       </div>
-  )
+
       {/* ── Fuel drawer ── */}
       <FuelDrawer
         goal={selectedGoal}
@@ -368,7 +364,6 @@ export default function GoalsPage() {
                   </select>
                 </div>
                 <div className="gp-form-group">
-                  {/* FIX #6: Was "Target Target Amount" — duplicate word removed */}
                   <label htmlFor="goal-target">Target Amount</label>
                   <input
                     id="goal-target"
@@ -424,6 +419,8 @@ export default function GoalsPage() {
           {toastMsg}
         </div>
       )}
+    </>
+  );
 }
 
 function SummaryCard({ label, value, sublabel, accent, icon }) {
