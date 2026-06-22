@@ -379,9 +379,10 @@ async function findOrCreateOAuthUser(profile) {
         // 3. Complete net-new profile provision flow
         userId = uuidv4();
 
+        // Baseline currency configuration uses PKR
         await client.query(
           `INSERT INTO users (id, name, email, avatar_url, currency)
-           VALUES ($1, $2, $3, $4, 'USD')`,
+           VALUES ($1, $2, $3, $4, 'PKR')`,
           [
             userId,
             profile.name,
@@ -399,20 +400,28 @@ async function findOrCreateOAuthUser(profile) {
           );
         }
       }
-
-      // 4. Establish cross-reference link to link OAuth account to main user table record
-      await client.query(
-        `INSERT INTO oauth_accounts (user_id, provider, provider_id, avatar_url)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (provider, provider_id) DO NOTHING`,
-        [
-          userId,
-          profile.provider,
-          profile.providerId,
-          profile.avatarUrl || null,
-        ]
-      );
     }
+
+    // 4. Upsert/Update the OAuth account details along with Google OAuth API credential parameters
+    // Using COALESCE for the refresh token guarantees we don't nullify a valid token on subsequent logins
+    await client.query(
+      `INSERT INTO oauth_accounts (user_id, provider, provider_id, avatar_url, google_access_token, google_refresh_token)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (provider, provider_id) 
+       DO UPDATE SET 
+         avatar_url = EXCLUDED.avatar_url,
+         google_access_token = EXCLUDED.google_access_token,
+         google_refresh_token = COALESCE(EXCLUDED.google_refresh_token, oauth_accounts.google_refresh_token),
+         updated_at = NOW()`,
+      [
+        userId,
+        profile.provider,
+        profile.providerId,
+        profile.avatarUrl || null,
+        profile.googleAccessToken || null,
+        profile.googleRefreshToken || null
+      ]
+    );
 
     // 5. Finalize setup by fetching profile state properties to issue token pairs
     const userRows = await client.query(

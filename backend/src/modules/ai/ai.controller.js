@@ -22,15 +22,18 @@
  * All other AI operations are fire-and-forget with polling.
  */
 
-const aiService  = require('./ai.service');
-const aiQueue    = require('./ai.queue');
-const gateway    = require('./ai.gateway');
+const aiService = require('./ai.service');
+const aiQueue = require('./ai.queue');
+const gateway = require('./ai.gateway');
 const transactionService = require('../transactions/transactions.service');
-const budgetService      = require('../budgets/budget.service');
-const { query }          = require('../../config/db.config');
-const { sendSuccess }    = require('../../shared/ApiResponse');
-const { logger }         = require('../../config/logger.config');
-const { AppError }       = require('../../shared/AppError');
+const budgetService = require('../budgets/budget.service');
+const { query } = require('../../config/db.config');
+const { sendSuccess } = require('../../shared/ApiResponse');
+const { logger } = require('../../config/logger.config');
+const { AppError } = require('../../shared/AppError');
+const { google } = require('googleapis');
+const { config } = require('../../config/index.config');
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -39,16 +42,16 @@ const { AppError }       = require('../../shared/AppError');
 /** Safely extracts a flat transaction array from various service response shapes. */
 function extractTransactions(raw) {
   if (!raw) return [];
-  if (Array.isArray(raw))                 return raw;
-  if (Array.isArray(raw.data))            return raw.data;
-  if (Array.isArray(raw.rows))            return raw.rows;
-  if (Array.isArray(raw.transactions))    return raw.transactions;
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw.data)) return raw.data;
+  if (Array.isArray(raw.rows)) return raw.rows;
+  if (Array.isArray(raw.transactions)) return raw.transactions;
   return [];
 }
 
 /** Builds the financial context string for the chat system prompt. */
 function buildChatContext(transactions, budgets) {
-  const income   = transactions.filter(t => t.type === 'income')
+  const income = transactions.filter(t => t.type === 'income')
     .reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
   const expenses = transactions.filter(t => t.type === 'expense')
     .reduce((a, t) => a + Number(t.amount || t.amount_in_base_currency || 0), 0);
@@ -120,12 +123,84 @@ async function chat(req, res, next) {
       : [];
 
     const financialContext = buildChatContext(transactions, budgets);
-    const chatHistory      = Array.isArray(history) ? history : await aiService.loadChatHistory(userId);
+    const chatHistory = Array.isArray(history) ? history : await aiService.loadChatHistory(userId);
 
+    // ── NEW: Intercept the native Express res.json method before sending to the service ──
+    const originalJson = res.json.bind(res);
+
+    // Inside your ai.controller.js -> chat() function -> res.json interceptor:
+
+    res.json = async (data) => {
+      if (data && data.triggerCalendarAction) {
+        try {
+          const queryResult = await query(
+            `SELECT google_access_token, google_refresh_token 
+         FROM oauth_accounts 
+         WHERE user_id = $1 AND provider = 'google'`,
+            [userId]
+          );
+
+          const rows = queryResult?.rows ?? [];
+          const dbUser = rows[0];
+
+          if (!dbUser || !dbUser.google_access_token) {
+            // Fallback text output instead of structural JSON
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            return res.end('Please link your Google account to WealthFlow first to allow calendar scheduling.');
+          }
+
+          const backendBase = process.env.BACKEND_URL || `http://localhost:${config.PORT}`;
+          const oauth2Client = new google.auth.OAuth2(
+            config.GOOGLE_CLIENT_ID,
+            config.GOOGLE_CLIENT_SECRET,
+            `${backendBase}/api/auth/google/callback`
+          );
+
+          oauth2Client.setCredentials({
+            access_token: dbUser.google_access_token,
+            refresh_token: dbUser.google_refresh_token
+          });
+
+          const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+          const { summary, startDateTime, endDateTime } = data.eventDetails;
+
+          await calendar.events.insert({
+            calendarId: 'primary',
+            resource: {
+              summary,
+              description: 'Generated automatically by WealthFlow AI Financial Assistant.',
+              start: { dateTime: startDateTime, timeZone: 'UTC' },
+              end: { dateTime: endDateTime, timeZone: 'UTC' }
+            }
+          });
+
+          const confirmationText = `📅 **Event Scheduled!** I've successfully added "${summary}" to your Google Calendar for ${new Date(startDateTime).toLocaleString()}.`;
+
+          // 1. Record assistant's confirmation back into the database
+          await aiService.saveChatMessage(userId, 'assistant', confirmationText);
+
+          // ── FIXED: Stream the text response directly down the open socket wire ──
+          // This tricks the frontend layout into reading it as a natural text reply.
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          res.write(confirmationText);
+          return res.end();
+
+        } catch (calendarError) {
+          logger.error({ err: calendarError.message, userId }, '[AIController] Google Calendar insertion failed.');
+
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          return res.end("I parsed your scheduling request, but encountered a system synchronization issue updating your Google Calendar.");
+        }
+      }
+
+      return originalJson(data);
+    };
+
+    // Forward variables down into the runtime streaming service layer pipeline
     await aiService.chatService({
       userId,
       message,
-      history:         chatHistory,
+      history: chatHistory,
       financialContext,
       res,
       next,
@@ -134,6 +209,7 @@ async function chat(req, res, next) {
     next(err);
   }
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. ASYNC ANALYZE (enqueue → return jobId)
@@ -195,8 +271,8 @@ async function suggest(req, res, next) {
 async function requestInsights(req, res, next) {
   try {
     const userId = req.user.id;
-    const month  = parseInt(req.params.month, 10);
-    const year   = parseInt(req.params.year,  10);
+    const month = parseInt(req.params.month, 10);
+    const year = parseInt(req.params.year, 10);
 
     if (!month || !year || month < 1 || month > 12) {
       return res.status(400).json({ success: false, message: 'Valid month (1-12) and year are required.' });
@@ -224,12 +300,12 @@ async function getInsightsHistory(req, res, next) {
     const userId = req.user.id;
     const { month, year, limit = 10 } = req.query;
 
-    let sql    = 'SELECT * FROM ai_insights WHERE user_id = $1';
+    let sql = 'SELECT * FROM ai_insights WHERE user_id = $1';
     const vals = [userId];
-    let idx    = 2;
+    let idx = 2;
 
     if (month) { sql += ` AND target_month = $${idx++}`; vals.push(Number(month)); }
-    if (year)  { sql += ` AND target_year  = $${idx++}`; vals.push(Number(year));  }
+    if (year) { sql += ` AND target_year  = $${idx++}`; vals.push(Number(year)); }
 
     sql += ` ORDER BY created_at DESC LIMIT $${idx}`;
     vals.push(Number(limit));
@@ -246,8 +322,8 @@ async function getInsightsHistory(req, res, next) {
  */
 async function markInsightApplied(req, res, next) {
   try {
-    const { id }    = req.params;
-    const userId    = req.user.id;
+    const { id } = req.params;
+    const userId = req.user.id;
     const { isApplied = true } = req.body;
 
     const result = await query(
@@ -274,7 +350,7 @@ async function markInsightApplied(req, res, next) {
 async function getJobStatus(req, res, next) {
   try {
     const { jobId } = req.params;
-    const status    = await aiQueue.getJobStatus(jobId);
+    const status = await aiQueue.getJobStatus(jobId);
     return sendSuccess(res, status);
   } catch (err) {
     next(err);
@@ -310,7 +386,7 @@ async function getEducationTopics(req, res, next) {
 
 async function getEducationTip(req, res, next) {
   try {
-    const index  = parseInt(req.params.index ?? '0', 10);
+    const index = parseInt(req.params.index ?? '0', 10);
     const result = await aiService.educationService(index);
     return sendSuccess(res, result);
   } catch (err) { next(err); }
@@ -318,7 +394,7 @@ async function getEducationTip(req, res, next) {
 
 async function getEducationTipByTopic(req, res, next) {
   try {
-    const topic  = decodeURIComponent(req.params.name ?? '');
+    const topic = decodeURIComponent(req.params.name ?? '');
     const result = await aiService.educationService(topic);
     return sendSuccess(res, result);
   } catch (err) { next(err); }
@@ -331,7 +407,7 @@ async function getEducationTipByTopic(req, res, next) {
 async function getMonthlyReport(req, res, next) {
   try {
     const userId = req.user.id;
-    const month  = req.params.month; // 'YYYY-MM'
+    const month = req.params.month; // 'YYYY-MM'
 
     if (!/^\d{4}-\d{2}$/.test(month)) {
       return res.status(400).json({ success: false, message: 'month must be YYYY-MM format.' });

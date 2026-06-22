@@ -1,0 +1,95 @@
+/* ── Page Structural Core Layout Styles ── */
+.wf-page-layout {
+  padding: var(--space-6);
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+}
+
+.wf-page-header {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+@media (min-width: 768px) {
+  .wf-page-header {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.wf-page-main-title {
+  margin: 0 0 var(--space-1) 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  letter-spacing: -0.02em;
+}
+
+.wf-page-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-secondary);
+}
+
+/* ── Primary Trigger Action Buttons ── */
+.wf-action-trigger-btn {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-on-primary);
+  background-color: var(--color-primary);
+  border: 1px solid transparent;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-shadow: var(--shadow-xs);
+  transition: background-color var(--transition-fast);
+}
+
+.wf-action-trigger-btn:hover {
+  background-color: var(--color-primary-hover);
+}
+
+/* ── Tabbed View Selection Systems ── */
+.wf-tabs-container {
+  display: flex;
+  border-bottom: 1px solid var(--color-outline-variant);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.wf-tab-nav-item {
+  background: none;
+  border: none;
+  padding: var(--space-3) var(--space-1);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+.wf-tab-nav-item:hover {
+  color: var(--color-on-surface);
+}
+
+.wf-tab-nav-item.active {
+  color: var(--color-primary);
+  font-weight: 600;
+  border-bottom-color: var(--color-primary);
+}
+
+.wf-card-subtitle {
+  margin: var(--space-1) 0 0 0;
+  font-size: 13px;
+  color: var(--color-secondary);
+}

@@ -51,6 +51,7 @@ const ContactUs = lazy(() => import('../pages/Contact_Us'));
 const Privacy = lazy(() => import('../pages/legal/Privacy'));
 const Terms = lazy(() => import('../pages/legal/Terms'));
 const Security = lazy(() => import('../pages/legal/Security'));
+const AssetsPage = lazy(() => import('../pages/AssetsPage'));
 
 
 // ── Authenticated Notification Wrapper ───────────────────────────
@@ -110,6 +111,7 @@ const AppRoutes = () => {
             <Route path="/settings" element={<Settings />} />
             <Route path="/goals" element={<GoalsPage />} />
             <Route path="/accounts" element={<AccountsPage />} />
+            <Route path="/assets" element={<AssetsPage />} />
             <Route path='/transactions/:id' element={<TransactionDetail />} />
             <Route path="/transactions/import-page" element={<ImportPage />} />
 

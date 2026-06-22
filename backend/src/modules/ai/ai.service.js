@@ -67,15 +67,40 @@ async function persistInsight(userId, { type, targetMonth, targetYear, insightTe
 async function saveChatMessage(userId, role, content) {
   if (!content?.trim()) return;
   try {
+    const jsonContent = JSON.stringify(content.trim());
+
     await query(
-      `INSERT INTO chat_history (user_id, role, context, created_at)
+      `INSERT INTO chat_history (user_id, role, content, created_at) -- Changed 'context' to 'content'
        VALUES ($1, $2, $3, NOW())`,
-      [userId, role, content.trim()],
+      [userId, role, jsonContent],
     );
   } catch (err) {
     logger.warn({ err: err.message, userId, role }, '[AIService] Failed to save chat message.');
   }
 }
+
+const calendarToolDeclaration = {
+  name: 'createCalendarEvent',
+  description: 'Create a new event in the user\'s Google Calendar. Use this when the user explicitly asks to schedule, book, or set a meeting, appointment, or reminder.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      summary: {
+        type: Type.STRING,
+        description: 'The title or topic of the event (e.g., "Dentist Appointment", "Weekly Budget Sync").',
+      },
+      startDateTime: {
+        type: Type.STRING,
+        description: 'The start date and time in ISO 8601 format (e.g., "2026-06-22T15:00:00Z").',
+      },
+      endDateTime: {
+        type: Type.STRING,
+        description: 'The end date and time in ISO 8601 format. If omitted, default to 1 hour after startDateTime.',
+      },
+    },
+    required: ['summary', 'startDateTime'],
+  },
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. AUTOMATIC TRANSACTION CATEGORISATION
@@ -89,6 +114,8 @@ async function saveChatMessage(userId, role, content) {
  * @param {object[]} availableCategories - [{ id, name }]
  * @returns {Promise<{ categoryId: string|null, cleanDescription: string }>}
  */
+
+
 async function automaticallyCategorize(rawInput, availableCategories) {
   const merchantNorm = rawInput.toLowerCase().trim().slice(0, 120);
 
@@ -168,9 +195,12 @@ Rules:
  * @param {object} params.res             - Express response object
  * @param {Function} params.next          - Express next()
  */
+
 async function chatService({ userId, message, history = [], financialContext = '', res, next }) {
   // Persist user message before streaming begins
   await saveChatMessage(userId, 'user', message);
+
+  const currentDateTime = new Date().toISOString();
 
   const systemPrompt = `You are WealthFlow AI, a personal finance assistant.
 
@@ -178,6 +208,7 @@ Rules:
 - Only use the provided financial data. Never invent numbers.
 - Be concise and practical. Use bullet points when helpful.
 - If the user asks something outside personal finance, politely redirect.
+- Current Date and Time reference anchor: ${currentDateTime}. Use this for resolving relative timing phrases like 'tomorrow' or 'next week'.
 
 Financial Context:
 ${financialContext}`;
@@ -198,20 +229,28 @@ ${financialContext}`;
   formattedContents.push({ role: 'user', parts: [{ text: message }] });
 
   try {
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
-    res.setHeader('Cache-Control', 'no-cache');
-
     const aiStream = await gateway.stream(
       (model, ai) => ai.models.generateContentStream({
         model,
         contents: formattedContents,
-        config: { temperature: 0.3, topP: 0.9, maxOutputTokens: 1024 },
+        config: { 
+          temperature: 0.3, 
+          topP: 0.9, 
+          maxOutputTokens: 1024,
+          tools: [{ functionDeclarations: [calendarToolDeclaration] }]
+        },
       }),
       { label: 'chat-stream', timeoutMs: 60_000 },
     );
 
-    // Intercept res.write to capture the full reply for DB persistence
+    // ── STEP 1: Intercept headers by preparing custom chunk monitoring ──
+    let isToolCall = false;
+    let toolArgs = null;
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+
     let aiReply = '';
     const { StringDecoder } = require('string_decoder');
     const decoder       = new StringDecoder('utf-8');
@@ -226,31 +265,49 @@ ${financialContext}`;
     res.end = async (...args) => {
       try {
         aiReply += decoder.end();
-        await saveChatMessage(userId, 'assistant', aiReply);
+        // Only save to DB if it was text (don't save the raw structural JSON payload)
+        if (!isToolCall) {
+          await saveChatMessage(userId, 'assistant', aiReply);
+        }
       } catch (err) {
         logger.warn({ err: err.message }, '[AIService] Failed to persist assistant reply.');
       }
       return originalEnd(...args);
     };
 
+    // ── STEP 2: Unified iteration loop (Handles BOTH text streaming & Tool Calls dynamically) ──
     for await (const chunk of aiStream) {
-      if (chunk.text) res.write(chunk.text);
+      // If the first chunk contains a tool directive invitation
+      if (chunk.functionCalls && chunk.functionCalls.length > 0) {
+        isToolCall = true;
+        toolArgs = chunk.functionCalls[0].args;
+        break; // Stop streaming immediately to process backend action payload
+      }
+
+      // Stream text fragments cleanly and naturally without interruptions
+      if (chunk.text) {
+        res.write(chunk.text);
+      }
     }
 
+    // ── STEP 3: If a tool was triggered, wipe headers and return structured intercept action ──
+    if (isToolCall && toolArgs) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(200).json({
+        success: true,
+        triggerCalendarAction: true,
+        eventDetails: {
+          summary: toolArgs.summary,
+          startDateTime: toolArgs.startDateTime,
+          endDateTime: toolArgs.endDateTime || new Date(new Date(toolArgs.startDateTime).getTime() + 60 * 60 * 1000).toISOString()
+        }
+      });
+    }
+
+    // Wrap up standard stream text chunks normally
     res.end();
   } catch (err) {
     logger.error({ err: err.message }, '[AIService] Chat streaming failed.');
-
-    if (err.isCircuitOpen) {
-      if (!res.headersSent) {
-        return res.status(503).json({
-          success: false,
-          message: 'AI service is temporarily unavailable. Please try again in a moment.',
-        });
-      }
-      return res.end();
-    }
-
     if (!res.headersSent) return next(err);
     res.end();
   }

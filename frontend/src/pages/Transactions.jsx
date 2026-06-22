@@ -142,7 +142,6 @@ const Transactions = () => {
 
       // FIX: Drill into the service layer's response object structure securely
       if (txResult) {
-        console.log("RAW API TRANSACTION RESULT:", txResult);
 
         const extractedData = Array.isArray(txResult) ? txResult : (txResult.data || []);
         const extractedMeta = txResult.meta || {};

@@ -26,12 +26,16 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
+        // ── CHANGED: Pass the calendar tokens into your database service ──
         const tokens = await findOrCreateOAuthUser({
           provider: 'google',
           providerId: profile.id,
           email: profile.emails?.[0]?.value || '',
           name: profile.displayName,
           avatarUrl: profile.photos?.[0]?.value,
+          // Add these fields so you can update them in your database
+          googleAccessToken: accessToken,
+          googleRefreshToken: refreshToken, 
         });
 
         done(null, tokens);
@@ -76,7 +80,7 @@ passport.use(
 
 // ── Auth Routes ────────────────────────────────────────────────────
 
-router.get('/me',        authenticate,                              controller.me); 
+router.get('/me',        authenticate,                               controller.me); 
 
 // ==== Email/password auth =========================
 router.post('/register', authRateLimiter, validate(registerSchema), controller.register);
@@ -100,7 +104,13 @@ router.post('/reset-password',  authRateLimiter, controller.resetPassword);
 router.get(
   '/google',
   authRateLimiter,
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })
+  // ── CHANGED: Added calendar scopes & forced an offline access type to obtain a refreshToken ──
+  passport.authenticate('google', { 
+    scope: ['profile', 'email', 'https://www.googleapis.com/auth/calendar.events'], 
+    accessType: 'offline',
+    prompt: 'consent', // Ensures you get the refresh token every time they reconnect
+    session: false 
+  })
 );
 
 router.get(

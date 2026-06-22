@@ -32,6 +32,7 @@ const accountsRouter = require('./modules/accounts/accounts.routes');
 const contactRoutes = require('./modules/contact/contact.routes');
 const featureRoutes = require('./modules/features/feature.routes');
 const importRouter = require('./modules/import/import.routes');
+const paymentRouter = require('./modules/payments/payments.routes');
 
 const app = express();
 
@@ -101,6 +102,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/accounts', accountsRouter);
 app.use('/api/features', featureRoutes);
 app.use('/api/transactions/import', importRouter);
+app.use('/api/payments', paymentRouter);
 
 app.get('/', (req, res) => {
   res.status(200).json({ success: true, message: 'Budget Management System API' });

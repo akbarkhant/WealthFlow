@@ -65,9 +65,7 @@ const baseTransactionSchema = z.object({
   type: transactionTypeSchema,
   destinationUserId: z.string().uuid().optional(),
   description: z.string().trim().max(500).optional(),
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   isRecurring: z.boolean().default(false),
 });
 
@@ -120,8 +118,27 @@ const listTransactionsSchema = z.object({
   search: z.string().trim().max(100).optional(),
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// INTEGRATED WALLET VALIDATION SCHEMA
+// ─────────────────────────────────────────────────────────────────────────────
+const walletCheckoutSchema = z.object({
+  amount: moneySchema,
+  currency: currencySchema.default('PKR'),
+  provider: z.enum(['EASYPAISA', 'JAZZCASH'], {
+    errorMap: () => ({ message: "Provider selection must be explicitly 'EASYPAISA' or 'JAZZCASH'." })
+  }),
+  mobileNumber: z
+    .string()
+    .trim()
+    .regex(/^(03\d{9}|923\d{9})$/, 'Valid Pakistani mobile wallet format required (e.g., 03001234567)'),
+  categoryId: z.string().uuid('Category connection must be a valid system UUID').optional(),
+  userId: z.string().uuid('User parameter validation context failed').optional(), // Optional if parsed via JWT middleware
+  idempotencyKey: z.string().max(255).optional()
+});
+
 module.exports = {
   createTransactionSchema,
   updateTransactionSchema,
   listTransactionsSchema,
+  walletCheckoutSchema,
 };

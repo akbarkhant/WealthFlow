@@ -11,7 +11,7 @@ const ACCOUNT_TYPE_META = {
   CREDIT_CARD: { emoji: '💳', label: 'Credit Card' },
   LOAN: { emoji: '📋', label: 'Loan' },
   INVESTMENT: { emoji: '📈', label: 'Investment' },
-  DIGITAL_WALLET: { emoji: '📲', label: 'Digital Wallet' },
+  DIGITAL_WALLET: { emoji: '📲', label: 'Digital Wallet (EasyPaisa/JazzCash)' },
 };
 
 export const ACCOUNT_TYPES = Object.keys(ACCOUNT_TYPE_META);
@@ -21,8 +21,10 @@ export function formatCurrency(amount, currency = 'PKR') {
   const n = Number(amount || 0);
   try {
     return new Intl.NumberFormat(undefined, {
-      style: 'currency', currency,
-      minimumFractionDigits: 2, maximumFractionDigits: 2,
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(n);
   } catch {
     return `${currency} ${n.toFixed(2)}`;
@@ -126,8 +128,11 @@ export function ToastContainer({ toasts, onRemove }) {
           <span style={{ flex: 1 }}>{t.message}</span>
           <button
             onClick={() => onRemove(t.id)}
+            className="toast__close-btn"
             style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5, fontSize: 14, padding: '0 0 0 8px' }}
-          >✕</button>
+          >
+            ✕
+          </button>
         </div>
       ))}
     </div>
@@ -396,8 +401,14 @@ export function SummaryChips({ summary, accounts }) {
 // CREATE / EDIT ACCOUNT MODAL
 // ─────────────────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
-  name: '', type: 'BANK', currency: 'PKR',
-  balance: '', credit_limit: '', institution_name: '', account_number_masked: '',
+  name: '',
+  type: 'BANK',
+  currency: 'PKR',
+  balance: '',
+  credit_limit: '',
+  institution_name: '',
+  account_number_masked: '',
+  sub_provider: '',
 };
 
 export function AccountFormModal({ open, onClose, onSubmit, initial, loading, error }) {
@@ -413,15 +424,30 @@ export function AccountFormModal({ open, onClose, onSubmit, initial, loading, er
       credit_limit: initial.credit_limit ?? '',
       institution_name: initial.institution_name || '',
       account_number_masked: initial.account_number_masked || '',
+      sub_provider: initial.sub_provider || '',
     } : EMPTY_FORM);
   }, [open, initial]);
 
   const set = (field) => (e) => setForm(p => ({ ...p, [field]: e.target.value }));
 
+  const handleSelectWalletProvider = (provider) => {
+    setForm(p => ({
+      ...p,
+      sub_provider: provider,
+      name: p.name.trim() === '' || p.name === 'EasyPaisa Wallet' || p.name === 'JazzCash Wallet'
+        ? `${provider === 'EASYPAISA' ? 'EasyPaisa' : 'JazzCash'} Wallet`
+        : p.name
+    }));
+  };
   const handleFormSubmit = (e) => {
     e.preventDefault();
     const toNum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : undefined; };
     const toStr = (v) => (v && v.trim() ? v.trim() : undefined);
+
+    const isWallet = form.type === 'DIGITAL_WALLET';
+
+    // Fix: Fallback provider string value if not defined yet
+    const walletProvider = form.sub_provider || 'EASYPAISA';
 
     const payload = {
       name: form.name,
@@ -429,8 +455,12 @@ export function AccountFormModal({ open, onClose, onSubmit, initial, loading, er
       currency: form.currency,
       balance: toNum(form.balance),
       credit_limit: toNum(form.credit_limit),
-      institution_name: toStr(form.institution_name),
+      // Fix: If it's a mobile wallet, supply a valid Institution name automatically
+      institution_name: isWallet
+        ? (walletProvider === 'EASYPAISA' ? 'EasyPaisa' : 'JazzCash')
+        : toStr(form.institution_name),
       account_number_masked: toStr(form.account_number_masked),
+      sub_provider: isWallet ? walletProvider : undefined,
     };
 
     const clean = Object.fromEntries(
@@ -441,6 +471,7 @@ export function AccountFormModal({ open, onClose, onSubmit, initial, loading, er
   };
 
   const isCreditCard = form.type === 'CREDIT_CARD';
+  const isMobileWallet = form.type === 'DIGITAL_WALLET';
 
   return (
     <Modal
@@ -477,7 +508,14 @@ export function AccountFormModal({ open, onClose, onSubmit, initial, loading, er
               <select
                 className="form-select"
                 value={form.type}
-                onChange={set('type')}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm(p => ({
+                    ...p,
+                    type: val,
+                    sub_provider: val === 'DIGITAL_WALLET' ? 'EASYPAISA' : ''
+                  }));
+                }}
               >
                 {ACCOUNT_TYPES.map(t => (
                   <option key={t} value={t}>
@@ -505,6 +543,31 @@ export function AccountFormModal({ open, onClose, onSubmit, initial, loading, er
             </div>
           </div>
         </div>
+
+        {/* Dynamic EasyPaisa / JazzCash Selector UI */}
+        {isMobileWallet && (
+          <>
+            <div className="form-group animated-fade-in" style={{ marginBottom: '1rem' }}>
+              <label className="form-label">Wallet Provider <span>*</span></label>
+              {/* ... Your provider-btn grid component stays here ... */}
+            </div>
+
+            {/* NEW INPUT GROUP: Appended right under the grid selection buttons */}
+            <div className="form-group animated-fade-in" style={{ marginBottom: '1rem' }}>
+              <label className="form-label">Mobile Wallet Account Number <span>*</span></label>
+              <input
+                type="tel"
+                className="form-input"
+                value={form.account_number_masked} // Safely reuse your existing column mapping
+                onChange={set('account_number_masked')}
+                placeholder="e.g. 03001234567"
+                maxLength={11}
+                required
+              />
+              <span className="form-hint">Enter the phone number tied to your mobile wallet.</span>
+            </div>
+          </>
+        )}
 
         {!isEdit && (
           <div className="form-group">
@@ -539,29 +602,31 @@ export function AccountFormModal({ open, onClose, onSubmit, initial, loading, er
           </div>
         )}
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">Institution</label>
-            <input
-              className="form-input"
-              value={form.institution_name}
-              onChange={set('institution_name')}
-              placeholder="e.g. Meezan Bank"
-              maxLength={100}
-            />
-          </div>
+        {!isMobileWallet && (
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Institution</label>
+              <input
+                className="form-input"
+                value={form.institution_name}
+                onChange={set('institution_name')}
+                placeholder="e.g. Meezan Bank"
+                maxLength={100}
+              />
+            </div>
 
-          <div className="form-group">
-            <label className="form-label">Account # (masked)</label>
-            <input
-              className="form-input"
-              value={form.account_number_masked}
-              onChange={set('account_number_masked')}
-              placeholder="•••• 1234"
-              maxLength={30}
-            />
+            <div className="form-group">
+              <label className="form-label">Account # (masked)</label>
+              <input
+                className="form-input"
+                value={form.account_number_masked}
+                onChange={set('account_number_masked')}
+                placeholder="•••• 1234"
+                maxLength={30}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="form-actions">
           <Button
@@ -570,15 +635,7 @@ export function AccountFormModal({ open, onClose, onSubmit, initial, loading, er
             loading={loading}
             className="create-account-btn"
           >
-            {isEdit ? (
-              <>
-                <span> Save Changes</span>
-              </>
-            ) : (
-              <>
-                <span>Create Account</span>
-              </>
-            )}
+            {isEdit ? <span>Save Changes</span> : <span>Create Account</span>}
           </Button>
         </div>
       </form>
@@ -637,7 +694,6 @@ export function LedgerModal({ open, onClose, account, accounts, initialOp = 'dep
       <form id="ledger-operation-form" onSubmit={handleLedgerSubmit}>
         {error && <div className="alert alert--error">⚠ {error}</div>}
 
-        {/* Op tabs */}
         <div className="op-tabs">
           {(['deposit', 'withdraw', 'transfer']).map(o => (
             <button
@@ -652,8 +708,7 @@ export function LedgerModal({ open, onClose, account, accounts, initialOp = 'dep
           ))}
         </div>
 
-        {/* Account context */}
-        <div style={{
+        <div className="ledger-account-summary" style={{
           display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
           background: 'var(--color-surface-container-low)', borderRadius: 'var(--radius-md)', marginBottom: 15
         }}>
@@ -668,7 +723,6 @@ export function LedgerModal({ open, onClose, account, accounts, initialOp = 'dep
           </div>
         </div>
 
-        {/* Amount */}
         <div className="form-group">
           <label className="form-label">Amount <span style={{ color: 'var(--color-error)' }}>*</span></label>
           <div className="amount-input-wrap">
@@ -687,7 +741,6 @@ export function LedgerModal({ open, onClose, account, accounts, initialOp = 'dep
           </div>
         </div>
 
-        {/* Transfer target */}
         {op === 'transfer' && (
           <div className="form-group">
             <label className="form-label">To account <span style={{ color: 'var(--color-error)' }}>*</span></label>
@@ -732,7 +785,7 @@ export function AccountsEmpty({ onAdd }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INTEGRATED CONTROLLER ACTION (NEW COMPONENT)
+// INTEGRATED CONTROLLER ACTION
 // ─────────────────────────────────────────────────────────────────────────────
 export function CreateAccountAction({ onAdd }) {
   return (
